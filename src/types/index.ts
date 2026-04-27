@@ -18,6 +18,10 @@ export interface LiteLLMModel {
    * Optional capability metadata exposed by some LiteLLM versions
    * via `/model/info` (we ignore it for the lean discovery endpoint
    * but keep the type around for forward-compat).
+   *
+   * Newer LiteLLM versions may expose `'responses'` here for models
+   * that must be routed through the OpenAI Responses API rather than
+   * `/v1/chat/completions` (e.g. `gpt-5*`, `o1/o3/o4*` with reasoning).
    */
   mode?: string
   max_tokens?: number
@@ -34,7 +38,44 @@ export interface LiteLLMModelsResponse {
 
 export type ModelType = 'chat' | 'embedding' | 'image' | 'audio' | 'unknown'
 
+/**
+ * Which OpenAI-compatible HTTP surface a model should be invoked through.
+ *
+ * - `chat`      → `/v1/chat/completions` (most models)
+ * - `responses` → `/v1/responses`        (gpt-5*, o-series with reasoning)
+ */
+export type Transport = 'chat' | 'responses'
+
+/**
+ * User-facing routing override. Defaults to `'auto'`.
+ *
+ * - `'auto'`      → use the heuristic + LiteLLM `mode` field
+ * - `'chat'`      → force every discovered model into the chat-completions provider
+ * - `'responses'` → force every discovered model into the responses provider
+ */
+export type TransportPolicy = 'auto' | Transport
+
 export interface LiteLLMOptions {
   baseURL?: string
   apiKey?: string
+  /**
+   * Routing policy for discovered models. See {@link TransportPolicy}.
+   * Defaults to `'auto'`.
+   */
+  transport?: TransportPolicy
+  /**
+   * Explicit allowlist of model ids that MUST be routed through the
+   * OpenAI Responses API (`/v1/responses`). Takes priority over the
+   * heuristic and over the `transport` policy.
+   *
+   * Match is exact against the LiteLLM model id (e.g. `"gpt-5-4-high"`).
+   */
+  responsesApiModels?: string[]
+  /**
+   * Explicit denylist of model ids that MUST be routed through chat
+   * completions (`/v1/chat/completions`), even if the heuristic would
+   * otherwise put them in the responses bucket. Takes priority over
+   * the heuristic but is overridden by `responsesApiModels`.
+   */
+  chatApiModels?: string[]
 }

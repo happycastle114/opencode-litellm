@@ -63,6 +63,7 @@ That's it. No provider block required.
 | 📡 **Dynamic discovery** | Queries `/v1/models` so your OpenCode model picker always reflects your live `model_list`. |
 | 🏷️ **Smart formatting** | Turns `anthropic/claude-3-5-sonnet` into `Claude 3 5 Sonnet` in the picker — handles versions, sizes, quantizations, and brand-cased names like `gpt-4o`. |
 | 🧠 **Modality-aware** | Infers `chat` / `embedding` / `image` / `audio` from the model `mode` field or id, and writes proper `modalities` metadata. |
+| 🧪 **Reasoning-aware routing** | Auto-routes `gpt-5*` / `o1`/`o3`/`o4*` models through a sibling `litellm-responses` provider that uses `/v1/responses`, so tools + `reasoning_effort` actually work. Override per model via `responsesApiModels` / `chatApiModels`. |
 | 🏢 **Provider extraction** | Pulls `litellm_provider` (or the `provider/model` prefix) into `organizationOwner` so models group correctly in the UI. |
 | 🔐 **Auth-aware** | Honours `LITELLM_API_KEY` / `LITELLM_MASTER_KEY` env vars or `provider.litellm.options.apiKey`. |
 | ⏱️ **Non-blocking startup** | Discovery is capped at **5 s** — a slow or offline proxy never delays OpenCode boot. |
@@ -112,6 +113,53 @@ Override the URL, set an API key, or pre-define curated models that the plugin w
 
 The plugin will **keep your hand-defined `openai/gpt-4o`** and only inject models it discovers that aren't already there.
 
+### Reasoning models (gpt-5, o1/o3/o4)
+
+OpenAI's reasoning-tier models reject requests that combine `reasoning_effort`
+with function tools when sent to `/v1/chat/completions`. The OpenAI Responses
+API (`/v1/responses`) has no such restriction, so the plugin routes those
+models through a **second provider entry** named `litellm-responses` that
+uses an SDK speaking the Responses API.
+
+You don't need to do anything for the default behaviour — the plugin
+detects reasoning-tier models from their id (`gpt-5*`, `o1*`, `o3*`,
+`o4*`) and from LiteLLM's `mode === 'responses'` field, and creates the
+sibling provider lazily.
+
+To override the routing per model:
+
+```jsonc
+{
+  "provider": {
+    "litellm": {
+      "options": {
+        "baseURL": "http://localhost:4000/v1",
+
+        // "auto" (default) | "chat" | "responses"
+        "transport": "auto",
+
+        // Force these into /v1/responses (highest precedence)
+        "responsesApiModels": ["gpt-5-4-high", "my-custom-reasoning-model"],
+
+        // Force these into /v1/chat/completions
+        "chatApiModels": ["o1-mini-cheap"]
+      }
+    }
+  }
+}
+```
+
+The two providers share `baseURL` and `apiKey`. Models curated by hand
+under either provider's `models` block are preserved verbatim, and a
+discovered model is skipped if its key already exists under **either**
+provider.
+
+> **Note**: this requires LiteLLM ≥ 1.40 (which proxies `/v1/responses`)
+> and an `@ai-sdk/openai` version that supports the Responses API. Older
+> AI SDKs may silently fall back to chat-completions, in which case set
+> `responsesApiModels` to an empty list and fix the upstream LiteLLM
+> config instead (e.g. `use_responses_api: true` per model).
+
 ### Authentication
 
 If your LiteLLM proxy requires a master key, expose it via either approach:
@@ -143,7 +191,9 @@ sequenceDiagram
     Plugin->>LL: GET /v1/models (with auth if set)
     LL-->>Plugin: { data: [...models] }
     Plugin->>Plugin: format names, infer modalities, extract owner
-    Plugin->>OC: merge into config (non-destructive)
+    Plugin->>Plugin: bucket each model by transport (chat vs responses)
+    Plugin->>OC: merge chat-completions models into provider.litellm
+    Plugin->>OC: merge responses models into provider.litellm-responses (lazy)
     OC->>OC: render model picker with all discovered models
 ```
 
@@ -151,8 +201,9 @@ sequenceDiagram
 2. If `provider.litellm` exists, its `baseURL` is used. Otherwise common ports are probed.
 3. A health check (`GET /v1/models`) verifies the proxy is reachable and authorized.
 4. Models from the response are converted into OpenCode model entries with `id`, formatted `name`, `organizationOwner`, and inferred `modalities`.
-5. Discovered models are merged on top of any user-defined ones — never overwriting them.
-6. The whole flow is wrapped in a `Promise.race` against a 5 s timeout so a slow proxy never blocks boot.
+5. Each model is bucketed by transport — reasoning-tier models (`gpt-5*`, `o1`/`o3`/`o4*`, or anything with `mode === 'responses'`) go into the `litellm-responses` provider; everything else goes into `litellm`. Per-model overrides via `responsesApiModels` / `chatApiModels` win.
+6. Discovered models are merged on top of any user-defined ones — never overwriting them. A model is skipped if its key already exists under **either** provider.
+7. The whole flow is wrapped in a `Promise.race` against a 5 s timeout so a slow proxy never blocks boot.
 
 ## 📋 Requirements
 
@@ -208,6 +259,34 @@ The unscoped `opencode-litellm` was already published by another author when thi
 <summary><b>Does this work with Ollama through LiteLLM?</b></summary>
 
 Yes — anything in your LiteLLM `model_list` shows up, including Ollama, Bedrock, Azure, OpenAI, Anthropic, Google, etc. That's the whole point of LiteLLM.
+</details>
+
+<details>
+<summary><b>I get <code>Function tools with reasoning_effort are not supported … in /v1/chat/completions</code> — what do I do?</b></summary>
+
+This error comes from OpenAI: their reasoning-tier models (gpt-5, o1, o3, o4) refuse function-tool calls on `/v1/chat/completions` when `reasoning_effort` is set. They require `/v1/responses` instead.
+
+As of `0.2.0`, `opencode-litellm` automatically routes those models through a sibling `litellm-responses` provider that uses the Responses API. If your model id doesn't match the heuristic (e.g. you renamed it in LiteLLM), add it explicitly:
+
+```jsonc
+"provider": {
+  "litellm": {
+    "options": {
+      "responsesApiModels": ["my-renamed-gpt-5-high"]
+    }
+  }
+}
+```
+
+The model will appear under the **LiteLLM (responses)** provider in the picker; pick it from there and tool-calling will work.
+</details>
+
+<details>
+<summary><b>Why are there suddenly two providers (<code>litellm</code> and <code>litellm-responses</code>) in the picker?</b></summary>
+
+Same LiteLLM proxy, different transport. `litellm` talks to `/v1/chat/completions`; `litellm-responses` talks to `/v1/responses`. The split is required for OpenAI reasoning models — see the FAQ entry above.
+
+The responses provider is created lazily and only appears if at least one discovered model needs it. To collapse everything back into a single provider, set `"transport": "chat"` in `provider.litellm.options` (you'll lose tool-calling on reasoning models in exchange).
 </details>
 
 ## 🛠️ Development

@@ -27,11 +27,14 @@ export function createConfigHook() {
       console.error('[opencode-litellm] Config enhancement failed:', error)
     }
 
-    const count = config?.provider?.litellm?.models
+    const chatCount = config?.provider?.litellm?.models
       ? Object.keys(config.provider.litellm.models).length
       : 0
+    const responsesCount = config?.provider?.['litellm-responses']?.models
+      ? Object.keys(config.provider['litellm-responses'].models).length
+      : 0
 
-    if (count === 0 && config?.provider?.litellm) {
+    if (chatCount + responsesCount === 0 && config?.provider?.litellm) {
       console.warn('[opencode-litellm] No models loaded — is LiteLLM reachable and is your model_list non-empty?')
     }
   }

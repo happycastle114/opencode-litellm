@@ -83,3 +83,32 @@ export function formatModelName(model: LiteLLMModel): string {
 
   return tokens || id
 }
+
+/**
+ * Decide whether a model must be invoked through the OpenAI Responses
+ * API (`/v1/responses`) instead of `/v1/chat/completions`.
+ *
+ * OpenAI's reasoning-tier models (gpt-5*, o1/o3/o4*) reject requests
+ * that combine `reasoning_effort` with function tools when sent to
+ * `/v1/chat/completions`. The Responses API has no such restriction,
+ * so we route those models there.
+ *
+ * Detection rules (first match wins):
+ *   1. `model.mode === 'responses'` (LiteLLM exposes this on newer versions)
+ *   2. The model id (after any `provider/` prefix) matches the
+ *      `gpt-5*` / `o[134]*` family.
+ */
+export function requiresResponsesAPI(model: LiteLLMModel): boolean {
+  if (model.mode && model.mode.toLowerCase() === 'responses') return true
+
+  const id = model.id.toLowerCase()
+  const slashIdx = id.indexOf('/')
+  const tail = slashIdx >= 0 ? id.slice(slashIdx + 1) : id
+
+  // gpt-5, gpt-5.4, gpt-5-4-high, gpt-5o, ...
+  if (/^gpt-?5(?:[-.].*)?$/.test(tail)) return true
+  // o1, o1-mini, o3, o3-mini, o4-mini, o4, ... but NOT "openai", "ollama"
+  if (/^o[134](?:[-.].*)?$/.test(tail)) return true
+
+  return false
+}
