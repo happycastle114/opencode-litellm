@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
-  "name": "opencode-litellm",
+  "name": "opencode-plugin-litellm",
   "version": "0.1.0",
   "description": "OpenCode plugin for LiteLLM proxy support with auto-detection and dynamic model discovery",
   "type": "module",

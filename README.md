@@ -1,9 +1,16 @@
 # opencode-litellm
 
+[![npm version](https://img.shields.io/npm/v/opencode-plugin-litellm.svg)](https://www.npmjs.com/package/opencode-plugin-litellm)
+[![CI](https://github.com/yuseferi/opencode-litellm/actions/workflows/ci.yml/badge.svg)](https://github.com/yuseferi/opencode-litellm/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+
 OpenCode plugin for [LiteLLM](https://github.com/BerriAI/litellm) proxy support
 with **auto-detection** and **dynamic model discovery**.
 
 Inspired by [`opencode-lmstudio`](https://github.com/agustif/opencode-lmstudio).
+
+> **npm package name:** `opencode-plugin-litellm` (the unscoped `opencode-litellm`
+> name was taken on npm). Repo name and plugin export remain `opencode-litellm`.
 
 ## Features
 
@@ -18,9 +25,9 @@ Inspired by [`opencode-lmstudio`](https://github.com/agustif/opencode-lmstudio).
 ## Installation
 
 ```bash
-npm install opencode-litellm
+npm install opencode-plugin-litellm
 # or
-bun add opencode-litellm
+bun add opencode-plugin-litellm
 ```
 
 ## Usage
@@ -32,7 +39,7 @@ If a LiteLLM proxy is already running on `localhost:4000`, just add the plugin:
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-litellm@latest"]
+  "plugin": ["opencode-plugin-litellm@latest"]
 }
 ```
 
@@ -44,7 +51,7 @@ your provider list automatically.
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-litellm@latest"],
+  "plugin": ["opencode-plugin-litellm@latest"],
   "provider": {
     "litellm": {
       "npm": "@ai-sdk/openai-compatible",

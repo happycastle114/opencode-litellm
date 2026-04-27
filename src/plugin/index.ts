@@ -11,7 +11,7 @@ import { createConfigHook } from './config-hook'
  * Configure (optional):
  *
  * {
- *   "plugin": ["opencode-litellm@latest"],
+ *   "plugin": ["opencode-plugin-litellm@latest"],
  *   "provider": {
  *     "litellm": {
  *       "npm": "@ai-sdk/openai-compatible",
