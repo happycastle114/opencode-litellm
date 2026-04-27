@@ -1,6 +1,8 @@
 name: Publish to npm
 
 on:
+  push:
+    tags: ['v*']
   release:
     types: [published]
   workflow_dispatch:
@@ -9,10 +11,12 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write # needed to create the GitHub Release
       id-token: write # for npm provenance
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history so release notes can diff against prior tag
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -27,7 +31,20 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Publish
+      - name: Publish to npm
         run: npm publish --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # Only create a GitHub Release when this run was triggered by a tag
+      # push. When the trigger is `release: published`, the Release already
+      # exists and this step would 422.
+      - name: Create GitHub Release
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          draft: false
+          prerelease: false
