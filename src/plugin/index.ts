@@ -16,8 +16,12 @@ function ensureProviderHasModels(config: Config, providerID: string): void {
   if (!config.provider) return
   const entry = config.provider[providerID]
   if (!entry) return
-  if (!entry.models) {
-    entry.models = {}
+  if (!entry.models || Object.keys(entry.models).length === 0) {
+    entry.models = {
+      '_litellm-discovery-pending': {
+        name: 'Discovering models…',
+      },
+    }
   }
 }
 
