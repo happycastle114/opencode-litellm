@@ -21,13 +21,16 @@ export function buildAPIURL(baseURL: string, endpoint: string = MODELS_ENDPOINT)
   return `${normalizeBaseURL(baseURL)}${endpoint}`
 }
 
-function buildHeaders(apiKey?: string): Record<string, string> {
+function buildHeaders(apiKey?: string, customHeaders?: Record<string, string>): Record<string, string> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   }
   const key = apiKey ?? process.env.LITELLM_API_KEY ?? process.env.LITELLM_MASTER_KEY
   if (key) {
     headers['Authorization'] = `Bearer ${key}`
+  }
+  if (customHeaders) {
+    Object.assign(headers, customHeaders)
   }
   return headers
 }
@@ -36,11 +39,12 @@ function buildHeaders(apiKey?: string): Record<string, string> {
 export async function checkLiteLLMHealth(
   baseURL: string = DEFAULT_LITELLM_URL,
   apiKey?: string,
+  customHeaders?: Record<string, string>,
 ): Promise<boolean> {
   try {
     const response = await fetch(buildAPIURL(baseURL), {
       method: 'GET',
-      headers: buildHeaders(apiKey),
+      headers: buildHeaders(apiKey, customHeaders),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     })
     // 401 still means a server is alive — we just don't have the right
@@ -56,11 +60,12 @@ export async function checkLiteLLMHealth(
 export async function discoverLiteLLMModels(
   baseURL: string = DEFAULT_LITELLM_URL,
   apiKey?: string,
+  customHeaders?: Record<string, string>,
 ): Promise<LiteLLMModel[]> {
   const url = buildAPIURL(baseURL)
   const response = await fetch(url, {
     method: 'GET',
-    headers: buildHeaders(apiKey),
+    headers: buildHeaders(apiKey, customHeaders),
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   })
 
@@ -77,11 +82,11 @@ export async function discoverLiteLLMModels(
  * The default `litellm --port` is 4000, but 8000 is also widely used
  * and 8080 is a common reverse-proxy default.
  */
-export async function autoDetectLiteLLM(apiKey?: string): Promise<string | null> {
+export async function autoDetectLiteLLM(apiKey?: string, customHeaders?: Record<string, string>): Promise<string | null> {
   const commonPorts = [4000, 8000, 8080]
   for (const port of commonPorts) {
     const baseURL = `http://localhost:${port}`
-    if (await checkLiteLLMHealth(baseURL, apiKey)) {
+    if (await checkLiteLLMHealth(baseURL, apiKey, customHeaders)) {
       return baseURL
     }
   }

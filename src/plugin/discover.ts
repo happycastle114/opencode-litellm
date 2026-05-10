@@ -40,21 +40,41 @@ function pickTransport(
  * `opencode.json` wins), then falls back to env vars, and finally to
  * auto-detecting a local proxy on the common ports.
  */
+/**
+ * Extract the `customHeaders` map from the provider options block.
+ * Returns `undefined` when no custom headers are configured.
+ */
+function readCustomHeaders(
+  provider: ProviderV2 | undefined,
+): Record<string, string> | undefined {
+  const options = (provider?.options ?? {}) as Record<string, unknown>
+  const raw = options.customHeaders
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    const out: Record<string, string> = {}
+    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+      if (typeof v === 'string') out[k] = v
+    }
+    return Object.keys(out).length > 0 ? out : undefined
+  }
+  return undefined
+}
+
 async function resolveEndpoint(
   provider: ProviderV2 | undefined,
-): Promise<{ baseURL: string; apiKey?: string } | null> {
+): Promise<{ baseURL: string; apiKey?: string; customHeaders?: Record<string, string> } | null> {
   const options = (provider?.options ?? {}) as Record<string, unknown>
   const configuredBase = typeof options.baseURL === 'string' ? options.baseURL : undefined
   const configuredKey = typeof options.apiKey === 'string' && options.apiKey ? options.apiKey : undefined
   const envKey = process.env.LITELLM_API_KEY ?? process.env.LITELLM_MASTER_KEY
+  const customHeaders = readCustomHeaders(provider)
 
   if (configuredBase) {
-    return { baseURL: normalizeBaseURL(configuredBase), apiKey: configuredKey ?? envKey }
+    return { baseURL: normalizeBaseURL(configuredBase), apiKey: configuredKey ?? envKey, customHeaders }
   }
 
-  const detected = await autoDetectLiteLLM(configuredKey ?? envKey)
+  const detected = await autoDetectLiteLLM(configuredKey ?? envKey, customHeaders)
   if (!detected) return null
-  return { baseURL: normalizeBaseURL(detected), apiKey: configuredKey ?? envKey }
+  return { baseURL: normalizeBaseURL(detected), apiKey: configuredKey ?? envKey, customHeaders }
 }
 
 /**
@@ -112,15 +132,15 @@ export async function discoverBucket(
     const endpoint = await resolveEndpoint(provider)
     if (!endpoint) return
 
-    const { baseURL, apiKey } = endpoint
-    if (!(await checkLiteLLMHealth(baseURL, apiKey))) {
+    const { baseURL, apiKey, customHeaders } = endpoint
+    if (!(await checkLiteLLMHealth(baseURL, apiKey, customHeaders))) {
       console.warn(`[opencode-litellm] LiteLLM appears offline or unauthorized at ${baseURL}`)
       return
     }
 
     let models: LiteLLMModel[]
     try {
-      models = await discoverLiteLLMModels(baseURL, apiKey)
+      models = await discoverLiteLLMModels(baseURL, apiKey, customHeaders)
     } catch (error) {
       console.warn(
         '[opencode-litellm] Model discovery failed:',

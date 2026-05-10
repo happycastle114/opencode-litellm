@@ -78,4 +78,23 @@ export interface LiteLLMOptions {
    * the heuristic but is overridden by `responsesApiModels`.
    */
   chatApiModels?: string[]
+  /**
+   * Arbitrary HTTP headers to include in every request to the LiteLLM
+   * proxy during model discovery (health check + `/v1/models`).
+   *
+   * Useful for proxies behind Cloudflare Access or other gateways that
+   * require extra authentication headers beyond the standard
+   * `Authorization: Bearer` token.
+   *
+   * Example (Cloudflare Access Service Token):
+   * ```json
+   * {
+   *   "customHeaders": {
+   *     "CF-Access-Client-Id": "{env:CF_ACCESS_CLIENT_ID}",
+   *     "CF-Access-Client-Secret": "{env:CF_ACCESS_CLIENT_SECRET}"
+   *   }
+   * }
+   * ```
+   */
+  customHeaders?: Record<string, string>
 }

@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-05-11
+
+### Fixed
+- **Providers with no static models are now discovered correctly.**
+  OpenCode skips providers that have no `models` defined in the config,
+  which prevented the `provider.models` hook from ever being called.
+  The plugin now adds a `config` hook that seeds an empty `models: {}`
+  map on the provider entry before OpenCode processes it, guaranteeing
+  the provider is registered and the dynamic discovery hook runs.
+
+### Added
+- **`customHeaders` option** for proxies behind Cloudflare Access or
+  other API gateways. Arbitrary HTTP headers can now be passed via
+  `provider.litellm.options.customHeaders` and are included in every
+  request during model discovery (health check and `/v1/models`).
+- New README section "Custom headers (Cloudflare Access, API gateways)"
+  with configuration examples.
+- New FAQ entry for Cloudflare Access authentication.
+- "Gateway-friendly" entry in the features table.
+
 ## [0.3.0] — 2026-04-27
 
 ### Changed (BREAKING)
@@ -183,7 +203,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions CI workflow (typecheck on Node 20 & 22).
 - Auto-publish workflow on GitHub release (requires `NPM_TOKEN` secret).
 
-[Unreleased]: https://github.com/yuseferi/opencode-litellm/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/yuseferi/opencode-litellm/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/yuseferi/opencode-litellm/compare/v0.3.1...v0.4.0
 [0.3.0]: https://github.com/yuseferi/opencode-litellm/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/yuseferi/opencode-litellm/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/yuseferi/opencode-litellm/compare/v0.2.1...v0.2.2

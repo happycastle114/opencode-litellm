@@ -71,6 +71,7 @@ That's it. No provider block required.
 | 🧪 **Reasoning-aware routing** | Auto-routes `gpt-5*` / `o1`/`o3`/`o4*` models through a sibling `litellm-responses` provider that uses `/v1/responses`, so tools + `reasoning_effort` actually work. Override per model via `responsesApiModels` / `chatApiModels`. |
 | 🏢 **Provider extraction** | Pulls `litellm_provider` (or the `provider/model` prefix) into `organizationOwner` so models group correctly in the UI. |
 | 🔐 **Auth-aware** | Honours `LITELLM_API_KEY` / `LITELLM_MASTER_KEY` env vars or `provider.litellm.options.apiKey`. |
+| 🌐 **Gateway-friendly** | Supports `customHeaders` for proxies behind Cloudflare Access or other API gateways requiring extra HTTP headers. |
 | ⏱️ **Non-blocking startup** | Discovery is capped at **5 s** — a slow or offline proxy never delays OpenCode boot. |
 | 🤝 **Non-destructive merge** | Only adds models you don't already have configured. Hand-curated entries are preserved verbatim. |
 | 🪶 **Zero runtime deps** | Only depends on `@opencode-ai/plugin`. No build step, no bundler. |
@@ -196,6 +197,29 @@ If your LiteLLM proxy requires a master key, expose it via either approach:
 
 The env var path lets you commit `opencode.json` without leaking secrets.
 
+### Custom headers (Cloudflare Access, API gateways)
+
+If your LiteLLM proxy is behind Cloudflare Access or another gateway that requires extra HTTP headers, use the `customHeaders` option:
+
+```jsonc
+{
+  "provider": {
+    "litellm": {
+      "options": {
+        "baseURL": "https://litellm.internal.example.com/v1",
+        "apiKey": "{env:LITELLM_API_KEY}",
+        "customHeaders": {
+          "CF-Access-Client-Id": "{env:CF_ACCESS_CLIENT_ID}",
+          "CF-Access-Client-Secret": "{env:CF_ACCESS_CLIENT_SECRET}"
+        }
+      }
+    }
+  }
+}
+```
+
+These headers are included in every request the plugin makes during model discovery (health check and `/v1/models`). To obtain a Cloudflare Access Service Token, follow the [Cloudflare docs](https://developers.cloudflare.com/cloudflare-one/identity/service-tokens/).
+
 ## 🔧 How it works
 
 ```mermaid
@@ -283,6 +307,30 @@ The unscoped `opencode-litellm` was already published by another author when thi
 <summary><b>Does this work with Ollama through LiteLLM?</b></summary>
 
 Yes — anything in your LiteLLM `model_list` shows up, including Ollama, Bedrock, Azure, OpenAI, Anthropic, Google, etc. That's the whole point of LiteLLM.
+</details>
+
+<details>
+<summary><b>My LiteLLM proxy is behind Cloudflare Access — how do I authenticate?</b></summary>
+
+Cloudflare Access intercepts requests before they reach LiteLLM, so a plain `Authorization: Bearer` header isn't enough. Create a [Cloudflare Access Service Token](https://developers.cloudflare.com/cloudflare-one/identity/service-tokens/) and pass the credentials via `customHeaders`:
+
+```jsonc
+{
+  "provider": {
+    "litellm": {
+      "options": {
+        "baseURL": "https://litellm.your-company.com/v1",
+        "customHeaders": {
+          "CF-Access-Client-Id": "{env:CF_ACCESS_CLIENT_ID}",
+          "CF-Access-Client-Secret": "{env:CF_ACCESS_CLIENT_SECRET}"
+        }
+      }
+    }
+  }
+}
+```
+
+The `customHeaders` map works for any gateway that requires extra HTTP headers — not just Cloudflare.
 </details>
 
 <details>
