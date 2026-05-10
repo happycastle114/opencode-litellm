@@ -1,36 +1,21 @@
-import type { Plugin, PluginInput, Config } from '@opencode-ai/plugin'
+import type { Plugin, PluginInput } from '@opencode-ai/plugin'
 import { discoverBucket } from './discover'
 
 const CHAT_PROVIDER_ID = 'litellm'
 const RESPONSES_PROVIDER_ID = 'litellm-responses'
 
 /**
- * Ensure a provider entry has a `models` map so OpenCode registers it.
- *
- * OpenCode skips providers that have no models defined in the config,
- * which means the `provider.models` hook would never be called. By
- * seeding an empty `models` map we guarantee the provider is created
- * and the hook has a chance to populate it with discovered models.
- */
-function ensureProviderHasModels(config: Config, providerID: string): void {
-  if (!config.provider) return
-  const entry = config.provider[providerID]
-  if (!entry) return
-  if (!entry.models || Object.keys(entry.models).length === 0) {
-    entry.models = {
-      '_litellm-discovery-pending': {
-        name: 'Discovering models…',
-      },
-    }
-  }
-}
-
-/**
  * LiteLLM Plugin for OpenCode.
  *
  * Implements the `provider.models` hook so OpenCode populates the
  * `litellm` provider's model list from a live LiteLLM proxy at
- * startup. No models need to be hand-defined in `opencode.json`.
+ * startup.
+ *
+ * **Important:** OpenCode only calls `provider.models` when the
+ * provider has at least one model defined in `opencode.json`. You
+ * must include a seed model entry — it can be any model id your
+ * proxy exposes. The plugin will discover and add all remaining
+ * models automatically.
  *
  * By default, every discovered model is registered under the
  * `litellm` provider — including OpenAI reasoning-tier models like
@@ -52,6 +37,9 @@ function ensureProviderHasModels(config: Config, providerID: string): void {
  *       "options": {
  *         "baseURL": "http://localhost:4000/v1",
  *         "apiKey": "{env:LITELLM_API_KEY}"
+ *       },
+ *       "models": {
+ *         "_": { "name": "seed" }
  *       }
  *     }
  *   }
@@ -59,9 +47,6 @@ function ensureProviderHasModels(config: Config, providerID: string): void {
  */
 export const LiteLLMPlugin: Plugin = async (_input: PluginInput) => {
   return {
-    config: async (config: Config) => {
-      ensureProviderHasModels(config, CHAT_PROVIDER_ID)
-    },
     provider: {
       id: CHAT_PROVIDER_ID,
       models: async (provider) => {
@@ -112,9 +97,6 @@ export const LiteLLMPlugin: Plugin = async (_input: PluginInput) => {
  */
 export const LiteLLMResponsesPlugin: Plugin = async (_input: PluginInput) => {
   return {
-    config: async (config: Config) => {
-      ensureProviderHasModels(config, RESPONSES_PROVIDER_ID)
-    },
     provider: {
       id: RESPONSES_PROVIDER_ID,
       models: async (provider) => {

@@ -7,15 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] — 2026-05-11
+
+### Fixed
+- **Document and work around the seed-model requirement.** OpenCode
+  skips providers that have no `models` defined in the config, which
+  prevented the `provider.models` hook from ever being called. The
+  `config` hook cannot fix this because OpenCode treats it as
+  read-only — mutations don't reach the provider registry. The fix
+  is to require a seed model entry (`"_": { "name": "seed" }`) in
+  the provider config. All README examples and the Quickstart have
+  been updated accordingly. The seed model is replaced at startup
+  by the full list from the LiteLLM proxy.
+- Removed the ineffective `config` hook that attempted to inject
+  models programmatically (OpenCode's `config` hook is read-only).
+
 ## [0.4.0] — 2026-05-11
 
 ### Fixed
-- **Providers with no static models are now discovered correctly.**
-  OpenCode skips providers that have no `models` defined in the config,
-  which prevented the `provider.models` hook from ever being called.
-  The plugin now adds a `config` hook that seeds an empty `models: {}`
-  map on the provider entry before OpenCode processes it, guaranteeing
-  the provider is registered and the dynamic discovery hook runs.
+- _(Superseded by 0.4.2)_ Attempted to seed models via the `config`
+  hook. This did not work because OpenCode's `config` hook is
+  read-only — mutations are not reflected in the provider registry.
 
 ### Added
 - **`customHeaders` option** for proxies behind Cloudflare Access or
@@ -203,7 +215,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions CI workflow (typecheck on Node 20 & 22).
 - Auto-publish workflow on GitHub release (requires `NPM_TOKEN` secret).
 
-[Unreleased]: https://github.com/yuseferi/opencode-litellm/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/yuseferi/opencode-litellm/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/yuseferi/opencode-litellm/compare/v0.4.0...v0.4.2
 [0.4.0]: https://github.com/yuseferi/opencode-litellm/compare/v0.3.1...v0.4.0
 [0.3.0]: https://github.com/yuseferi/opencode-litellm/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/yuseferi/opencode-litellm/compare/v0.2.2...v0.2.3

@@ -46,9 +46,25 @@ npm install opencode-plugin-litellm
 // 2. Add to opencode.json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-plugin-litellm@latest"]
+  "plugin": ["opencode-plugin-litellm@latest"],
+  "provider": {
+    "litellm": {
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "http://localhost:4000/v1"
+      },
+      "models": {
+        "_": { "name": "seed" }
+      }
+    }
+  }
 }
 ```
+
+> **Why the `"_"` seed model?** OpenCode only activates the plugin's
+> model-discovery hook when the provider already has at least one model
+> entry. The seed is replaced at startup by the full list from your
+> LiteLLM proxy.
 
 ```bash
 # 3. Start LiteLLM (if it isn't already)
@@ -57,8 +73,6 @@ litellm --config config.yaml --port 4000
 # 4. Run OpenCode — every model in your LiteLLM model_list is now available.
 opencode
 ```
-
-That's it. No provider block required.
 
 ## 🎯 Features
 
@@ -79,14 +93,25 @@ That's it. No provider block required.
 
 ## ⚙️ Configuration
 
-### Zero-config (recommended)
+### Minimal config (recommended)
 
-If LiteLLM is on `localhost:4000`, `:8000`, or `:8080`, the plugin self-configures:
+Point at your LiteLLM proxy and include a seed model so OpenCode registers the provider:
 
-```json
+```jsonc
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-plugin-litellm@latest"]
+  "plugin": ["opencode-plugin-litellm@latest"],
+  "provider": {
+    "litellm": {
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "http://localhost:4000/v1"
+      },
+      "models": {
+        "_": { "name": "seed" }
+      }
+    }
+  }
 }
 ```
 
