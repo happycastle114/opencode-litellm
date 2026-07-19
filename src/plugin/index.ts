@@ -1,4 +1,4 @@
-import type { Plugin, PluginInput } from '@opencode-ai/plugin'
+import type { Config, Plugin, PluginInput } from '@opencode-ai/plugin'
 import {
   autoDetectLiteLLM,
   checkLiteLLMHealth,
@@ -11,6 +11,12 @@ import {
   categorizeModel,
 } from '../utils/format-model-name'
 import type { LiteLLMModel } from '../types'
+import {
+  resolveSearchApiKey,
+  type LiteLLMSearchEndpoint,
+} from '../search/client'
+import { parseSearchToolOptions } from '../search/options'
+import { createSearchTools } from '../search/tools'
 
 const CHAT_PROVIDER_ID = 'litellm'
 const DISCOVERY_TIMEOUT_MS = 5000
@@ -86,9 +92,18 @@ function toConfigModel(model: LiteLLMModel): Record<string, unknown> {
  *   }
  * }
  */
-export const LiteLLMPlugin: Plugin = async (_input: PluginInput) => {
+export const LiteLLMPlugin: Plugin = async (
+  _input: PluginInput,
+  pluginOptions,
+) => {
+  const searchToolOptions = parseSearchToolOptions(pluginOptions)
+  let searchEndpoint: LiteLLMSearchEndpoint | undefined
+  const searchTools = createSearchTools(
+    searchToolOptions,
+    () => searchEndpoint,
+  )
   return {
-    config: async (config: any) => {
+    config: async (config: Config) => {
       // Ensure the provider entry exists
       if (!config.provider) config.provider = {}
 
@@ -120,6 +135,12 @@ export const LiteLLMPlugin: Plugin = async (_input: PluginInput) => {
           '[opencode-litellm] No LiteLLM proxy found. Configure provider.litellm.options.baseURL or start LiteLLM on port 4000/8000/8080.',
         )
         return
+      }
+      const resolvedBaseURL = baseURL
+      searchEndpoint = {
+        baseURL: resolvedBaseURL,
+        apiKey: resolveSearchApiKey(configuredKey),
+        customHeaders,
       }
 
       // Create provider entry if it doesn't exist
@@ -158,7 +179,7 @@ export const LiteLLMPlugin: Plugin = async (_input: PluginInput) => {
 
       // Discover models with timeout
       const work = async () => {
-        if (!(await checkLiteLLMHealth(baseURL!, apiKey, customHeaders))) {
+        if (!(await checkLiteLLMHealth(resolvedBaseURL, apiKey, customHeaders))) {
           console.warn(
             `[opencode-litellm] LiteLLM appears offline or unauthorized at ${baseURL}`,
           )
@@ -168,7 +189,7 @@ export const LiteLLMPlugin: Plugin = async (_input: PluginInput) => {
         let discovered: LiteLLMModel[]
         try {
           discovered = await discoverLiteLLMModels(
-            baseURL!,
+            resolvedBaseURL,
             apiKey,
             customHeaders,
           )
@@ -210,6 +231,7 @@ export const LiteLLMPlugin: Plugin = async (_input: PluginInput) => {
         ),
       ])
     },
+    ...(searchToolOptions.length === 0 ? {} : { tool: searchTools }),
   }
 }
 
