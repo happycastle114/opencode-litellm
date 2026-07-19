@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Optional `searchTools` plugin tuple configuration for registering multiple
+  LiteLLM `/v1/search/<search-tool-name>` routes as OpenCode tools.
+- Transparent built-in `websearch` replacement when explicitly enabled with
+  `overrideBuiltin: true`.
+- Runtime validation for search options and responses, sanitized fail-closed
+  handling for credentials, HTTP errors, malformed responses, network errors,
+  and cancellation, plus Bun test coverage through `npm test`.
+
 ## [0.5.0] — 2026-05-11
 
 ### Changed (BREAKING)

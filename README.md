@@ -78,6 +78,7 @@ opencode
 | 🏢 **Provider extraction** | Pulls `litellm_provider` (or the `provider/model` prefix) into `organizationOwner` so models group correctly in the UI. |
 | 🔐 **Auth-aware** | Honours `LITELLM_API_KEY` / `LITELLM_MASTER_KEY` env vars or `provider.litellm.options.apiKey`. |
 | 🌐 **Gateway-friendly** | Supports `customHeaders` for proxies behind Cloudflare Access or other API gateways requiring extra HTTP headers. |
+| 🛠️ **Configurable search tools** | Opt in to one or more LiteLLM `/v1/search/<name>` routes, including a transparent replacement for OpenCode's built-in `websearch`. |
 | ⏱️ **Non-blocking startup** | Discovery is capped at **5 s** — a slow or offline proxy never delays OpenCode boot. |
 | 🤝 **Non-destructive merge** | Only adds models you don't already have configured. Hand-curated entries are preserved verbatim. |
 | 🪶 **Zero runtime deps** | Only depends on `@opencode-ai/plugin`. No build step, no bundler. |
@@ -126,6 +127,86 @@ You **do not need to list any models** — the plugin still discovers them from 
 ```
 
 That's the whole config — every model in your LiteLLM `model_list` will appear in the picker.
+
+### LiteLLM search tools (optional)
+
+Search tools are disabled unless `searchTools` is supplied as the second item
+in the plugin tuple. They reuse `provider.litellm.options.baseURL`; there is no
+separate or hardcoded search endpoint.
+
+To replace OpenCode's built-in `websearch` with the LiteLLM search tool named
+`agy-search`:
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": [
+    [
+      "opencode-plugin-litellm@latest",
+      {
+        "searchTools": [
+          {
+            "toolName": "websearch",
+            "searchToolName": "agy-search",
+            "overrideBuiltin": true
+          }
+        ]
+      }
+    ]
+  ],
+  "provider": {
+    "litellm": {
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "https://litellm.internal.example.com/v1"
+      }
+    }
+  }
+}
+```
+
+`overrideBuiltin: true` is required when `toolName` is `websearch`, preventing
+an accidental replacement. For multiple named tools, add one entry per
+LiteLLM `search_tool_name`:
+
+```jsonc
+{
+  "plugin": [
+    [
+      "opencode-plugin-litellm@latest",
+      {
+        "searchTools": [
+          {
+            "toolName": "websearch",
+            "searchToolName": "agy-search",
+            "description": "Search the web with agy",
+            "defaultMaxResults": 5,
+            "overrideBuiltin": true
+          },
+          {
+            "toolName": "exa_search",
+            "searchToolName": "exa-search",
+            "defaultMaxResults": 10
+          },
+          {
+            "toolName": "firecrawl_search",
+            "searchToolName": "firecrawl-search"
+          }
+        ]
+      }
+    ]
+  ]
+}
+```
+
+Each registered tool accepts `query`, optional `max_results` (1–20), and
+optional `search_domain_filter`. Authentication is resolved in this order:
+`OPENCODE_LITELLM_API_KEY`, `LITELLM_API_KEY`, `LITELLM_MASTER_KEY`, then the
+configured provider `apiKey`. Missing credentials, invalid responses, HTTP
+errors, network failures, and cancellations fail closed without including the
+bearer token in the error. Provider `customHeaders` are also sent with search
+requests; the plugin always keeps its bearer `Authorization` and JSON
+`Content-Type` authoritative.
 
 ### Overriding or curating individual models (optional)
 
@@ -232,7 +313,11 @@ If your LiteLLM proxy is behind Cloudflare Access or another gateway that requir
 }
 ```
 
-These headers are included in every request the plugin makes during model discovery (health check and `/v1/models`). To obtain a Cloudflare Access Service Token, follow the [Cloudflare docs](https://developers.cloudflare.com/cloudflare-one/identity/service-tokens/).
+These headers are included during model discovery (health check and
+`/v1/models`) and on configured LiteLLM search-tool requests. Search requests
+do not allow custom headers to replace the plugin's bearer `Authorization` or
+JSON `Content-Type`. To obtain a Cloudflare Access Service Token, follow the
+[Cloudflare docs](https://developers.cloudflare.com/cloudflare-one/identity/service-tokens/).
 
 ## 🔧 How it works
 
@@ -381,6 +466,7 @@ The responses provider is created lazily and only appears if at least one discov
 git clone https://github.com/yuseferi/opencode-litellm.git
 cd opencode-litellm
 npm install
+npm test
 npm run typecheck
 ```
 
@@ -389,6 +475,7 @@ The project is intentionally tiny:
 ```
 src/
 ├── index.ts                    # Public exports
+├── search/                     # search options, client, and tool definitions
 ├── types/index.ts              # LiteLLM API types
 ├── utils/
 │   ├── litellm-api.ts          # health check, discovery, auto-detect
@@ -406,7 +493,6 @@ See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the full contributor workflow.
 - [ ] Optional cost/latency overlay using LiteLLM's `/spend` and `/health` endpoints
 - [ ] In-memory cache with TTL to avoid re-querying on rapid restarts
 - [ ] Model categorization based on `litellm.proxy.config.model_list[].model_info`
-- [ ] Tests with [vitest](https://vitest.dev/)
 - [ ] `chat.params` hook for injecting LiteLLM routing tags / fallbacks
 
 Have an idea? [Open an issue](https://github.com/yuseferi/opencode-litellm/issues/new).
