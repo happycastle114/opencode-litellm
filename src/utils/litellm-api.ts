@@ -1,7 +1,8 @@
-import type { LiteLLMModel, LiteLLMModelsResponse } from '../types'
+import type { LiteLLMModel } from '../types'
 
 export const DEFAULT_LITELLM_URL = 'http://localhost:4000'
 const MODELS_ENDPOINT = '/v1/models'
+const MODEL_GROUP_INFO_ENDPOINT = '/model_group/info'
 const REQUEST_TIMEOUT_MS = 3000
 
 /**
@@ -61,20 +62,121 @@ export async function discoverLiteLLMModels(
   baseURL: string = DEFAULT_LITELLM_URL,
   apiKey?: string,
   customHeaders?: Record<string, string>,
+  signal?: AbortSignal,
 ): Promise<LiteLLMModel[]> {
-  const url = buildAPIURL(baseURL)
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: buildHeaders(apiKey, customHeaders),
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-  })
+  const primary = await requestModels(
+    baseURL,
+    MODEL_GROUP_INFO_ENDPOINT,
+    apiKey,
+    customHeaders,
+    parseModelGroupResponse,
+    signal,
+  )
+  if (primary.length > 0) return primary
 
-  if (!response.ok) {
-    throw new Error(`LiteLLM responded with HTTP ${response.status} ${response.statusText}`)
+  return requestModels(
+    baseURL,
+    MODELS_ENDPOINT,
+    apiKey,
+    customHeaders,
+    parseModelsResponse,
+    signal,
+  )
+}
+
+async function requestModels(
+  baseURL: string,
+  endpoint: string,
+  apiKey: string | undefined,
+  customHeaders: Record<string, string> | undefined,
+  parse: (value: unknown) => LiteLLMModel[],
+  signal: AbortSignal | undefined,
+): Promise<LiteLLMModel[]> {
+  try {
+    const response = await fetch(buildAPIURL(baseURL, endpoint), {
+      method: 'GET',
+      headers: buildHeaders(apiKey, customHeaders),
+      signal:
+        signal === undefined
+          ? AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+          : AbortSignal.any([signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS)]),
+    })
+    if (!response.ok) return []
+    return parse(await response.json())
+  } catch {
+    return []
   }
+}
 
-  const data = (await response.json()) as LiteLLMModelsResponse
-  return data.data ?? []
+function parseModelGroupResponse(value: unknown): LiteLLMModel[] {
+  if (!isRecord(value) || !Array.isArray(value.data)) return []
+  return value.data.flatMap((row) => {
+    if (!isRecord(row) || typeof row.model_group !== 'string') return []
+    const id = row.model_group.trim()
+    if (id.length === 0) return []
+
+    const model: LiteLLMModel = { id, object: 'model' }
+    copyString(row, model, 'mode')
+    copyString(row, model, 'litellm_provider')
+    copyNumber(row, model, 'max_tokens')
+    copyNumber(row, model, 'max_input_tokens')
+    copyNumber(row, model, 'max_output_tokens')
+    copyBoolean(row, model, 'supports_function_calling')
+    copyBoolean(row, model, 'supports_vision')
+    return [model]
+  })
+}
+
+function parseModelsResponse(value: unknown): LiteLLMModel[] {
+  if (!isRecord(value) || !Array.isArray(value.data)) return []
+  return value.data.flatMap((row) => {
+    if (!isRecord(row) || typeof row.id !== 'string') return []
+    const id = row.id.trim()
+    if (id.length === 0) return []
+    const object = typeof row.object === 'string' ? row.object : 'model'
+    const model: LiteLLMModel = { id, object }
+    copyString(row, model, 'owned_by')
+    copyString(row, model, 'mode')
+    copyString(row, model, 'litellm_provider')
+    copyNumber(row, model, 'created')
+    copyNumber(row, model, 'max_tokens')
+    copyNumber(row, model, 'max_input_tokens')
+    copyNumber(row, model, 'max_output_tokens')
+    copyBoolean(row, model, 'supports_function_calling')
+    copyBoolean(row, model, 'supports_vision')
+    return [model]
+  })
+}
+
+function copyString(
+  source: Readonly<Record<string, unknown>>,
+  target: LiteLLMModel,
+  key: 'owned_by' | 'mode' | 'litellm_provider',
+): void {
+  const value = source[key]
+  if (typeof value === 'string') target[key] = value
+}
+
+function copyNumber(
+  source: Readonly<Record<string, unknown>>,
+  target: LiteLLMModel,
+  key: 'created' | 'max_tokens' | 'max_input_tokens' | 'max_output_tokens',
+): void {
+  const value = source[key]
+  if (typeof value === 'number') target[key] = value
+}
+
+function copyBoolean(
+  source: Readonly<Record<string, unknown>>,
+  target: LiteLLMModel,
+  key: 'supports_function_calling' | 'supports_vision',
+): void {
+  const value = source[key]
+  if (typeof value === 'boolean') target[key] = value
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /**
