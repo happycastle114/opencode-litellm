@@ -12,6 +12,7 @@
     "src"
   ],
   "scripts": {
+    "test": "bun test",
     "typecheck": "tsc --noEmit",
     "build": "npm run typecheck",
     "prepublishOnly": "npm run build"
