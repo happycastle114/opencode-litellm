@@ -1,13 +1,11 @@
 import type { Config, Plugin, PluginInput } from '@opencode-ai/plugin'
 import {
   autoDetectLiteLLM,
-  checkLiteLLMHealth,
   discoverLiteLLMModels,
   normalizeBaseURL,
 } from '../utils/litellm-api'
 import {
   formatModelName,
-  extractModelOwner,
   categorizeModel,
 } from '../utils/format-model-name'
 import type { LiteLLMModel } from '../types'
@@ -17,6 +15,12 @@ import {
 } from '../search/client'
 import { parseSearchToolOptions } from '../search/options'
 import { createSearchTools } from '../search/tools'
+import {
+  discoverLiteLLMMcpServers,
+  resolveMcpAuthorization,
+} from '../mcp/client'
+import { mergeDiscoveredMcpServers } from '../mcp/merge'
+import { parseMcpDiscoveryOptions } from '../mcp/options'
 
 const CHAT_PROVIDER_ID = 'litellm'
 const DISCOVERY_TIMEOUT_MS = 5000
@@ -97,6 +101,7 @@ export const LiteLLMPlugin: Plugin = async (
   pluginOptions,
 ) => {
   const searchToolOptions = parseSearchToolOptions(pluginOptions)
+  const mcpDiscoveryOptions = parseMcpDiscoveryOptions(pluginOptions)
   let searchEndpoint: LiteLLMSearchEndpoint | undefined
   const searchTools = createSearchTools(
     searchToolOptions,
@@ -117,9 +122,7 @@ export const LiteLLMPlugin: Plugin = async (
         typeof options.apiKey === 'string' && options.apiKey
           ? options.apiKey
           : undefined
-      const envKey =
-        process.env.LITELLM_API_KEY ?? process.env.LITELLM_MASTER_KEY
-      const apiKey = configuredKey ?? envKey
+      const apiKey = resolveSearchApiKey(configuredKey)
       const customHeaders = readCustomHeaders(options)
 
       // Resolve base URL
@@ -176,31 +179,15 @@ export const LiteLLMPlugin: Plugin = async (
       }
 
       const models = provider.models as Record<string, unknown>
+      const discoveryController = new AbortController()
 
-      // Discover models with timeout
-      const work = async () => {
-        if (!(await checkLiteLLMHealth(resolvedBaseURL, apiKey, customHeaders))) {
-          console.warn(
-            `[opencode-litellm] LiteLLM appears offline or unauthorized at ${baseURL}`,
-          )
-          return
-        }
-
-        let discovered: LiteLLMModel[]
-        try {
-          discovered = await discoverLiteLLMModels(
-            resolvedBaseURL,
-            apiKey,
-            customHeaders,
-          )
-        } catch (error) {
-          console.warn(
-            '[opencode-litellm] Model discovery failed:',
-            error instanceof Error ? error.message : String(error),
-          )
-          return
-        }
-
+      const discoverModels = async () => {
+        const discovered = await discoverLiteLLMModels(
+          resolvedBaseURL,
+          apiKey,
+          customHeaders,
+          discoveryController.signal,
+        )
         if (discovered.length === 0) {
           console.warn(
             '[opencode-litellm] LiteLLM responded but exposed zero models.',
@@ -224,12 +211,48 @@ export const LiteLLMPlugin: Plugin = async (
         )
       }
 
-      await Promise.race([
-        work(),
-        new Promise<void>((resolve) =>
-          setTimeout(resolve, DISCOVERY_TIMEOUT_MS),
-        ),
-      ])
+      const discoverMcpServers = async () => {
+        if (!mcpDiscoveryOptions.enabled) return
+        const authorization = resolveMcpAuthorization(configuredKey)
+        if (authorization === undefined) {
+          console.warn(
+            '[opencode-litellm] MCP discovery requires a resolvable environment credential.',
+          )
+          return
+        }
+
+        try {
+          const serverNames = await discoverLiteLLMMcpServers({
+            baseURL: resolvedBaseURL,
+            apiKey,
+            customHeaders,
+            timeoutMs: mcpDiscoveryOptions.timeoutMs,
+            signal: discoveryController.signal,
+          })
+          mergeDiscoveredMcpServers({
+            config,
+            baseURL: resolvedBaseURL,
+            serverNames,
+            options: mcpDiscoveryOptions,
+            authorization,
+          })
+        } catch (error) {
+          console.warn(
+            '[opencode-litellm] MCP discovery failed:',
+            error instanceof Error ? error.message : String(error),
+          )
+        }
+      }
+
+      const timeout = setTimeout(
+        () => discoveryController.abort(),
+        DISCOVERY_TIMEOUT_MS,
+      )
+      try {
+        await Promise.all([discoverModels(), discoverMcpServers()])
+      } finally {
+        clearTimeout(timeout)
+      }
     },
     ...(searchToolOptions.length === 0 ? {} : { tool: searchTools }),
   }
