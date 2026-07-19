@@ -166,7 +166,11 @@ To replace OpenCode's built-in `websearch` with the LiteLLM search tool named
 ```
 
 `overrideBuiltin: true` is required when `toolName` is `websearch`, preventing
-an accidental replacement. For multiple named tools, add one entry per
+an accidental replacement. OpenCode provider-gates the shared `websearch` id
+before plugin factories run, so non-OpenCode providers must start with
+`OPENCODE_ENABLE_EXA=true`. This only opens the shared tool id; because plugin
+tools are registered after built-ins, the configured LiteLLM tool takes
+precedence. For multiple named tools, add one entry per
 LiteLLM `search_tool_name`:
 
 ```jsonc
@@ -207,6 +211,74 @@ errors, network failures, and cancellations fail closed without including the
 bearer token in the error. Provider `customHeaders` are also sent with search
 requests; the plugin always keeps its bearer `Authorization` and JSON
 `Content-Type` authoritative.
+
+### LiteLLM MCP discovery (optional)
+
+MCP discovery is disabled by default. When enabled, the plugin calls
+LiteLLM's access-filtered `GET /v1/mcp/server` endpoint and registers one
+OpenCode remote MCP entry per selected server. Each generated entry targets
+the official namespaced endpoint `/{server_name}/mcp`; explicit entries that
+already exist in `config.mcp` are preserved.
+
+```jsonc
+{
+  "plugin": [
+    [
+      "opencode-plugin-litellm@latest",
+      {
+        "searchTools": [
+          {
+            "toolName": "websearch",
+            "searchToolName": "agy-search",
+            "overrideBuiltin": true
+          }
+        ],
+        "mcpDiscovery": {
+          "enabled": true,
+          "include": ["minimax_search", "zread", "zai_web_reader"],
+          "exclude": [],
+          "servers": [
+            { "serverName": "minimax_search", "enabled": false },
+            { "serverName": "zread", "enabled": true },
+            { "serverName": "zai_web_reader", "enabled": true }
+          ],
+          "timeoutMs": 3000,
+          "requestTimeoutMs": 15000
+        }
+      }
+    ]
+  ]
+}
+```
+
+`include` restricts the discovered set, `exclude` removes matching servers,
+and `servers` overrides only the generated OpenCode `enabled` state. Generated
+keys replace underscores with hyphens, for example `zai_web_reader` becomes
+`litellm-zai-web-reader`.
+
+OpenCode resolves `{env:...}` placeholders before plugin config hooks run, so
+the plugin reads the configured environment variable and injects its value only
+into the in-memory runtime config. The key is never written back to
+`opencode.json`. If no environment credential can be resolved, MCP registration
+is skipped.
+Restart OpenCode after changing plugin options because config hooks run only at
+startup.
+
+The plugin follows LiteLLM's native discovery surfaces:
+
+- Models: `GET /model_group/info` first, because LiteLLM recommends it for
+  proxy clients; `GET /v1/models` remains the compatibility fallback when the
+  richer endpoint is forbidden, unsupported, unavailable, empty, or invalid.
+- MCP servers: `GET /v1/mcp/server`, followed by OpenCode's normal MCP
+  handshake against each selected `/{server_name}/mcp` endpoint.
+
+Official references:
+
+- https://docs.litellm.ai/docs/proxy/model_discovery
+- https://github.com/BerriAI/litellm/blob/main/litellm/proxy/proxy_server.py#L12902
+- https://docs.litellm.ai/docs/mcp
+- https://docs.litellm.ai/docs/mcp_rest_api
+- https://opencode.ai/docs/mcp-servers/
 
 ### Overriding or curating individual models (optional)
 
