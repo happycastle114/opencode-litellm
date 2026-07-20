@@ -12,7 +12,7 @@ import {
 
 const MANAGED_PLUGIN = {
   repository: 'https://github.com/happycastle114/opencode-litellm.git',
-  revision: '5c816baec4cd89a053b7ffa54135f941f7c89ffb',
+  revision: 'f4b83a7fe53924751cf2453757faf9de79dbc630',
   checkoutDirectory: 'opencode-litellm-git',
   entrypoint: 'src/index.ts',
 } as const

@@ -130,7 +130,7 @@ The managed OpenCode checkout pin lives only in
 that runtime pin:
 
 ```text
-5c816baec4cd89a053b7ffa54135f941f7c89ffb
+f4b83a7fe53924751cf2453757faf9de79dbc630
 ```
 
 Installation verifies the expected repository URL, clean worktree, detached
