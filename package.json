@@ -26,6 +26,7 @@
     "test": "npm run build && bun test",
     "typecheck": "tsc --noEmit",
     "build": "npm run typecheck && bun build src/cli.mts --target=node --format=esm --packages=external --outfile=dist/opencode-litellm.mjs && chmod +x dist/opencode-litellm.mjs",
+    "prepack": "npm run build",
     "prepublishOnly": "npm run build"
   },
   "keywords": [

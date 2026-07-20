@@ -44,6 +44,7 @@ describe('package distribution', () => {
       if (typeof path !== 'string') return
       expect(existsSync(join(repositoryRoot, path))).toBe(true)
     }
+    expect(manifest.scripts).toHaveProperty('prepack', 'npm run build')
   })
 
   test('keeps the codex-litellm wrapper pinned to the exact core version', () => {
