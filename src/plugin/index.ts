@@ -1,4 +1,6 @@
 import type { Config, Plugin, PluginInput } from '@opencode-ai/plugin'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 import {
   autoDetectLiteLLM,
   discoverLiteLLMModels,
@@ -20,10 +22,17 @@ import {
   resolveMcpAuthorization,
 } from '../mcp/client'
 import { mergeDiscoveredMcpServers } from '../mcp/merge'
-import { parseMcpDiscoveryOptions } from '../mcp/options'
+import {
+  parseMcpDiscoveryOptions,
+  parseMcpToolsetOptions,
+} from '../mcp/options'
+import { loadOfficialLiteLLMApiKey } from '../cli/official-token'
 
 const CHAT_PROVIDER_ID = 'litellm'
 const DISCOVERY_TIMEOUT_MS = 5000
+const PROVIDER_NPM = '@ai-sdk/openai'
+const OFFICIAL_TOKEN_PATH = ['.litellm', 'token.json'] as const
+const AUTHORIZATION_PREFIX = 'Bearer '
 
 /**
  * Read `customHeaders` from a provider options block.
@@ -102,6 +111,7 @@ export const LiteLLMPlugin: Plugin = async (
 ) => {
   const searchToolOptions = parseSearchToolOptions(pluginOptions)
   const mcpDiscoveryOptions = parseMcpDiscoveryOptions(pluginOptions)
+  const mcpToolsets = parseMcpToolsetOptions(pluginOptions)
   let searchEndpoint: LiteLLMSearchEndpoint | undefined
   const searchTools = createSearchTools(
     searchToolOptions,
@@ -122,7 +132,13 @@ export const LiteLLMPlugin: Plugin = async (
         typeof options.apiKey === 'string' && options.apiKey
           ? options.apiKey
           : undefined
-      const apiKey = resolveSearchApiKey(configuredKey)
+      const officialKey = configuredBase === undefined
+        ? undefined
+        : loadOfficialLiteLLMApiKey({
+            tokenFilePath: join(process.env.HOME ?? homedir(), ...OFFICIAL_TOKEN_PATH),
+            expectedBaseURL: normalizeBaseURL(configuredBase),
+          })
+      const apiKey = resolveSearchApiKey(configuredKey) ?? officialKey
       const customHeaders = readCustomHeaders(options)
 
       // Resolve base URL
@@ -142,14 +158,14 @@ export const LiteLLMPlugin: Plugin = async (
       const resolvedBaseURL = baseURL
       searchEndpoint = {
         baseURL: resolvedBaseURL,
-        apiKey: resolveSearchApiKey(configuredKey),
+        apiKey,
         customHeaders,
       }
 
       // Create provider entry if it doesn't exist
       if (!existing) {
         config.provider[CHAT_PROVIDER_ID] = {
-          npm: '@ai-sdk/openai-compatible',
+          npm: PROVIDER_NPM,
           name: 'LiteLLM (proxy)',
           options: {
             baseURL: `${baseURL}/v1`,
@@ -163,15 +179,15 @@ export const LiteLLMPlugin: Plugin = async (
         unknown
       >
 
-      // Ensure npm is set
-      if (!provider.npm) {
-        provider.npm = '@ai-sdk/openai-compatible'
-      }
+      // LiteLLM Responses models require the official OpenAI adapter.
+      provider.npm = PROVIDER_NPM
 
       // Ensure options.baseURL is set
       if (!provider.options) {
         provider.options = { baseURL: `${baseURL}/v1` }
       }
+      const providerOptions = provider.options as Record<string, unknown>
+      if (apiKey !== undefined) providerOptions.apiKey = apiKey
 
       // Ensure models map exists
       if (!provider.models) {
@@ -212,8 +228,12 @@ export const LiteLLMPlugin: Plugin = async (
       }
 
       const discoverMcpServers = async () => {
-        if (!mcpDiscoveryOptions.enabled) return
-        const authorization = resolveMcpAuthorization(configuredKey)
+        if (!mcpDiscoveryOptions.enabled && mcpToolsets.length === 0) return
+        const authorization =
+          resolveMcpAuthorization(configuredKey) ??
+          (officialKey === undefined
+            ? undefined
+            : `${AUTHORIZATION_PREFIX}${officialKey}`)
         if (authorization === undefined) {
           console.warn(
             '[opencode-litellm] MCP discovery requires a resolvable environment credential.',
@@ -222,17 +242,20 @@ export const LiteLLMPlugin: Plugin = async (
         }
 
         try {
-          const serverNames = await discoverLiteLLMMcpServers({
-            baseURL: resolvedBaseURL,
-            apiKey,
-            customHeaders,
-            timeoutMs: mcpDiscoveryOptions.timeoutMs,
-            signal: discoveryController.signal,
-          })
+          const serverNames = mcpDiscoveryOptions.enabled
+            ? await discoverLiteLLMMcpServers({
+                baseURL: resolvedBaseURL,
+                apiKey,
+                customHeaders,
+                timeoutMs: mcpDiscoveryOptions.timeoutMs,
+                signal: discoveryController.signal,
+              })
+            : []
           mergeDiscoveredMcpServers({
             config,
             baseURL: resolvedBaseURL,
             serverNames,
+            toolsets: mcpToolsets,
             options: mcpDiscoveryOptions,
             authorization,
           })

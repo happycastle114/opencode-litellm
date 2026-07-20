@@ -1,6 +1,8 @@
 import type { PluginOptions } from '@opencode-ai/plugin'
 
 const SERVER_NAME_PATTERN = /^[a-z][a-z0-9_-]*$/
+const TOOLSET_CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f]/
+const TOOLSET_OPTION_NAME = 'toolsets' as const
 const DISCOVERY_FIELDS = new Set([
   'enabled',
   'include',
@@ -25,6 +27,8 @@ export type McpDiscoveryOptions = {
   readonly requestTimeoutMs: number
 }
 
+export type McpToolsetOptions = readonly string[]
+
 export class McpDiscoveryConfigurationError extends Error {
   readonly name = 'McpDiscoveryConfigurationError'
 
@@ -32,6 +36,30 @@ export class McpDiscoveryConfigurationError extends Error {
     super(`Invalid mcpDiscovery option at ${field}: ${message}`)
   }
 }
+
+export class McpToolsetConfigurationError extends Error {
+  readonly name = 'McpToolsetConfigurationError'
+
+  constructor(readonly field: string, message: string) {
+    super(`Invalid ${TOOLSET_OPTION_NAME} option at ${field}: ${message}`)
+  }
+}
+
+export function parseMcpToolsetOptions(
+  options: PluginOptions | undefined,
+): McpToolsetOptions {
+  const raw = options?.[TOOLSET_OPTION_NAME]
+  if (raw === undefined) return []
+  if (!Array.isArray(raw)) failToolset(TOOLSET_OPTION_NAME, 'expected an array')
+
+  const names = raw.map((value, index) =>
+    readToolsetName(value, `${TOOLSET_OPTION_NAME}[${index}]`),
+  )
+  rejectDuplicates(names, TOOLSET_OPTION_NAME, failToolset)
+  return names
+}
+
+export const parseToolsetOptions = parseMcpToolsetOptions
 
 export function parseMcpDiscoveryOptions(
   options: PluginOptions | undefined,
@@ -128,12 +156,31 @@ function readInteger(
   return value
 }
 
-function rejectDuplicates(values: readonly string[], field: string): void {
+function rejectDuplicates(
+  values: readonly string[],
+  field: string,
+  failure: (field: string, message: string) => never = fail,
+): void {
   const seen = new Set<string>()
   for (const value of values) {
-    if (seen.has(value)) fail(field, `duplicate name "${value}"`)
+    if (seen.has(value)) failure(field, `duplicate name "${value}"`)
     seen.add(value)
   }
+}
+
+function readToolsetName(value: unknown, field: string): string {
+  if (typeof value !== 'string') {
+    failToolset(field, 'expected a non-empty printable string')
+  }
+  const name = value.trim()
+  if (name === '' || TOOLSET_CONTROL_CHARACTER_PATTERN.test(name)) {
+    failToolset(field, 'expected a non-empty printable string')
+  }
+  return name
+}
+
+function failToolset(field: string, message: string): never {
+  throw new McpToolsetConfigurationError(field, message)
 }
 
 function rejectUnknownFields(

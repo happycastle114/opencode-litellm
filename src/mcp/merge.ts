@@ -1,10 +1,17 @@
 import type { Config } from '@opencode-ai/plugin'
 import type { McpDiscoveryOptions } from './options'
 
+const MCP_ENTRY_PREFIX = {
+  Server: 'litellm-',
+  Toolset: 'litellm-toolset-',
+} as const
+const TOOLSET_FALLBACK_SLUG = 'unnamed'
+
 export type McpMergeInput = {
   readonly config: Config
   readonly baseURL: string
   readonly serverNames: readonly string[]
+  readonly toolsets?: readonly string[]
   readonly options: McpDiscoveryOptions
   readonly authorization: string
 }
@@ -21,12 +28,13 @@ export function mergeDiscoveredMcpServers(input: McpMergeInput): number {
     (serverName) =>
       (include.size === 0 || include.has(serverName)) && !exclude.has(serverName),
   )
-  if (selected.length === 0) return 0
+  const toolsets = input.toolsets ?? []
+  if (selected.length === 0 && toolsets.length === 0) return 0
 
   const existing = input.config.mcp ?? {}
   let added = 0
   for (const serverName of selected) {
-    const key = `litellm-${serverName.replaceAll('_', '-')}`
+    const key = `${MCP_ENTRY_PREFIX.Server}${serverName.replaceAll('_', '-')}`
     if (existing[key] !== undefined) continue
     existing[key] = {
       type: 'remote',
@@ -38,6 +46,52 @@ export function mergeDiscoveredMcpServers(input: McpMergeInput): number {
     }
     added += 1
   }
+  for (const { name: toolsetName, key } of uniqueToolsetEntries(toolsets)) {
+    if (existing[key] !== undefined) continue
+    existing[key] = {
+      type: 'remote',
+      url: `${input.baseURL}/toolset/${encodeURIComponent(toolsetName)}/mcp`,
+      enabled: true,
+      oauth: false,
+      timeout: input.options.requestTimeoutMs,
+      headers: { Authorization: input.authorization },
+    }
+    added += 1
+  }
   if (added > 0 && input.config.mcp === undefined) input.config.mcp = existing
   return added
+}
+
+type McpToolsetEntry = {
+  readonly name: string
+  readonly key: string
+}
+
+function uniqueToolsetEntries(names: readonly string[]): readonly McpToolsetEntry[] {
+  const seenNames = new Set<string>()
+  const nextSuffix = new Map<string, number>()
+  const entries: McpToolsetEntry[] = []
+  for (const rawName of names) {
+    const name = rawName.trim()
+    if (name === '' || seenNames.has(name)) continue
+    seenNames.add(name)
+
+    const slug = normalizeToolsetSlug(name)
+    const suffix = nextSuffix.get(slug) ?? 0
+    nextSuffix.set(slug, suffix + 1)
+    const suffixText = suffix === 0 ? '' : `-${suffix + 1}`
+    entries.push({
+      name,
+      key: `${MCP_ENTRY_PREFIX.Toolset}${slug}${suffixText}`,
+    })
+  }
+  return entries
+}
+
+function normalizeToolsetSlug(name: string): string {
+  const slug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+  return slug === '' ? TOOLSET_FALLBACK_SLUG : slug
 }

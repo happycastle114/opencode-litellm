@@ -1,20 +1,31 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
-  "name": "opencode-plugin-litellm",
-  "version": "0.5.0",
+  "name": "@happycastle114/opencode-litellm",
+  "version": "0.6.0",
   "description": "OpenCode plugin for LiteLLM proxy support with auto-detection and dynamic model discovery",
   "type": "module",
   "main": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./cli": "./dist/opencode-litellm.mjs"
+  },
+  "bin": {
+    "opencode-litellm": "./dist/opencode-litellm.mjs",
+    "codex-litellm": "./dist/opencode-litellm.mjs"
+  },
+  "engines": {
+    "node": ">=20"
   },
   "files": [
-    "src"
+    "src",
+    "dist",
+    "skills",
+    "LICENSE"
   ],
   "scripts": {
-    "test": "bun test",
+    "test": "npm run build && bun test",
     "typecheck": "tsc --noEmit",
-    "build": "npm run typecheck",
+    "build": "npm run typecheck && bun build src/cli.mts --target=node --format=esm --packages=external --outfile=dist/opencode-litellm.mjs && chmod +x dist/opencode-litellm.mjs",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
@@ -25,19 +36,21 @@
     "llm-proxy",
     "openai-compatible"
   ],
-  "author": "Yusef Mohamadi (https://github.com/yuseferi)",
+  "author": "happycastle114 (https://github.com/happycastle114)",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/yuseferi/opencode-litellm.git"
+    "url": "git+https://github.com/happycastle114/opencode-litellm.git"
   },
   "bugs": {
-    "url": "https://github.com/yuseferi/opencode-litellm/issues"
+    "url": "https://github.com/happycastle114/opencode-litellm/issues"
   },
-  "homepage": "https://github.com/yuseferi/opencode-litellm#readme",
+  "homepage": "https://github.com/happycastle114/opencode-litellm#readme",
   "dependencies": {
     "@opencode-ai/plugin": "^1.14.0",
-    "@opencode-ai/sdk": "^1.2.0"
+    "@opencode-ai/sdk": "^1.2.0",
+    "jsonc-parser": "3.3.1",
+    "smol-toml": "1.7.0"
   },
   "devDependencies": {
     "@types/node": "^25.0.3",
