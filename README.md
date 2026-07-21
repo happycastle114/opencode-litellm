@@ -6,10 +6,10 @@ LiteLLM MCP toolsets, a shared research skill, and the Codex connection mode
 you choose. It uses LiteLLM's documented SSO wire flow as a small Node.js
 implementation, so the installer does not require Python or the `lite` CLI.
 
-> Release status: `0.6.0` is a release candidate in this repository. The
-> scoped package and the `codex-litellm` wrapper must not be described as
-> published until npm ownership and publication are verified. The unscoped npm
-> name `opencode-litellm` already belongs to another publisher.
+> Distribution names: the core package is
+> `@happycastle114/opencode-litellm`, and the convenience wrapper is
+> `codex-litellm`. The unscoped npm name `opencode-litellm` belongs to another
+> publisher and is not a distribution channel for this project.
 
 The source contracts and support boundary are recorded in
 [`docs/official-sources.md`](./docs/official-sources.md).
@@ -393,19 +393,19 @@ codex debug models --bundled
 ## Managed checkout, backups, and recovery
 
 The installer source of truth is `MANAGED_OPEN_CODE_PLUGIN.revision` in
-`src/cli/managed-plugin-types.ts`. The release candidate currently records this
-pre-finalization pin:
+`src/cli/managed-plugin-types.ts`. This release records the qualified runtime
+commit:
 
 ```text
-83ea2674a8afb578a670188fb3b522fc242a77cb
+60913d629c1f031c29e297d7616978c839e88858
 ```
 
 Installation stages a clone/fetch/checkout at the full 40-character SHA, runs
 `npm ci --ignore-scripts`, verifies origin/worktree/`HEAD`, and atomically
 activates the revision-addressed directory. An existing active revision is
 verified in place; a failed staged install is removed without replacing it.
-This revision is intentionally not changed by documentation updates; changing
-it is a release operation after the runtime commit is published and re-tested.
+The following release-metadata commit does not change runtime behavior, so the
+managed checkout remains pinned to the qualified runtime commit above.
 
 Client assets are staged under cryptographic per-transaction UUID names. While
 the installer process is running, promotion is all-or-nothing and existing
@@ -432,7 +432,7 @@ installation.
 
 ```text
 ~/.litellm/token.json (only when interactive install issues a fresh SSO token)
-<OpenCode config dir>/vendor/opencode-litellm-git/83ea2674a8afb578a670188fb3b522fc242a77cb/
+<OpenCode config dir>/vendor/opencode-litellm-git/60913d629c1f031c29e297d7616978c839e88858/
 <active OpenCode config dir>/oh-my-openagent.json[c] (or existing legacy oh-my-opencode.json[c])
 $XDG_CONFIG_HOME/opencode-litellm/launch.json
 ~/.codex/litellm-models.json
@@ -443,7 +443,7 @@ $XDG_CONFIG_HOME/opencode-litellm/launch.json
 ~/.claude/settings.json
 ```
 
-There is no `uninstall` command in this release candidate. Restore the newest
+There is no `uninstall` command in this release. Restore the newest
 backup before removing managed entries; remove the shared skill only when no
 other client uses it. `opencode-litellm logout` removes the local SSO token and,
 on macOS, clears the selected Codex OAuth admission-key environment from the

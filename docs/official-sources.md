@@ -270,12 +270,11 @@ selected transient credential is mapped to the target client.
 ## Managed fork and package status
 
 The managed OpenCode checkout pin lives only in
-`src/cli/managed-plugin-types.ts`. This documentation intentionally retains the
-current pre-finalization pin; release qualification replaces it after the
-runtime commit:
+`src/cli/managed-plugin-types.ts`. It points at the release-qualified runtime
+commit:
 
 ```text
-83ea2674a8afb578a670188fb3b522fc242a77cb
+60913d629c1f031c29e297d7616978c839e88858
 ```
 
 Installation stages a clone/fetch/checkout at the full SHA, runs

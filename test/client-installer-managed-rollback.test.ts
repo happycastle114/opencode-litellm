@@ -18,7 +18,7 @@ import { resolveLaunchConfigPath } from '../src/cli/launch-config'
 
 const MANAGED_PLUGIN = {
   repository: 'https://github.com/happycastle114/opencode-litellm.git',
-  revision: '83ea2674a8afb578a670188fb3b522fc242a77cb',
+  revision: '60913d629c1f031c29e297d7616978c839e88858',
 } as const
 const VALUE = {
   ApiKey: 'managed-rollback-key',
