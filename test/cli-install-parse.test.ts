@@ -137,6 +137,42 @@ describe('install argument parsing', () => {
     })
   })
 
+  test('uses LiteLLM environment defaults for the exact non-interactive npx surface', () => {
+    const parsed = parseCliArgs(['install', '--non-interactive'], {
+      LITELLM_BASE_URL: 'https://fixture.litellm.test',
+      LITELLM_PROXY_API_KEY: 'fixture-key',
+    })
+
+    expect(parsed.kind).toBe('command')
+    if (parsed.kind !== 'command') return
+    expect(parsed.options).toMatchObject({
+      baseUrl: 'https://fixture.litellm.test',
+      auth: 'env',
+      authEnv: 'LITELLM_PROXY_API_KEY',
+      nonInteractive: true,
+    })
+  })
+
+  test('keeps explicit SSO and gateway options ahead of environment defaults', () => {
+    const parsed = parseCliArgs([
+      'install',
+      '--base-url',
+      'https://explicit.litellm.test',
+      '--auth',
+      'sso',
+    ], {
+      LITELLM_BASE_URL: 'https://fixture.litellm.test',
+      LITELLM_PROXY_API_KEY: 'fixture-key',
+    })
+
+    expect(parsed.kind).toBe('command')
+    if (parsed.kind !== 'command') return
+    expect(parsed.options).toMatchObject({
+      baseUrl: 'https://explicit.litellm.test',
+      auth: 'sso',
+    })
+  })
+
   test.each(['gateway', 'oauth', 'both'] as const)(
     'parses --codex-mode %s as a typed choice',
     (codexMode) => {

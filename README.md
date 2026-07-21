@@ -67,6 +67,11 @@ export CODEX_TGZ="$TOOLKIT_PACK_DIR/codex-litellm-0.6.0.tgz"
 npx --yes --package "$CORE_TGZ" opencode-litellm install
 npx --yes --package "$CORE_TGZ" --package "$CODEX_TGZ" codex-litellm install
 npx --yes --package "$CORE_TGZ" opencode-litellm install --target both
+
+# Exact deterministic clean-HOME surface used by release qualification.
+LITELLM_BASE_URL=https://llm.example.test \
+LITELLM_PROXY_API_KEY='<gateway-key>' \
+npx --yes --package "$CORE_TGZ" opencode-litellm install --non-interactive
 ```
 
 After publication, use only package names and versions that have been checked
@@ -87,6 +92,11 @@ Interactive `install` asks for the target, gateway origin, authentication,
 Codex mode, and the authorized search/MCP/toolset resources. Empty resource
 selections mean “all visible resources”. Use `--non-interactive` for a
 deterministic run with explicit values and an existing credential.
+In that mode, `LITELLM_BASE_URL` (or the official CLI-compatible
+`LITELLM_PROXY_URL`) supplies the gateway when `--base-url` is absent. A
+non-empty variable named by `--auth-env` selects environment authentication
+when `--auth` is absent. Explicit flags always win; interactive onboarding
+continues to default to SSO.
 
 The default authentication is the built-in LiteLLM SSO flow:
 

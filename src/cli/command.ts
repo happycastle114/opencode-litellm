@@ -1,5 +1,10 @@
 import { basename } from 'node:path'
-import { parseDoctorOptions, parseInstallOptions, type DoctorOptions } from './argument-parser'
+import {
+  parseDoctorOptions,
+  parseInstallOptions,
+  type CliEnvironment,
+  type DoctorOptions,
+} from './argument-parser'
 import { InstallTarget, type InstallOptions } from './install-intent'
 
 const CLIENT_BINARY = {
@@ -116,7 +121,10 @@ export type CliResult = {
   readonly stderr: string
 }
 
-export function parseCliArgs(argv: readonly string[]): ParsedInvocation {
+export function parseCliArgs(
+  argv: readonly string[],
+  environment: CliEnvironment = process.env,
+): ParsedInvocation {
   const first = argv[0]
 
   if (first === undefined) return { kind: 'help' }
@@ -131,7 +139,7 @@ export function parseCliArgs(argv: readonly string[]): ParsedInvocation {
     case 'claude':
     case 'codex':
     case 'opencode':
-      return parseCommandArgs(first, argv.slice(1))
+      return parseCommandArgs(first, argv.slice(1), environment)
     default:
       return first.startsWith('-')
         ? { kind: 'error', message: `Unknown option '${first}'.` }
@@ -186,7 +194,11 @@ function parseGlobalHelp(argv: readonly string[]): ParsedInvocation {
     : { kind: 'error', message: `Unexpected argument '${extra}' for global help.` }
 }
 
-function parseCommandArgs(command: CliCommand, argv: readonly string[]): ParsedInvocation {
+function parseCommandArgs(
+  command: CliCommand,
+  argv: readonly string[],
+  environment: CliEnvironment,
+): ParsedInvocation {
   const first = argv[0]
 
   if (first === '--help' || first === '-h') {
@@ -200,7 +212,7 @@ function parseCommandArgs(command: CliCommand, argv: readonly string[]): ParsedI
   }
 
   if (command === 'install') {
-    const parsed = parseInstallOptions(argv)
+    const parsed = parseInstallOptions(argv, environment)
     return parsed.ok
       ? { kind: 'command', command, help: false, options: parsed.options }
       : { kind: 'error', message: parsed.message }

@@ -6,6 +6,13 @@ import {
   type InstallOptions,
 } from './install-intent'
 
+const LITELLM_ENVIRONMENT = {
+  BaseUrl: 'LITELLM_BASE_URL',
+  ProxyUrl: 'LITELLM_PROXY_URL',
+} as const
+
+export type CliEnvironment = Readonly<Record<string, string | undefined>>
+
 export type DoctorOptions = {
   readonly target: InstallTarget
   readonly json: boolean
@@ -17,7 +24,10 @@ export type OptionParseResult<T> =
   | { readonly ok: true; readonly options: T }
   | { readonly ok: false; readonly message: string }
 
-export function parseInstallOptions(argv: readonly string[]): OptionParseResult<InstallOptions> {
+export function parseInstallOptions(
+  argv: readonly string[],
+  environment: CliEnvironment = process.env,
+): OptionParseResult<InstallOptions> {
   const values = new Map<string, string>()
   const search: string[] = []
   const mcp: string[] = []
@@ -50,7 +60,11 @@ export function parseInstallOptions(argv: readonly string[]): OptionParseResult<
 
   const target = readTarget(values.get('--target') ?? ToolkitDefault.Target, '--target')
   if (!target.ok) return target
-  const auth = readAuth(values.get('--auth') ?? ToolkitDefault.Auth)
+  const authEnvironment = values.get('--auth-env') ?? ToolkitDefault.AuthEnvironment
+  const defaultAuth = nonInteractive && hasCredential(environment[authEnvironment])
+    ? InstallAuth.Environment
+    : ToolkitDefault.Auth
+  const auth = readAuth(values.get('--auth') ?? defaultAuth)
   if (!auth.ok) return auth
   const codexMode = readCodexMode(values.get('--codex-mode') ?? ToolkitDefault.CodexMode)
   if (!codexMode.ok) return codexMode
@@ -58,9 +72,12 @@ export function parseInstallOptions(argv: readonly string[]): OptionParseResult<
     ok: true,
     options: {
       target: target.value,
-      baseUrl: values.get('--base-url') ?? ToolkitDefault.GatewayOrigin,
+      baseUrl: values.get('--base-url') ??
+        environment[LITELLM_ENVIRONMENT.BaseUrl] ??
+        environment[LITELLM_ENVIRONMENT.ProxyUrl] ??
+        ToolkitDefault.GatewayOrigin,
       auth: auth.value,
-      authEnv: values.get('--auth-env') ?? ToolkitDefault.AuthEnvironment,
+      authEnv: authEnvironment,
       nonInteractive,
       opencodeConfig: values.get('--opencode-config'),
       codexConfig: values.get('--codex-config'),
@@ -74,6 +91,10 @@ export function parseInstallOptions(argv: readonly string[]): OptionParseResult<
       noToolsets,
     },
   }
+}
+
+function hasCredential(value: string | undefined): boolean {
+  return value !== undefined && value !== ''
 }
 
 export function parseDoctorOptions(argv: readonly string[]): OptionParseResult<DoctorOptions> {
