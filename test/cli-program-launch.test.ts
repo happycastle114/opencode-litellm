@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { existsSync, readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { dirname, join, relative } from 'node:path'
 import { runCliProgram } from '../src/cli/program'
 import { bundledCodexCatalogBoundary, DISCOVERY, setupProgramHome } from './cli-program-test-support'
 
@@ -72,9 +72,11 @@ describe('CLI program', () => {
   test('merges sequential client installs and keeps per-client launch paths', async () => {
     const openCodePath = join(dir, 'configs', 'open-code.jsonc')
     const codexPath = join(dir, 'configs', 'codex', 'config.toml')
+    const openCodeRelativePath = relative(process.cwd(), openCodePath)
+    const codexRelativePath = relative(process.cwd(), codexPath)
     const openInstall = await runCliProgram([
       'install', '--target', 'opencode', '--base-url', 'https://open.example.com',
-      '--auth-env', 'OPEN_GATEWAY_KEY', '--no-search', '--opencode-config', openCodePath,
+      '--auth-env', 'OPEN_GATEWAY_KEY', '--no-search', '--opencode-config', openCodeRelativePath,
       '--non-interactive',
     ], {
       env: { HOME: dir, OPEN_GATEWAY_KEY: 'open-install-key' }, now: () => new Date(0),
@@ -82,7 +84,7 @@ describe('CLI program', () => {
     })
     const codexInstall = await runCliProgram([
       'install', '--target', 'codex', '--base-url', 'https://codex.example.com',
-      '--auth-env', 'CODEX_GATEWAY_KEY', '--codex-mode', 'gateway', '--codex-config', codexPath,
+      '--auth-env', 'CODEX_GATEWAY_KEY', '--codex-mode', 'gateway', '--codex-config', codexRelativePath,
       '--non-interactive',
     ], {
       env: { HOME: dir, CODEX_GATEWAY_KEY: 'codex-install-key' }, now: () => new Date(0),
