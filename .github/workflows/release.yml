@@ -97,7 +97,10 @@ jobs:
           NODE
 
       - name: Test, build, and typecheck
-        run: npm test
+        run: |
+          set -euo pipefail
+          npm test
+          npm audit --omit=dev --audit-level=high
 
       - name: Pack tested tarballs
         run: |
@@ -311,6 +314,7 @@ jobs:
             cd "$consumer"
             [[ "$(npm config get @happycastle114:registry)" == "$GITHUB_PACKAGES_REGISTRY" ]]
             npm install --ignore-scripts --no-audit --no-fund --package-lock=false "$WRAPPER_PACKAGE"
+            unset NODE_AUTH_TOKEN NPM_CONFIG_USERCONFIG
             node - <<'NODE'
           const fs = require('node:fs')
           const read = (path) => JSON.parse(fs.readFileSync(path, 'utf8'))

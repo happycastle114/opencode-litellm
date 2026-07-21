@@ -80,6 +80,10 @@ test('release workflow is a main-branch GitHub Packages path with manual dispatc
   expect(String(metadataStep.run)).toContain('GITHUB_SHA')
   expect(String(metadataStep.run)).toContain('@happycastle114/codex-litellm')
 
+  const testStep = step('Test, build, and typecheck')
+  expect(String(testStep.run)).toContain('npm test')
+  expect(String(testStep.run)).toContain('npm audit --omit=dev --audit-level=high')
+
   const packStep = step('Pack tested tarballs')
   expect(String(packStep.run)).toContain('manifest.gitHead = gitHead')
   step('Verify packed tarballs')
@@ -125,6 +129,7 @@ test('release workflow is a main-branch GitHub Packages path with manual dispatc
   expect(consumerStep.env?.NPM_CONFIG_USERCONFIG).toContain('runner.temp')
   expect(String(consumerStep.run)).toContain('npm config get @happycastle114:registry')
   expect(String(consumerStep.run)).toContain('npm install --ignore-scripts --no-audit --no-fund --package-lock=false "$WRAPPER_PACKAGE"')
+  expect(String(consumerStep.run)).toContain('unset NODE_AUTH_TOKEN NPM_CONFIG_USERCONFIG')
   expect(String(consumerStep.run)).toContain('node_modules/@happycastle114/codex-litellm/package.json')
 
   const orderedSteps = [
