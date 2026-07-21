@@ -243,7 +243,7 @@ The installer source of truth is `MANAGED_PLUGIN.revision` in
 `src/cli/managed-plugin.ts`. The release candidate currently records:
 
 ```text
-de6b5464682b288074b57986629c42b30873e413
+23ee802a819e6d8eadf4e03b00eb3f0af50d525d
 ```
 
 Installation verifies the expected GitHub origin, a full 40-character SHA, a
