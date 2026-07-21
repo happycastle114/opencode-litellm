@@ -3,7 +3,7 @@ import { existsSync, mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-const MANAGED_PLUGIN = { repository: 'https://github.com/happycastle114/opencode-litellm.git', revision: '23ee802a819e6d8eadf4e03b00eb3f0af50d525d', checkoutDirectory: 'opencode-litellm-git', entrypoint: 'src/index.ts', remote: 'origin', packageLock: 'package-lock.json' } as const
+const MANAGED_PLUGIN = { repository: 'https://github.com/happycastle114/opencode-litellm.git', revision: '83ea2674a8afb578a670188fb3b522fc242a77cb', checkoutDirectory: 'opencode-litellm-git', entrypoint: 'src/index.ts', remote: 'origin', packageLock: 'package-lock.json' } as const
 const EXECUTABLE = { git: 'git', npm: 'npm', remote: MANAGED_PLUGIN.remote } as const
 
 const FULL_SHA_PATTERN = /^[0-9a-f]{40}$/
