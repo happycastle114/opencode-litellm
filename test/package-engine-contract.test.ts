@@ -4,6 +4,10 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os'
 import { dirname, isAbsolute, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import {
+  createIsolatedNpmEnvironment,
+  NPM_REGISTRY,
+} from './package-distribution-test-support'
 
 const SUPPORTED_NODE_RANGE = '^22.22.2 || ^24.15.0 || >=26.0.0'
 const repositoryRoot = dirname(fileURLToPath(new URL('../package.json', import.meta.url)))
@@ -42,19 +46,20 @@ test('installs both packed packages with engine-strict and runs them on a suppor
       'npm',
       [
         'install',
-        '--offline',
         '--engine-strict',
         '--ignore-scripts',
         '--no-audit',
         '--no-fund',
         '--package-lock=false',
+        '--registry',
+        NPM_REGISTRY,
         coreTarball,
         wrapperTarball,
       ],
       {
         cwd: consumerRoot,
         encoding: 'utf8',
-        env: { ...process.env, npm_config_engine_strict: 'true' },
+        env: createIsolatedNpmEnvironment(consumerRoot),
       },
     )
 

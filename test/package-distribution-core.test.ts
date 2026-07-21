@@ -8,7 +8,7 @@ import {
   createConsumer,
   getNodeRuntime,
   getNpmExecutable,
-  installOffline,
+  installPackage,
   installTypeScriptTooling,
   isRecord,
   packPackage,
@@ -35,7 +35,7 @@ test('packs, installs, imports, and typechecks the core package as a strict Node
     expect(paths).not.toContain('dist/plugin/discover.d.ts')
 
     const consumerRoot = createConsumer(fixtureRoot, 'opencode-litellm-package-consumer')
-    installOffline(packed.filename, consumerRoot)
+    installPackage(packed.filename, consumerRoot)
     const installedRoot = join(consumerRoot, 'node_modules', '@happycastle114', 'opencode-litellm')
     expect(existsSync(installedRoot)).toBe(true)
     expect(lstatSync(installedRoot).isSymbolicLink()).toBe(false)

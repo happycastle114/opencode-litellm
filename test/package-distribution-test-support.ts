@@ -3,6 +3,7 @@ import {
   accessSync,
   constants,
   copyFileSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -116,17 +117,26 @@ export function createConsumer(root: string, name: string): string {
   return consumerRoot
 }
 
-export function installOffline(packagePath: string, consumerRoot: string): void {
+export function installPackage(packagePath: string, consumerRoot: string): void {
   const installed = spawnSync(
     getNpmExecutable(),
-    ['install', '--offline', '--ignore-scripts', '--no-audit', '--no-fund', '--package-lock=false', packagePath],
+    [
+      'install',
+      '--ignore-scripts',
+      '--no-audit',
+      '--no-fund',
+      '--package-lock=false',
+      '--registry',
+      NPM_REGISTRY,
+      packagePath,
+    ],
     {
       cwd: consumerRoot,
       encoding: 'utf8',
-      env: { ...process.env, npm_config_offline: 'true', npm_config_audit: 'false', npm_config_fund: 'false' },
+      env: createIsolatedNpmEnvironment(consumerRoot),
     },
   )
-  expectCommandSucceeded(installed, 'offline package install')
+  expectCommandSucceeded(installed, 'registry package install')
 }
 
 export function installTypeScriptTooling(consumerRoot: string): string {
@@ -137,14 +147,25 @@ export function installTypeScriptTooling(consumerRoot: string): string {
   }
   const installed = spawnSync(
     getNpmExecutable(),
-    ['install', '--offline', '--ignore-scripts', '--no-audit', '--no-fund', '--package-lock=false', '--save-dev', `typescript@${typescript.version}`, `@types/node@${nodeTypes.version}`],
+    [
+      'install',
+      '--ignore-scripts',
+      '--no-audit',
+      '--no-fund',
+      '--package-lock=false',
+      '--save-dev',
+      '--registry',
+      NPM_REGISTRY,
+      `typescript@${typescript.version}`,
+      `@types/node@${nodeTypes.version}`,
+    ],
     {
       cwd: consumerRoot,
       encoding: 'utf8',
-      env: { ...process.env, npm_config_offline: 'true', npm_config_audit: 'false', npm_config_fund: 'false' },
+      env: createIsolatedNpmEnvironment(consumerRoot),
     },
   )
-  expectCommandSucceeded(installed, 'offline TypeScript tooling install')
+  expectCommandSucceeded(installed, 'registry TypeScript tooling install')
   return join(consumerRoot, 'node_modules', 'typescript', 'bin', 'tsc')
 }
 
@@ -183,4 +204,27 @@ function resolveExecutableFromPath(name: string): string {
     }
   }
   throw new Error(`Unable to resolve ${name} from PATH=${pathValue}`)
+}
+
+export const NPM_REGISTRY = 'https://registry.npmjs.org'
+
+export function createIsolatedNpmEnvironment(consumerRoot: string): Record<string, string> {
+  const stateRoot = join(dirname(consumerRoot), 'npm-state')
+  const cacheRoot = join(stateRoot, 'cache')
+  const tempRoot = join(stateRoot, 'tmp')
+  const userConfig = join(stateRoot, 'npmrc')
+  mkdirSync(cacheRoot, { recursive: true })
+  mkdirSync(tempRoot, { recursive: true })
+  if (!existsSync(userConfig)) writeFileSync(userConfig, `registry=${NPM_REGISTRY}\n`)
+  return {
+    PATH: process.env.PATH ?? '',
+    HOME: stateRoot,
+    TMPDIR: tempRoot,
+    npm_config_cache: cacheRoot,
+    npm_config_userconfig: userConfig,
+    npm_config_registry: NPM_REGISTRY,
+    npm_config_audit: 'false',
+    npm_config_fund: 'false',
+    npm_config_update_notifier: 'false',
+  }
 }

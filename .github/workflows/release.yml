@@ -13,6 +13,10 @@ on:
       - scripts/verify-npm-release-metadata.mjs
   workflow_dispatch:
 
+concurrency:
+  group: github-packages-release-${{ github.repository }}
+  cancel-in-progress: false
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -22,7 +26,6 @@ jobs:
     env:
       NPM_CONFIG_ENGINE_STRICT: 'true'
       GITHUB_PACKAGES_REGISTRY: https://npm.pkg.github.com
-      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -50,7 +53,6 @@ jobs:
           //npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}
           always-auth=true
           EOF
-          printf 'NPM_CONFIG_USERCONFIG=%s\n' "$npmrc" >> "$GITHUB_ENV"
           test -s "$npmrc"
 
       - name: Install dependencies
@@ -199,6 +201,9 @@ jobs:
 
       - name: Check pre-existing GitHub Packages metadata
         id: registry
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_CONFIG_USERCONFIG: ${{ runner.temp }}/github-packages.npmrc
         run: |
           set -euo pipefail
           check_package() {
@@ -232,13 +237,22 @@ jobs:
 
       - name: Publish scoped core tarball
         if: steps.registry.outputs.publish_core == 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_CONFIG_USERCONFIG: ${{ runner.temp }}/github-packages.npmrc
         run: npm publish "$CORE_TARBALL" --ignore-scripts --access public --registry "$GITHUB_PACKAGES_REGISTRY"
 
       - name: Publish scoped Codex wrapper tarball
         if: steps.registry.outputs.publish_wrapper == 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_CONFIG_USERCONFIG: ${{ runner.temp }}/github-packages.npmrc
         run: npm publish "$WRAPPER_TARBALL" --ignore-scripts --access public --registry "$GITHUB_PACKAGES_REGISTRY"
 
       - name: Verify published metadata and tarball identity
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_CONFIG_USERCONFIG: ${{ runner.temp }}/github-packages.npmrc
         run: |
           set -euo pipefail
           verify_readback() {
@@ -286,6 +300,9 @@ jobs:
           verify_readback wrapper "$WRAPPER_PACKAGE" "$WRAPPER_INTEGRITY"
 
       - name: Verify clean GitHub Packages consumer install
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_CONFIG_USERCONFIG: ${{ runner.temp }}/github-packages.npmrc
         run: |
           set -euo pipefail
           consumer="$(mktemp -d)"
