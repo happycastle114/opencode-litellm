@@ -274,7 +274,7 @@ The managed OpenCode checkout pin lives only in
 commit:
 
 ```text
-60913d629c1f031c29e297d7616978c839e88858
+f97a800d7ce1dd204a2cfe0c51b7149428ecdff4
 ```
 
 Installation stages a clone/fetch/checkout at the full SHA, runs

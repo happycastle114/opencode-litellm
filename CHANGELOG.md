@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-07-21
+
 ### Added
 - Optional `searchTools` plugin tuple configuration for registering multiple
   LiteLLM `/v1/search/<search-tool-name>` routes as OpenCode tools.
