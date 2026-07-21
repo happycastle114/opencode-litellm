@@ -55,6 +55,17 @@ test('defaults a bare wrapper install to the Codex target', () => {
   }
 })
 
+test('keeps a bare Codex install interactive while supplying the Codex target', () => {
+  const fixture = createWrapperFixture()
+  try {
+    const result = spawnSync(getNodeRuntime().executable, [fixture.executable, 'install'], { encoding: 'utf8' })
+    expect(result.status).toBe(0)
+    expect(JSON.parse(result.stdout)).toEqual(['install', '--target', 'codex'])
+  } finally {
+    cleanupFixture(fixture.root)
+  }
+})
+
 test('preserves an explicit install target through the Codex wrapper', () => {
   const fixture = createWrapperFixture()
   try {
