@@ -13,10 +13,10 @@ if (typeof pinnedBunVersion !== 'string' || !/^\d+\.\d+\.\d+$/.test(pinnedBunVer
   throw new Error('devDependencies.bun must be an exact semantic version')
 }
 
-function run(command, args) {
+function run(command, args, stdio = 'inherit') {
   const result = spawnSync(command, args, {
     cwd: repositoryRoot,
-    stdio: 'inherit',
+    stdio,
     windowsHide: true,
   })
   if (result.error !== undefined) throw result.error
@@ -48,7 +48,7 @@ function runPinnedBun(args) {
       `Expected local Bun ${pinnedBunVersion}, got ${version.stdout.trim() || `exit ${String(version.status)}`}`,
     )
   }
-  run(bun, args)
+  run(bun, args, ['inherit', 'ignore', 'inherit'])
 }
 
 runNodeScript(join(repositoryRoot, 'scripts', 'clean-dist.mjs'))
