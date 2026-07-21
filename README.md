@@ -1,430 +1,477 @@
-<div align="center">
+# LiteLLM client toolkit for OpenCode and Codex
 
-<img src="https://raw.githubusercontent.com/yuseferi/opencode-litellm/main/assets/logo.svg" alt="opencode-litellm logo" width="128" height="128" />
+This fork packages the OpenCode LiteLLM plugin and two onboarding binaries. The
+installer configures model discovery, available search tools, MCP servers,
+LiteLLM MCP toolsets, a shared research skill, and the Codex connection mode
+you choose. It uses LiteLLM's documented SSO wire flow as a small Node.js
+implementation, so the installer does not require Python or the `lite` CLI.
 
-# opencode-litellm
+> Distribution names: the core package is
+> `@happycastle114/opencode-litellm`, and the convenience wrapper is
+> `@happycastle114/codex-litellm` (which installs the `codex-litellm` binary).
+> The unscoped npm name `opencode-litellm` belongs to another publisher and is
+> not a distribution channel for this project.
 
-**Drop-in [LiteLLM](https://github.com/BerriAI/litellm) provider for [OpenCode](https://opencode.ai) with zero configuration.**
+The source contracts and support boundary are recorded in
+[`docs/official-sources.md`](./docs/official-sources.md).
 
-[![Works with OpenCode](https://img.shields.io/badge/works%20with-OpenCode-7C5CFF?style=flat-square)](https://opencode.ai)
-[![Powered by LiteLLM](https://img.shields.io/badge/powered%20by-LiteLLM-22D3EE?style=flat-square)](https://github.com/BerriAI/litellm)
+## What `install` configures
 
-[![npm version](https://img.shields.io/npm/v/opencode-plugin-litellm.svg?style=flat-square&color=cb3837&logo=npm)](https://www.npmjs.com/package/opencode-plugin-litellm)
-[![npm downloads](https://img.shields.io/npm/dm/opencode-plugin-litellm.svg?style=flat-square&color=cb3837)](https://www.npmjs.com/package/opencode-plugin-litellm)
-[![CI](https://img.shields.io/github/actions/workflow/status/yuseferi/opencode-litellm/ci.yml?style=flat-square&label=CI&logo=github)](https://github.com/yuseferi/opencode-litellm/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](./LICENSE)
-[![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?style=flat-square&logo=typescript&logoColor=white)](./tsconfig.json)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square)](./CONTRIBUTING.md)
-
-Auto-detect a running LiteLLM proxy, pull every model from `/v1/models`, and register them in OpenCode.
-**No model lists to hand-maintain. No restart loops. No surprises.**
-
-[Quickstart](#-quickstart) · [Configuration](#%EF%B8%8F-configuration) · [How it works](#-how-it-works) · [FAQ](#-faq) · [Contributing](./CONTRIBUTING.md)
-
-</div>
-
-> **npm package:** `opencode-plugin-litellm` &nbsp;·&nbsp; **GitHub repo:** `yuseferi/opencode-litellm`
-> The unscoped `opencode-litellm` npm name was already taken by another author.
-
----
-
-## ✨ Why this plugin?
-
-Maintaining a `models` block in `opencode.json` for every model your LiteLLM proxy exposes is a chore — every new entry in your `model_list` means a config edit, a restart, and a context-switch.
-
-`opencode-litellm` removes that loop entirely. It hooks into OpenCode's `config` lifecycle, queries your LiteLLM proxy at startup, and merges the discovered models into your config in memory. The result: every model in `litellm config.yaml` shows up in OpenCode's picker the moment you start it — automatically.
-
-## 🚀 Quickstart
-
-```bash
-# 1. Install
-npm install opencode-plugin-litellm
-# or: bun add opencode-plugin-litellm
-```
-
-```jsonc
-// 2. Add to opencode.json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-plugin-litellm@latest"],
-  "provider": {
-    "litellm": {
-      "npm": "@ai-sdk/openai-compatible",
-      "options": {
-        "baseURL": "http://localhost:4000/v1"
-      }
-    }
-  }
-}
-```
-
-```bash
-# 3. Start LiteLLM (if it isn't already)
-litellm --config config.yaml --port 4000
-
-# 4. Run OpenCode — every model in your LiteLLM model_list is now available.
-opencode
-```
-
-## 🎯 Features
-
-| | |
+| Target | Managed result |
 |---|---|
-| 🔍 **Auto-detection** | Probes `localhost:4000`, `:8000`, `:8080` and adopts the first responsive proxy. |
-| 📡 **Dynamic discovery** | Queries `/v1/models` so your OpenCode model picker always reflects your live `model_list`. |
-| 🏷️ **Smart formatting** | Turns `anthropic/claude-3-5-sonnet` into `Claude 3 5 Sonnet` in the picker — handles versions, sizes, quantizations, and brand-cased names like `gpt-4o`. |
-| 🧠 **Modality-aware** | Infers `chat` / `embedding` / `image` / `audio` from the model `mode` field or id, and writes proper `modalities` metadata. |
-| 🧪 **Reasoning-aware routing** | Auto-routes `gpt-5*` / `o1`/`o3`/`o4*` models through a sibling `litellm-responses` provider that uses `/v1/responses`, so tools + `reasoning_effort` actually work. Override per model via `responsesApiModels` / `chatApiModels`. |
-| 🏢 **Provider extraction** | Pulls `litellm_provider` (or the `provider/model` prefix) into `organizationOwner` so models group correctly in the UI. |
-| 🔐 **Auth-aware** | Honours `LITELLM_API_KEY` / `LITELLM_MASTER_KEY` env vars or `provider.litellm.options.apiKey`. |
-| 🌐 **Gateway-friendly** | Supports `customHeaders` for proxies behind Cloudflare Access or other API gateways requiring extra HTTP headers. |
-| ⏱️ **Non-blocking startup** | Discovery is capped at **5 s** — a slow or offline proxy never delays OpenCode boot. |
-| 🤝 **Non-destructive merge** | Only adds models you don't already have configured. Hand-curated entries are preserved verbatim. |
-| 🪶 **Zero runtime deps** | Only depends on `@opencode-ai/plugin`. No build step, no bundler. |
-| 🔒 **TypeScript strict** | Strict-mode compiled, fully typed public API. |
+| OpenCode | A detached, revision-addressed checkout of this fork, a `file://` plugin entry, an `@ai-sdk/openai` provider, startup model discovery, available search-tool inventory, MCP discovery, selected MCP toolsets, and the shared `~/.agents/skills/litellm-research-router/SKILL.md` |
+| Codex | A gateway provider and model catalog, or a ChatGPT OAuth pass-through provider, or both profiles; selected MCP servers and toolsets are written to the managed Codex blocks, together with the shared `~/.agents/skills/litellm-research-router/SKILL.md` |
+| Both | The OpenCode and Codex results, with one shared `~/.agents/skills/litellm-research-router/SKILL.md` asset |
 
-## ⚙️ Configuration
+The installer writes environment references and helper paths only. It never
+writes the gateway key or a ChatGPT/Claude OAuth credential into client config.
+OpenCode model and MCP discovery stays in memory at startup; Codex catalogs
+are written as startup snapshots.
 
-### Minimal config (recommended)
+Every selected target also merges the Claude Skills Gateway marketplace into
+`~/.claude/settings.json` under the stable `extraKnownMarketplaces.litellm` key:
 
-Point at your LiteLLM proxy — the plugin discovers all models automatically:
-
-```jsonc
+```json
 {
-  "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-plugin-litellm@latest"],
-  "provider": {
+  "extraKnownMarketplaces": {
     "litellm": {
-      "npm": "@ai-sdk/openai-compatible",
-      "options": {
-        "baseURL": "http://localhost:4000/v1"
+      "source": {
+        "source": "url",
+        "url": "<normalized-origin>/claude-code/marketplace.json"
       }
     }
   }
 }
 ```
 
-### Explicit provider (custom URL or auth)
+Existing settings and marketplace entries are preserved, the file is written
+with mode `0600`, and no credential is stored. The marketplace asset is shared
+by OpenCode-only, Codex-only, and Both installs. This registers marketplace
+infrastructure only; it does not claim that the gateway currently publishes or
+installs any marketplace plugin or skill. Existing legacy flat `source`/`url`
+entries are migrated to Claude Code's nested source object, and a terminal
+gateway `/v1` is removed before `/claude-code/marketplace.json` is appended.
 
-You **do not need to list any models** — the plugin still discovers them from `/v1/models` automatically. Use this form only when you need to point at a non-default URL or pass an API key:
+## Requirements
 
-```jsonc
-{
-  "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-plugin-litellm@latest"],
-  "provider": {
-    "litellm": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "LiteLLM (proxy)",
-      "options": {
-        "baseURL": "http://litellm.internal.example.com/v1",
-        "apiKey": "{env:LITELLM_API_KEY}"
-      }
-    }
-  }
-}
-```
+- Node.js `^22.22.2 || ^24.15.0 || >=26.0.0`, `npm`, and `git`.
+- OpenCode and/or Codex installed for the selected target.
+- A LiteLLM gateway reachable at the configured origin.
 
-That's the whole config — every model in your LiteLLM `model_list` will appear in the picker.
+A source checkout also needs Bun 1.x for `npm run build`; this is a maintainer
+build prerequisite only. Packed npm artifacts ship prebuilt Node-compatible
+`dist` files and do not invoke Bun at install or runtime.
 
-### Overriding or curating individual models (optional)
+The built-in SSO flow stores a source-compatible token at
+`~/.litellm/token.json` with POSIX mode `0600`. Python and LiteLLM's `lite`
+executable are optional: the official CLI remains useful for independent
+`whoami`/diagnostics, but is not a prerequisite for this toolkit.
 
-If you want to rename a model in the picker, pin its `organizationOwner`, or otherwise hand-curate metadata, add it under `models`. The plugin **preserves your entries verbatim** and only injects discovered models whose key isn't already defined:
+## Install a fixed GitHub revision
 
-```jsonc
-{
-  "provider": {
-    "litellm": {
-      "options": {
-        "baseURL": "http://litellm.internal.example.com/v1",
-        "apiKey": "{env:LITELLM_API_KEY}"
-      },
-      "models": {
-        "openai/gpt-4o": {
-          "name": "GPT-4o (curated)",
-          "organizationOwner": "openai"
-        }
-      }
-    }
-  }
-}
-```
-
-Here, `openai/gpt-4o` keeps your custom name; every other model from the proxy is still discovered and added automatically.
-
-### Reasoning models (gpt-5, o1/o3/o4)
-
-OpenAI's reasoning-tier models reject requests that combine `reasoning_effort`
-with function tools when sent to `/v1/chat/completions`. The OpenAI Responses
-API (`/v1/responses`) has no such restriction, so the plugin routes those
-models through a **second provider entry** named `litellm-responses` that
-uses an SDK speaking the Responses API.
-
-You don't need to do anything for the default behaviour — the plugin
-detects reasoning-tier models from their id (`gpt-5*`, `o1*`, `o3*`,
-`o4*`) and from LiteLLM's `mode === 'responses'` field, and creates the
-sibling provider lazily.
-
-To override the routing per model:
-
-```jsonc
-{
-  "provider": {
-    "litellm": {
-      "options": {
-        "baseURL": "http://localhost:4000/v1",
-
-        // "auto" (default) | "chat" | "responses"
-        "transport": "auto",
-
-        // Force these into /v1/responses (highest precedence)
-        "responsesApiModels": ["gpt-5-4-high", "my-custom-reasoning-model"],
-
-        // Force these into /v1/chat/completions
-        "chatApiModels": ["o1-mini-cheap"]
-      }
-    }
-  }
-}
-```
-
-The two providers share `baseURL` and `apiKey`. Models curated by hand
-under either provider's `models` block are preserved verbatim, and a
-discovered model is skipped if its key already exists under **either**
-provider.
-
-> **Note**: this requires LiteLLM ≥ 1.40 (which proxies `/v1/responses`)
-> and an `@ai-sdk/openai` version that supports the Responses API. Older
-> AI SDKs may silently fall back to chat-completions, in which case set
-> `responsesApiModels` to an empty list and fix the upstream LiteLLM
-> config instead (e.g. `use_responses_api: true` per model).
-
-### Authentication
-
-If your LiteLLM proxy requires a master key, expose it via either approach:
-
-| Method | Example |
-|---|---|
-| Env var | `export LITELLM_API_KEY=sk-...` |
-| Env var (alias) | `export LITELLM_MASTER_KEY=sk-...` |
-| Config | `"options": { "apiKey": "{env:LITELLM_API_KEY}" }` |
-
-The env var path lets you commit `opencode.json` without leaking secrets.
-
-### Custom headers (Cloudflare Access, API gateways)
-
-If your LiteLLM proxy is behind Cloudflare Access or another gateway that requires extra HTTP headers, use the `customHeaders` option:
-
-```jsonc
-{
-  "provider": {
-    "litellm": {
-      "options": {
-        "baseURL": "https://litellm.internal.example.com/v1",
-        "apiKey": "{env:LITELLM_API_KEY}",
-        "customHeaders": {
-          "CF-Access-Client-Id": "{env:CF_ACCESS_CLIENT_ID}",
-          "CF-Access-Client-Secret": "{env:CF_ACCESS_CLIENT_SECRET}"
-        }
-      }
-    }
-  }
-}
-```
-
-These headers are included in every request the plugin makes during model discovery (health check and `/v1/models`). To obtain a Cloudflare Access Service Token, follow the [Cloudflare docs](https://developers.cloudflare.com/cloudflare-one/identity/service-tokens/).
-
-## 🔧 How it works
-
-```mermaid
-sequenceDiagram
-    participant OC as OpenCode
-    participant Plugin as opencode-litellm
-    participant LL as LiteLLM proxy
-
-    OC->>Plugin: config(initial)
-    alt provider.litellm configured
-        Plugin->>LL: GET /v1/models @ baseURL
-    else not configured
-        Plugin->>LL: probe :4000, :8000, :8080
-        LL-->>Plugin: 200 OK on one
-        Plugin->>Plugin: auto-create provider entry
-    end
-    Plugin->>LL: GET /v1/models (with auth if set)
-    LL-->>Plugin: { data: [...models] }
-    Plugin->>Plugin: format names, infer modalities, extract owner
-    Plugin->>Plugin: bucket each model by transport (chat vs responses)
-    Plugin->>OC: merge chat-completions models into provider.litellm
-    Plugin->>OC: merge responses models into provider.litellm-responses (lazy)
-    OC->>OC: render model picker with all discovered models
-```
-
-1. On OpenCode startup the `config` lifecycle hook fires.
-2. If `provider.litellm` exists, its `baseURL` is used. Otherwise common ports are probed.
-3. A health check (`GET /v1/models`) verifies the proxy is reachable and authorized.
-4. Models from the response are converted into OpenCode model entries with `id`, formatted `name`, `organizationOwner`, and inferred `modalities`.
-5. Each model is bucketed by transport — reasoning-tier models (`gpt-5*`, `o1`/`o3`/`o4*`, or anything with `mode === 'responses'`) go into the `litellm-responses` provider; everything else goes into `litellm`. Per-model overrides via `responsesApiModels` / `chatApiModels` win.
-6. Discovered models are merged on top of any user-defined ones — never overwriting them. A model is skipped if its key already exists under **either** provider.
-7. The whole flow is wrapped in a `Promise.race` against a 5 s timeout so a slow proxy never blocks boot.
-
-## 📋 Requirements
-
-- [OpenCode](https://opencode.ai) ≥ 0.1.x with plugin support (`@opencode-ai/plugin ^1.0.166`)
-- A running [LiteLLM](https://github.com/BerriAI/litellm) proxy:
-  ```bash
-  pip install 'litellm[proxy]'
-  litellm --config config.yaml --port 4000
-  ```
-- Node.js ≥ 20 (or Bun ≥ 1.0)
-
-## 📦 Compatibility matrix
-
-| LiteLLM version | OpenCode version | Status |
-|---|---|---|
-| ≥ 1.40 | ≥ 0.1.x | ✅ Tested |
-| 1.30 – 1.39 | ≥ 0.1.x | ⚠️ Should work (older `/v1/models` schema) |
-| < 1.30 | any | ❌ Unsupported |
-
-## ❓ FAQ
-
-<details>
-<summary><b>Why doesn't a model appear in OpenCode after I add it to LiteLLM?</b></summary>
-
-OpenCode reads the plugin output once at startup. After updating `litellm config.yaml`, restart **both** LiteLLM and OpenCode to refresh the model list.
-</details>
-
-<details>
-<summary><b>Can I use this with a remote LiteLLM proxy?</b></summary>
-
-Yes. Set `provider.litellm.options.baseURL` to your remote URL and (optionally) `apiKey`. Auto-detection only probes `localhost`, but explicit configuration works against any URL.
-</details>
-
-<details>
-<summary><b>What happens if LiteLLM is offline at startup?</b></summary>
-
-The plugin logs a warning and is a no-op. OpenCode starts normally; you just won't see LiteLLM-discovered models until you restart with the proxy up.
-</details>
-
-<details>
-<summary><b>Will my hand-curated model entries be overwritten?</b></summary>
-
-No. The merge is additive: anything you've already defined under `provider.litellm.models` is preserved exactly as-is. Discovered models are only added if their key isn't already present.
-</details>
-
-<details>
-<summary><b>Why is the npm name <code>opencode-plugin-litellm</code> and not <code>opencode-litellm</code>?</b></summary>
-
-The unscoped `opencode-litellm` was already published by another author when this project was started. The GitHub repo and exported plugin symbol still use the cleaner `opencode-litellm` name.
-</details>
-
-<details>
-<summary><b>Does this work with Ollama through LiteLLM?</b></summary>
-
-Yes — anything in your LiteLLM `model_list` shows up, including Ollama, Bedrock, Azure, OpenAI, Anthropic, Google, etc. That's the whole point of LiteLLM.
-</details>
-
-<details>
-<summary><b>My LiteLLM proxy is behind Cloudflare Access — how do I authenticate?</b></summary>
-
-Cloudflare Access intercepts requests before they reach LiteLLM, so a plain `Authorization: Bearer` header isn't enough. Create a [Cloudflare Access Service Token](https://developers.cloudflare.com/cloudflare-one/identity/service-tokens/) and pass the credentials via `customHeaders`:
-
-```jsonc
-{
-  "provider": {
-    "litellm": {
-      "options": {
-        "baseURL": "https://litellm.your-company.com/v1",
-        "customHeaders": {
-          "CF-Access-Client-Id": "{env:CF_ACCESS_CLIENT_ID}",
-          "CF-Access-Client-Secret": "{env:CF_ACCESS_CLIENT_SECRET}"
-        }
-      }
-    }
-  }
-}
-```
-
-The `customHeaders` map works for any gateway that requires extra HTTP headers — not just Cloudflare.
-</details>
-
-<details>
-<summary><b>I get <code>Function tools with reasoning_effort are not supported … in /v1/chat/completions</code> — what do I do?</b></summary>
-
-This error comes from OpenAI: their reasoning-tier models (gpt-5, o1, o3, o4) refuse function-tool calls on `/v1/chat/completions` when `reasoning_effort` is set. They require `/v1/responses` instead.
-
-As of `0.2.0`, `opencode-litellm` automatically routes those models through a sibling `litellm-responses` provider that uses the Responses API. If your model id doesn't match the heuristic (e.g. you renamed it in LiteLLM), add it explicitly:
-
-```jsonc
-"provider": {
-  "litellm": {
-    "options": {
-      "responsesApiModels": ["my-renamed-gpt-5-high"]
-    }
-  }
-}
-```
-
-The model will appear under the **LiteLLM (responses)** provider in the picker; pick it from there and tool-calling will work.
-</details>
-
-<details>
-<summary><b>Why are there suddenly two providers (<code>litellm</code> and <code>litellm-responses</code>) in the picker?</b></summary>
-
-Same LiteLLM proxy, different transport. `litellm` talks to `/v1/chat/completions`; `litellm-responses` talks to `/v1/responses`. The split is required for OpenAI reasoning models — see the FAQ entry above.
-
-The responses provider is created lazily and only appears if at least one discovered model needs it. To collapse everything back into a single provider, set `"transport": "chat"` in `provider.litellm.options` (you'll lose tool-calling on reasoning models in exchange).
-</details>
-
-## 🛠️ Development
+Use a full release commit SHA, never a branch or `latest` selector:
 
 ```bash
-git clone https://github.com/yuseferi/opencode-litellm.git
+export TOOLKIT_SHA='<full-40-character-release-commit-sha>'
+git clone https://github.com/happycastle114/opencode-litellm.git
+git -C opencode-litellm checkout --detach "$TOOLKIT_SHA"
 cd opencode-litellm
-npm install
+npm ci
+npm run build
+
+export TOOLKIT_PACK_DIR="$(mktemp -d)"
+npm pack --pack-destination "$TOOLKIT_PACK_DIR"
+npm pack ./packages/codex-litellm --pack-destination "$TOOLKIT_PACK_DIR"
+```
+
+The core package owns both `opencode-litellm` and `codex-litellm` binaries; the
+small `@happycastle114/codex-litellm` package has an exact dependency on that
+same core version. Use the filenames printed by `npm pack`:
+
+```bash
+export CORE_TGZ="$TOOLKIT_PACK_DIR/happycastle114-opencode-litellm-0.6.0.tgz"
+export CODEX_TGZ="$TOOLKIT_PACK_DIR/happycastle114-codex-litellm-0.6.0.tgz"
+
+# Binary name defaults to the target; --target both configures both clients.
+npx --yes --package "$CORE_TGZ" opencode-litellm install
+npx --yes --package "$CORE_TGZ" --package "$CODEX_TGZ" codex-litellm install
+npx --yes --package "$CORE_TGZ" opencode-litellm install --target both
+
+# Exact deterministic clean-HOME surface used by release qualification.
+LITELLM_BASE_URL=https://llm.example.test \
+LITELLM_PROXY_API_KEY='<gateway-key>' \
+npx --yes --package "$CORE_TGZ" opencode-litellm install --non-interactive
+```
+
+## Install from GitHub Packages
+
+The release packages are published to GitHub Packages, not npmjs.org. GitHub
+Packages requires authentication for npm reads even when a package is public.
+Use an ephemeral npm config and an environment token; this does not touch a
+user-level `.npmrc`, Keychain, or a client config file:
+
+```bash
+export TOOLKIT_VERSION='0.6.0'
+export NODE_AUTH_TOKEN='<GitHub classic PAT with read:packages>'
+export NPM_CONFIG_USERCONFIG="$(mktemp)"
+umask 077
+printf '%s\n' \
+  '@happycastle114:registry=https://npm.pkg.github.com' \
+  '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}' \
+  'always-auth=true' > "$NPM_CONFIG_USERCONFIG"
+
+# The package installs the opencode-litellm binary.
+npx --yes --package "@happycastle114/opencode-litellm@${TOOLKIT_VERSION}" opencode-litellm install
+
+# The wrapper installs the codex-litellm binary and its exact core dependency.
+npx --yes --package "@happycastle114/codex-litellm@${TOOLKIT_VERSION}" codex-litellm install
+```
+
+Remove the temporary config after use with `rm -f "$NPM_CONFIG_USERCONFIG"`.
+Pin a full version as shown above; do not use an unversioned or `latest`
+selector for a release qualification.
+
+There is intentionally no safe published command for the occupied unscoped
+`opencode-litellm` name. A transfer or a new owned name is required before the
+exact spelling `npx opencode-litellm install` can be used for this project.
+
+## Onboarding, authentication, and agent launch
+
+Interactive `install` is one onboarding flow for the target, gateway origin,
+authentication (`sso` or `env`), Codex connection mode (`gateway`, `oauth`, or
+`both`), and discovered search/MCP/toolset resources. Empty selections use all
+rows returned by each discovery surface. Search discovery is an available-tool
+inventory, not proof that the current key may invoke every listed tool. Use
+`--non-interactive` for a deterministic run with explicit values and an
+existing credential.
+In that mode, `LITELLM_BASE_URL` (or the official CLI-compatible
+`LITELLM_PROXY_URL`) supplies the gateway when `--base-url` is absent. A
+non-empty variable named by `--auth-env` selects environment authentication
+when `--auth` is absent. Explicit flags always win; interactive onboarding
+continues to default to SSO.
+
+`--auth-env` accepts a shell-compatible variable name but rejects names owned
+by the launcher, provider authentication, or process runtime:
+`CODEX_HOME`, `OPENCODE_CONFIG`, `OPENCODE_CONFIG_DIR`,
+`OPENCODE_ENABLE_EXA`, `LITELLM_MASTER_KEY`, `LITELLM_BASE_URL`,
+`LITELLM_PROXY_URL`, `OPENAI_API_KEY`, `CODEX_API_KEY`,
+`ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`,
+`ANTHROPIC_CUSTOM_HEADERS`, `OPENAI_BASE_URL`, `HOME`, `XDG_CONFIG_HOME`,
+`PATH`, and `NODE_OPTIONS`. `LITELLM_API_KEY` is intentionally allowed as a
+neutral, default-compatible gateway variable. Rejection happens before client
+configuration or launch state is changed.
+
+The default authentication is the built-in LiteLLM SSO flow:
+
+```bash
+opencode-litellm login --base-url https://llm.soungmin.kr
+opencode-litellm whoami --base-url https://llm.soungmin.kr
+opencode-litellm install
+opencode-litellm logout --base-url https://llm.soungmin.kr
+```
+
+The implementation follows LiteLLM's CLI-compatible sequence: `POST
+/sso/cli/start`, browser verification at the returned same-origin URL (or
+`/sso/key/generate?source=litellm-cli&key=...`), polling
+`/sso/cli/poll/<login_id>` with `x-litellm-cli-poll-secret`, optional team
+selection, and an atomic `0600` token write. `whoami` reports only local,
+non-secret metadata. An interactive install retries this SSO flow once when a
+stored token is rejected with HTTP 401/403; non-interactive runs fail closed.
+On macOS, a completed install synchronizes the SSO gateway key into the current
+`launchd` session when a Codex OAuth profile is selected, so the Codex desktop
+app can resolve `env_http_headers`. A later `login` refreshes that value when
+the helper already exists, and `logout` removes both the token file and the
+selected environment name. Pass the same custom name to lifecycle commands
+when `--auth-env` is not the default:
+
+```bash
+opencode-litellm logout --auth-env CUSTOM_LITELLM_KEY
+```
+
+Each successful install records a secret-free launch intent with POSIX mode
+`0600` at
+`$XDG_CONFIG_HOME/opencode-litellm/launch.json`, or
+`~/.config/opencode-litellm/launch.json`. The direct agent commands load that
+exact per-client gateway, authentication mode, environment-variable name,
+client config path, search state, and Codex mode. OpenCode-only and Codex-only
+installs merge with the previously installed client state instead of replacing
+it; the most recent install supplies the shared Claude launch state. The file
+contains no key or OAuth token, and credentials remain in the child process
+environment only:
+
+```bash
+opencode-litellm claude [claude-args...]
+opencode-litellm codex [codex-args...]
+opencode-litellm opencode [opencode-args...]
+```
+
+- Claude Code is routed through the LiteLLM `/claude-max` path with
+  `ANTHROPIC_CUSTOM_HEADERS=x-litellm-api-key: Bearer <key>`. Existing
+  Anthropic API/auth variables and the configured LiteLLM key variable are
+  removed so Claude's own subscription OAuth remains authoritative. This is
+  intentional: the pinned generic pass-through authentication dependency
+  removes the single `Bearer` scheme before validating the LiteLLM key while
+  leaving Claude's separate OAuth `Authorization` header untouched. This is
+  LiteLLM's documented Claude Code Max pass-through flow. Anthropic documents
+  the general `ANTHROPIC_BASE_URL` LLM-gateway boundary, but does not document
+  this Max OAuth proxy as an Anthropic-supported integration. It is not an
+  OpenCode Max OAuth plugin.
+- Codex receives the gateway key only under the environment-variable name
+  selected at install; `CODEX_API_KEY`, `OPENAI_API_KEY`, and `OPENAI_BASE_URL`
+  are removed. The launcher never injects a profile: `both` mode starts the
+  main gateway config unless the caller explicitly supplies
+  `--profile codex-oauth`; `oauth` mode needs no profile because its main config
+  is already OAuth-backed.
+- OpenCode receives `LITELLM_PROXY_URL`, a child-scoped
+  `OPENCODE_LITELLM_API_KEY`, the selected gateway environment variable, and the
+  exact configured `OPENCODE_CONFIG` path. The launcher scrubs inherited
+  `OPENCODE_ENABLE_EXA` and never sets it. Selected search tools use the
+  non-reserved IDs `litellm_search` (first) and deterministic `litellm_*` names
+  for additional tools; the built-in `websearch` ID is never overridden.
+
+At every direct-launch boundary, ambient `LITELLM_MASTER_KEY`,
+`LITELLM_API_KEY`, `OPENCODE_LITELLM_API_KEY`, and `LITELLM_PROXY_API_KEY` are
+scrubbed before the selected child-only credential is set. Provider credentials
+are scrubbed for the relevant client as well (`OPENAI_API_KEY`, `CODEX_API_KEY`,
+`ANTHROPIC_API_KEY`, and `ANTHROPIC_AUTH_TOKEN`); the parent environment is not
+mutated.
+
+## Codex modes and model picker
+
+Choose one with `--codex-mode gateway|oauth|both` (the default is `both`):
+
+| Mode | Main config | OAuth profile | Model catalog |
+|---|---|---|---|
+| `gateway` | `~/.codex/config.toml` uses `litellm-gateway-sso` and the command auth helper | Retired | `~/.codex/litellm-models.json` from authenticated `GET /v1/models` |
+| `oauth` | `~/.codex/config.toml` uses `litellm-codex-oauth` | Retired | `~/.codex/litellm-codex-oauth-models.json` from `codex debug models --bundled` |
+| `both` | Main config uses gateway SSO | `~/.codex/codex-oauth.config.toml` | Both catalogs are kept |
+
+The OAuth provider uses `base_url = <gateway>/codex-oauth`,
+`wire_api = "responses"`, `requires_openai_auth = true`,
+`forced_login_method = "chatgpt"`, and
+`env_http_headers = { "x-litellm-api-key" = "LITELLM_PROXY_API_KEY" }`.
+Codex owns the `Authorization` header; the gateway admission key is separate.
+The provider never combines `requires_openai_auth` with `env_key` or command
+auth. Native Codex and the toolkit launcher start the pass-through profile only
+when it is selected explicitly in `both` mode:
+
+```bash
+codex login status
+codex --profile codex-oauth
+opencode-litellm codex --profile codex-oauth
+```
+
+Codex 0.144.1 enables zstd request compression by default for native ChatGPT
+OAuth requests. The pinned LiteLLM `1.94.0-rc.1` generic pass-through parses
+the incoming bytes as JSON without decoding `Content-Encoding: zstd`, so an
+encoded request can reach the upstream route as an empty object. The installer
+therefore manages `[features].enable_request_compression = false` in the active
+OAuth config: the main config in `oauth` mode and `codex-oauth.config.toml` in
+`both` mode. Gateway-only configs do not retain that override. If a user had an
+explicit value before switching to OAuth, a later gateway transition restores
+that exact line instead of discarding the preference.
+
+Gateway catalogs inherit the prompt/model metadata template from
+`codex debug models --bundled`: among listed, API-supported rows, the smallest
+numeric `priority` wins. Gateway rows force `use_responses_lite = false` and
+retain the inherited prompt fields. OAuth mode copies the bundled catalog
+unchanged, so it remains the exact Codex-provided snapshot.
+
+The catalog is regenerated after a Codex upgrade so new models appear in the
+picker. The gateway catalog uses the live LiteLLM IDs, excludes rows identified
+as embedding, image-generation, or audio-only models, preserves multimodal chat
+rows, keeps a reliable coding model as the default, and contains no plaintext
+key. The exact `alibaba-token/qwen3.8-max-preview` row is shown as
+`Qwen3.8 Max Preview` with a one-million-token context window and text/image
+input modalities, but is not promoted over the reliable default. Unverified
+capabilities stay conservative: reasoning levels are empty and parallel-tool,
+search-tool, and original-image-detail support remain `false`.
+
+## Discovery, search tools, MCP, and toolsets
+
+Install discovery authenticates once, then requests the model catalog and
+optional tool surfaces concurrently:
+
+| Surface | Gateway endpoint | Registration |
+|---|---|---|
+| Models | `GET /v1/models` (required) | OpenCode picker at startup; Codex JSON catalog |
+| Search tools | Primary `GET /search_tools/list` (permission-filtered); fallback `GET /v1/search/tools` (`{ "object": "list", "data": [...] }`) | Permission-filtered names are preferred. A successful router-wide fallback emits a typed warning; selected names become OpenCode `searchTools` with non-reserved `litellm_*` IDs |
+| MCP servers | `GET /v1/mcp/server` | Deployed-gateway-compatible `/<server_name>/mcp` remote entries |
+| MCP toolsets | `GET /v1/mcp/toolset` | Pinned `v1.94.0-rc.1` `/toolset/<url-encoded-toolset-name>/mcp` remote entries |
+
+Empty `--search`, `--mcp`, or `--toolset` lists select every row returned by the
+corresponding discovery endpoint. Search discovery first requests the
+permission-filtered `GET /search_tools/list` route. If that route is unavailable,
+unsupported, or returns an invalid shape, discovery falls back to
+`GET /v1/search/tools`; that fallback is router-wide and produces a typed
+available-inventory warning (`available_fallback`). LiteLLM still enforces the
+current key's object permissions when OpenCode invokes
+`POST /v1/search/<search_tool_name>`.
+
+The first selected search is registered as `litellm_search`. Additional names
+are normalized to deterministic `litellm_<name>` IDs (hyphens become
+underscores) with numeric suffixes for collisions; the reserved `websearch` ID
+is never used.
+
+If optional search or toolset discovery is unavailable, an explicitly named
+`--search` or `--toolset` is retained in configuration with an “unverified”
+warning. When available inventory is returned, an unknown name is skipped, but
+presence in that inventory still is not an authorization guarantee. Restrict,
+disable, or override MCP startup state with:
+
+```bash
+opencode-litellm install --search agy-search --search semantic-search
+opencode-litellm install --mcp zread --disable-mcp zread
+opencode-litellm install --enable-mcp minimax_search
+opencode-litellm install --toolset research-core
+opencode-litellm install --no-search --no-mcp --no-toolsets
+```
+
+`minimax_search` is selected when returned by MCP discovery but starts disabled
+by default; `--enable-mcp minimax_search` is the explicit escape hatch. State
+flags do not add a server to a narrowed `--mcp` selection, so use both
+`--mcp minimax_search --enable-mcp minimax_search` when selecting only that
+server. `zread`, `zai_web_reader`, and otherwise unknown MCP names default to
+enabled unless explicitly disabled.
+
+Search calls use LiteLLM's documented `POST /v1/search/<search_tool_name>` API,
+send `Authorization: Bearer <key>`, and expose `query`, `max_results` (1–20),
+and `search_domain_filter`. The POST response is the real permission check;
+listing a tool during onboarding does not pre-authorize it. Optional
+search/MCP/toolset endpoint failures are reported as warnings; a missing or
+unauthorized model catalog stops install.
+
+MCP toolsets are LiteLLM's named, permissioned collections of tools from one or
+more MCP servers. The installer discovers and registers the named runtime
+route; it does not invent tools or copy tool definitions into client config.
+LiteLLM's separate MCP Tool Search feature (`mcp_tool_search`/
+`mcp_tool_call`) is controlled by the gateway key's `object_permission` (for
+example `mcp_tool_search_enabled`) and is not silently enabled by this
+installer. Configure that server-side permission separately when needed.
+
+The shared skill is installed at `~/.agents/skills/litellm-research-router` for
+every selected target (`opencode`, `codex`, or `both`) and is available to both
+clients. Restart OpenCode and Codex after installation so their startup
+hooks/catalog readers run again.
+
+## Qwen and Oh My OpenAgent routing
+
+OpenCode onboarding pins the official consumer plugin as
+`oh-my-openagent@4.19.0`, replacing unversioned, differently versioned, or
+legacy `oh-my-opencode` entries without duplication. It resolves the active
+user profile in this migration-safe order: renamed JSONC, renamed JSON, legacy
+JSONC, legacy JSON, then a new renamed JSON file. JSONC comments and unrelated
+fields are preserved. The managed profile remains an atomic `0600` file and
+contains no credential.
+
+When the exact gateway model `alibaba-token/qwen3.8-max-preview` is visible,
+the installer writes the provider-qualified OpenCode route
+`litellm/alibaba-token/qwen3.8-max-preview` only to these bounded entries:
+
+- Agents: `sisyphus-junior`, `prometheus`, `plan`, `librarian`, `explore`,
+  `document-writer`, and `multimodal-looker`.
+- Categories: `writing` and `long-context`.
+
+High-difficulty and visual-engineering routes outside that list remain
+user-managed. If Qwen is absent, no Qwen route is invented and the installer
+warns. LiteLLM search IDs remain non-reserved and never replace OpenCode's
+built-in `websearch`, independent of Qwen discovery and even with `--no-search`.
+
+## Flags and readback
+
+```text
+--target <opencode|codex|both>
+--base-url <url>
+--auth <sso|env>
+--auth-env <NAME>
+--codex-mode <gateway|oauth|both>
+--search <name>       (repeatable)
+--mcp <name>          (repeatable)
+--toolset <name>      (repeatable)
+--enable-mcp <name>   (repeatable; overrides a selected server's default state)
+--disable-mcp <name>  (repeatable)
+--no-search | --no-mcp | --no-toolsets
+--non-interactive
+--opencode-config <path> | --codex-config <path>
+```
+
+Without overrides, an existing `opencode.jsonc` is preferred over
+`opencode.json`; Codex uses `~/.codex/config.toml`. Use the doctor command to
+check the resulting shape and auth boundaries:
+
+```bash
+opencode-litellm doctor --target both --json
+opencode models litellm
+codex debug models --bundled
+```
+
+## Managed checkout, backups, and recovery
+
+The installer source of truth is `MANAGED_OPEN_CODE_PLUGIN.revision` in
+`src/cli/managed-plugin-types.ts`. This release records the qualified runtime
+commit:
+
+```text
+f97a800d7ce1dd204a2cfe0c51b7149428ecdff4
+```
+
+Installation stages a clone/fetch/checkout at the full 40-character SHA, runs
+`npm ci --ignore-scripts`, verifies origin/worktree/`HEAD`, and atomically
+activates the revision-addressed directory. An existing active revision is
+verified in place; a failed staged install is removed without replacing it.
+The following release-metadata commit does not change runtime behavior, so the
+managed checkout remains pinned to the qualified runtime commit above.
+
+Client assets are staged under cryptographic per-transaction UUID names. While
+the installer process is running, promotion is all-or-nothing and existing
+files are backed up only when bytes change. A forced process kill is not a
+cross-file atomic boundary: if it happens after an original file is moved but
+before its replacement is linked, the exact original remains at the clearly
+recognizable recovery path `<destination>.<uuid>.rollback.tmp`. A rerun uses a
+new UUID, converges without clobbering that recovery file, and prints its path
+as a warning. Verify the active destination before manually removing a recovery
+file. Generated assets include:
+
+Interactive install keeps a newly issued SSO credential deferred until the
+managed plugin is ready, then promotes the `0600` token in the same filesystem
+transaction as client and launch state. Cancelling onboarding or failing plugin
+preparation leaves the previous token untouched. Explicit destinations shared
+by different HOME values use exact source identity and byte validation during
+promotion, so a stale concurrent writer fails without overwriting the winner.
+
+The per-home lease coordinates this toolkit's `install`, `login`, and `logout`
+writers. `whoami` is read-only. Direct file edits and external LiteLLM CLI
+commands do not participate in the lease; they are treated as non-cooperating
+editors, and managed-file identity checks fail closed when they overlap an
+installation.
+
+```text
+~/.litellm/token.json (only when interactive install issues a fresh SSO token)
+<OpenCode config dir>/vendor/opencode-litellm-git/f97a800d7ce1dd204a2cfe0c51b7149428ecdff4/
+<active OpenCode config dir>/oh-my-openagent.json[c] (or existing legacy oh-my-opencode.json[c])
+$XDG_CONFIG_HOME/opencode-litellm/launch.json
+~/.codex/litellm-models.json
+~/.codex/litellm-codex-oauth-models.json
+~/.codex/codex-oauth.config.toml
+~/.codex/libexec/litellm-auth-token.mjs
+~/.agents/skills/litellm-research-router/
+~/.claude/settings.json
+```
+
+There is no `uninstall` command in this release. Restore the newest
+backup before removing managed entries; remove the shared skill only when no
+other client uses it. `opencode-litellm logout` removes the local SSO token and,
+on macOS, clears the selected Codex OAuth admission-key environment from the
+current `launchd` session.
+
+## Development
+
+```bash
+npm ci
 npm run typecheck
+npm test
 ```
 
-The project is intentionally tiny:
-
-```
-src/
-├── index.ts                    # Public exports
-├── types/index.ts              # LiteLLM API types
-├── utils/
-│   ├── litellm-api.ts          # health check, discovery, auto-detect
-│   └── format-model-name.ts    # owner extraction, name formatting, categorization
-└── plugin/
-    ├── index.ts                # LiteLLMPlugin entry
-    ├── config-hook.ts          # OpenCode config-lifecycle hook (5 s timeout)
-    └── enhance-config.ts       # core merge logic
-```
-
-See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the full contributor workflow.
-
-## 🗺️ Roadmap
-
-- [ ] Optional cost/latency overlay using LiteLLM's `/spend` and `/health` endpoints
-- [ ] In-memory cache with TTL to avoid re-querying on rapid restarts
-- [ ] Model categorization based on `litellm.proxy.config.model_list[].model_info`
-- [ ] Tests with [vitest](https://vitest.dev/)
-- [ ] `chat.params` hook for injecting LiteLLM routing tags / fallbacks
-
-Have an idea? [Open an issue](https://github.com/yuseferi/opencode-litellm/issues/new).
-
-## 🙏 Acknowledgements
-
-Inspired by [`opencode-lmstudio`](https://github.com/agustif/opencode-lmstudio) by [@agustif](https://github.com/agustif) — the architectural blueprint for OpenCode model-discovery plugins.
-
-Built on top of [LiteLLM](https://github.com/BerriAI/litellm) by the [BerriAI](https://github.com/BerriAI) team and [OpenCode](https://opencode.ai) by the OpenCode contributors.
-
-## 📄 License
-
-[MIT](./LICENSE) © [Yusef Mohamadi](https://github.com/yuseferi)
-
----
-
-<div align="center">
-
-If this project saved you time, consider giving it a ⭐ on [GitHub](https://github.com/yuseferi/opencode-litellm).
-
-</div>
+The fork retains the MIT license and builds on the original
+[`yuseferi/opencode-litellm`](https://github.com/yuseferi/opencode-litellm)
+plugin.

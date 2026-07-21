@@ -1,11 +1,20 @@
 blank_issues_enabled: false
 contact_links:
+  - name: 📚 Toolkit README and usage
+    url: https://github.com/happycastle114/opencode-litellm#readme
+    about: Start here for OpenCode, Codex, Claude launcher, discovery, SSO, and skills usage.
   - name: 📚 OpenCode docs
     url: https://opencode.ai/docs
     about: General OpenCode usage questions belong here.
+  - name: 🧭 Codex docs
+    url: https://developers.openai.com/codex/
+    about: General Codex CLI and configuration questions belong here.
+  - name: 🟣 Claude Code docs
+    url: https://docs.anthropic.com/en/docs/claude-code/overview
+    about: General Claude Code usage questions belong here.
   - name: 🦙 LiteLLM docs
     url: https://docs.litellm.ai/
     about: Questions about configuring the LiteLLM proxy itself.
   - name: 💬 Discussions
-    url: https://github.com/yuseferi/opencode-litellm/discussions
-    about: Open-ended questions, ideas, or show-and-tell.
+    url: https://github.com/happycastle114/opencode-litellm/discussions
+    about: Open-ended toolkit questions, ideas, or show-and-tell.

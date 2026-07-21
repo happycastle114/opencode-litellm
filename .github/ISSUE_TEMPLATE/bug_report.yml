@@ -1,18 +1,47 @@
-name: 🐛 Bug report
-description: Something isn't working as expected
+name: 🐛 Toolkit bug report
+description: Something is not working in the OpenCode, Codex, or Claude toolkit
 labels: ["bug", "needs-triage"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for taking the time to file a bug! Please fill out the sections below so we can reproduce it quickly.
+        Thanks for taking the time to file a bug. Please identify the affected client and package, then include a minimal reproduction.
+
+  - type: dropdown
+    id: target
+    attributes:
+      label: Affected client or surface
+      description: Which toolkit target or shared surface is failing?
+      options:
+        - OpenCode
+        - Codex
+        - Claude launcher
+        - Shared discovery, MCP, toolsets, SSO, or skills
+        - Packaging or installation
+        - Not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: package-target
+    attributes:
+      label: Package target
+      description: Which package or source checkout did you use?
+      options:
+        - "@happycastle114/opencode-litellm (core)"
+        - "codex-litellm (Codex wrapper)"
+        - Both packages
+        - Git checkout
+        - Not sure
+    validations:
+      required: true
 
   - type: textarea
     id: what-happened
     attributes:
       label: What happened?
       description: A clear and concise description of the bug.
-      placeholder: When I start OpenCode, my LiteLLM models don't appear...
+      placeholder: When I run `opencode-litellm install`, my selected Codex MCP toolset is not written...
     validations:
       required: true
 
@@ -20,7 +49,7 @@ body:
     id: expected
     attributes:
       label: Expected behavior
-      placeholder: I expected to see all models from my LiteLLM model_list in the picker.
+      placeholder: I expected the selected target to retain the discovered toolset and launch successfully.
     validations:
       required: true
 
@@ -31,17 +60,42 @@ body:
       description: Numbered list of exact steps. Include relevant config snippets.
       placeholder: |
         1. Start LiteLLM with `litellm --config config.yaml`
-        2. Start OpenCode with the following opencode.json: ...
-        3. Open the model picker
+        2. Run the toolkit command and flags used (for example, `codex-litellm install --target codex`)
+        3. Inspect the generated client config or launch the selected client
         4. Notice that ...
     validations:
       required: true
 
   - type: input
-    id: plugin-version
+    id: toolkit-version
     attributes:
-      label: Plugin version
-      placeholder: 0.1.0
+      label: Toolkit version or commit
+      description: Give the package version or full Git commit SHA you tested.
+      placeholder: 0.6.0 or 40-character commit SHA
+    validations:
+      required: true
+
+  - type: input
+    id: opencode-version
+    attributes:
+      label: OpenCode version
+      placeholder: e.g. 1.14.28, or not used
+    validations:
+      required: true
+
+  - type: input
+    id: codex-version
+    attributes:
+      label: Codex version
+      placeholder: e.g. 0.XX.X, or not used
+    validations:
+      required: true
+
+  - type: input
+    id: claude-version
+    attributes:
+      label: Claude Code version
+      placeholder: e.g. 1.0.x, or not used
     validations:
       required: true
 
@@ -54,17 +108,11 @@ body:
       required: true
 
   - type: input
-    id: opencode-version
+    id: runtime
     attributes:
-      label: OpenCode version
-    validations:
-      required: true
-
-  - type: input
-    id: env
-    attributes:
-      label: Node.js / Bun version & OS
-      placeholder: e.g. Node 22.5, macOS 14.5
+      label: Node.js / Bun version and OS
+      description: Include the Node.js version, pinned Bun version if used, and operating system.
+      placeholder: e.g. Node 24.0, Bun 1.3.14, macOS 15.5
     validations:
       required: true
 
@@ -72,5 +120,5 @@ body:
     id: logs
     attributes:
       label: Relevant logs
-      description: Any `[opencode-litellm]` log lines, plus the raw `/v1/models` response if you can capture it.
+      description: Include sanitized OpenCode, Codex, or Claude launcher logs and relevant `/v1/models`, search, MCP, or SSO responses if you can capture them.
       render: shell

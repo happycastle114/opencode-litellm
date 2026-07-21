@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@happycastle114/codex-litellm",
+  "version": "0.6.0",
+  "description": "Codex-compatible command wrapper for the happycastle114 LiteLLM plugin",
+  "type": "module",
+  "bin": {
+    "codex-litellm": "./bin/codex-litellm.mjs"
+  },
+  "files": [
+    "bin",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://npm.pkg.github.com"
+  },
+  "engines": {
+    "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/happycastle114/opencode-litellm.git"
+  },
+  "bugs": {
+    "url": "https://github.com/happycastle114/opencode-litellm/issues"
+  },
+  "homepage": "https://github.com/happycastle114/opencode-litellm#readme",
+  "dependencies": {
+    "@happycastle114/opencode-litellm": "0.6.0"
+  }
+}
