@@ -176,7 +176,7 @@ export function createWrapperFixture(): { readonly root: string; readonly execut
   mkdirSync(dirname(executable), { recursive: true })
   mkdirSync(coreRoot, { recursive: true })
   copyFileSync(wrapperEntrypoint, executable)
-  writeFileSync(join(coreRoot, 'package.json'), `${JSON.stringify({ name: '@happycastle114/opencode-litellm', version: '0.6.0', type: 'module', exports: { './cli': './fake-cli.mjs' } })}\n`)
+  writeFileSync(join(coreRoot, 'package.json'), `${JSON.stringify({ name: '@happycastle114/opencode-litellm', version: '0.7.0', type: 'module', exports: { './cli': './fake-cli.mjs' } })}\n`)
   writeFileSync(join(coreRoot, 'fake-cli.mjs'), "process.stdout.write(JSON.stringify(process.argv.slice(2)))\n")
   return { root, executable }
 }

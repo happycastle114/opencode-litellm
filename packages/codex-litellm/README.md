@@ -16,9 +16,10 @@ printf '%s\n' \
   '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}' \
   'always-auth=true' > "$NPM_CONFIG_USERCONFIG"
 
-npx --yes --package @happycastle114/codex-litellm@0.6.0 codex-litellm install
-npx --yes --package @happycastle114/codex-litellm@0.6.0 codex-litellm install --target both
-npx --yes --package @happycastle114/codex-litellm@0.6.0 codex-litellm whoami
+npx --yes --package @happycastle114/codex-litellm@0.7.0 codex-litellm install
+npx --yes --package @happycastle114/codex-litellm@0.7.0 codex-litellm install --target both
+npx --yes --package @happycastle114/codex-litellm@0.7.0 codex-litellm install --auto-router configure
+npx --yes --package @happycastle114/codex-litellm@0.7.0 codex-litellm whoami
 ```
 
 The bare `install` command starts an interactive Codex onboarding flow. It
@@ -27,6 +28,25 @@ connection mode (`gateway`, `oauth`, or `both`), discovered search tools, MCP
 servers, MCP toolsets, and final confirmation. Use `--target both` when the
 same flow should configure OpenCode as well. `--non-interactive` is available
 only for scripted installs with explicit options.
+
+Auto Router is an optional, TTY-only official LiteLLM wizard for Claude Code;
+it does not change Codex or OpenCode routing. Interactive onboarding defaults
+to skip, and non-interactive installs also skip unless `--auto-router
+configure` is explicit. `--auto-router dry-run` prints the pinned, secret-free
+plan without running a subprocess. The opt-in path requires `uv >= 0.10.9` and
+runs `litellm[proxy]==1.94.0rc1` in an isolated tool environment.
+This upstream PyPI release publishes Linux wheels only. macOS, Windows, and
+other non-Linux platforms therefore require a configured `rustc` and `cargo`
+for the official sdist build; the wrapper checks both and never installs them.
+
+The wrapper forwards the gateway key only in the official wizard's child
+environment, never in argv, output, Keychain, or wrapper-owned files. The
+official wizard itself persists that provider key in its mode-`0600`
+`~/.litellm/autorouter/config.yaml`. Its `up` command patches Claude settings,
+and `down` restores them. After a gateway-key rotation, run the pinned `down`
+command, delete that YAML, refresh login/environment authentication, and rerun
+`codex-litellm install --auto-router configure`. See the project README for the
+exact pinned `uv tool run` commands and source boundary.
 
 GitHub Packages requires authentication for npm reads even when this public
 package is readable. The temporary `NPM_CONFIG_USERCONFIG` file keeps the

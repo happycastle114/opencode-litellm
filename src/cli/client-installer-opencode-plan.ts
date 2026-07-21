@@ -47,6 +47,7 @@ export function prepareOpenCodeInstall(
   const output = applyOpenCodeEdits(source, planOpenCodeEdits(source, {
     baseUrl: prepared.options.baseUrl,
     authEnv: prepared.options.authEnv,
+    models: prepared.discovery.models,
     pluginSpec: managedPlugin.pluginSpec,
     mcpDiscoveryEnabled: !prepared.options.noMcp,
     search: prepared.options.search,

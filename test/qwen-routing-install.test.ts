@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { parse as parseJsonc } from 'jsonc-parser'
 import { installPreparedClients } from '../src/cli/client-installer'
-import { CodexMode, InstallAuth, InstallTarget } from '../src/cli/install-intent'
+import { CodexMode, InstallAuth, InstallTarget, ToolkitDefault } from '../src/cli/install-intent'
 import type { PreparedInstall } from '../src/cli/install-preparation'
 import { OH_MY_OPENAGENT_PLUGIN_SPEC } from '../src/cli/opencode-config'
 import {
@@ -205,6 +205,7 @@ function preparedInstall(
       opencodeConfig,
       codexConfig: undefined,
       codexMode: CodexMode.Both,
+      autoRouter: ToolkitDefault.NonInteractiveAutoRouter,
       search,
       mcp: [],
       toolsets: [],

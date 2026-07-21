@@ -8,15 +8,15 @@ import {
 } from '../scripts/verify-npm-release-metadata.mjs'
 
 const GIT_HEAD = 'a'.repeat(40)
-const PACKAGE_SPEC = '@happycastle114/opencode-litellm@0.6.0'
+const PACKAGE_SPEC = '@happycastle114/opencode-litellm@0.7.0'
 const PACKAGE_NAME = '@happycastle114/opencode-litellm'
 const EXPECTED_INTEGRITY = 'sha512-package-integrity'
-const EXPECTED_TARBALL = `${GITHUB_PACKAGES_REGISTRY}/download/@happycastle114/opencode-litellm/0.6.0/release.tgz`
+const EXPECTED_TARBALL = `${GITHUB_PACKAGES_REGISTRY}/download/@happycastle114/opencode-litellm/0.7.0/release.tgz`
 
 function validMetadata(overrides: Record<string, unknown> = {}) {
   return {
     name: PACKAGE_NAME,
-    version: '0.6.0',
+    version: '0.7.0',
     gitHead: GIT_HEAD,
     dist: {
       tarball: EXPECTED_TARBALL,
@@ -30,13 +30,13 @@ describe('GitHub Packages release metadata verifier', () => {
   test('parses scoped exact package specs', () => {
     expect(parsePackageSpec(PACKAGE_SPEC)).toEqual({
       name: PACKAGE_NAME,
-      version: '0.6.0',
+      version: '0.7.0',
       spec: PACKAGE_SPEC,
     })
-    expect(parsePackageSpec('@happycastle114/codex-litellm@0.6.0')).toEqual({
+    expect(parsePackageSpec('@happycastle114/codex-litellm@0.7.0')).toEqual({
       name: '@happycastle114/codex-litellm',
-      version: '0.6.0',
-      spec: '@happycastle114/codex-litellm@0.6.0',
+      version: '0.7.0',
+      spec: '@happycastle114/codex-litellm@0.7.0',
     })
     expect(() => parsePackageSpec('@happycastle114/opencode-litellm')).toThrow()
   })
@@ -44,7 +44,7 @@ describe('GitHub Packages release metadata verifier', () => {
   test('accepts GitHub Packages metadata without npmjs-only provenance fields', () => {
     const result = validateMetadata(validMetadata(), {
       name: PACKAGE_NAME,
-      version: '0.6.0',
+      version: '0.7.0',
       gitHead: GIT_HEAD,
       integrity: EXPECTED_INTEGRITY,
       registry: GITHUB_PACKAGES_REGISTRY,
@@ -59,7 +59,7 @@ describe('GitHub Packages release metadata verifier', () => {
     const base = validMetadata()
     const cases = [
       ['name', { ...base, name: '@happycastle114/other' }, 'name=@happycastle114/other'],
-      ['version', { ...base, version: '0.6.1' }, 'version=0.6.1'],
+      ['version', { ...base, version: '0.7.1' }, 'version=0.7.1'],
       ['gitHead', { ...base, gitHead: 'b'.repeat(40) }, `gitHead=${'b'.repeat(40)}`],
       ['integrity', { ...base, dist: { ...base.dist, integrity: 'sha512-other' } }, 'integrity=sha512-other'],
       ['tarball', { ...base, dist: { ...base.dist, tarball: 'https://registry.npmjs.org/other.tgz' } }, 'tarball=https://registry.npmjs.org/other.tgz'],
@@ -67,7 +67,7 @@ describe('GitHub Packages release metadata verifier', () => {
     for (const [name, metadata, failure] of cases) {
       const result = validateMetadata(metadata, {
         name: PACKAGE_NAME,
-        version: '0.6.0',
+        version: '0.7.0',
         gitHead: GIT_HEAD,
         integrity: EXPECTED_INTEGRITY,
         registry: GITHUB_PACKAGES_REGISTRY,

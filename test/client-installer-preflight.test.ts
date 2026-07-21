@@ -13,7 +13,7 @@ import { dirname, join } from 'node:path'
 import { installPreparedClients } from '../src/cli/client-installer'
 import { readBundledCodexCatalog } from '../src/cli/codex-discovery'
 import type { PreparedInstall } from '../src/cli/install-preparation'
-import { CodexMode, InstallAuth, InstallTarget } from '../src/cli/install-intent'
+import { CodexMode, InstallAuth, InstallTarget, ToolkitDefault } from '../src/cli/install-intent'
 import { resolveOhMyOpenAgentProfilePath } from '../src/cli/qwen-routing'
 import { runCliProgram } from '../src/cli/program'
 
@@ -203,6 +203,7 @@ function preparedInstall(
       opencodeConfig: undefined,
       codexConfig: undefined,
       codexMode: CodexMode.Both,
+      autoRouter: ToolkitDefault.NonInteractiveAutoRouter,
       search: [],
       mcp: [],
       toolsets: [],

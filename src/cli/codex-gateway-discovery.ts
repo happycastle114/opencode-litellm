@@ -1,15 +1,19 @@
 import { isMcpServerName } from '../mcp/options'
 import { isHeaderSafeApiKey } from '../utils/api-key'
+import {
+  parseCodexDiscoveryModels,
+  type CodexDiscoveryModel,
+} from './codex-discovery-model'
+
+export type { CodexDiscoveryModel } from './codex-discovery-model'
 
 const ENDPOINT = { Models: '/v1/models', McpServers: '/v1/mcp/server' } as const
-const RESPONSE_FIELD = { Data: 'data', McpServers: 'mcp_servers', Id: 'id', Object: 'object', Mode: 'mode', Type: 'type', ModelType: 'model_type', InputModalities: 'input_modalities', ServerName: 'server_name' } as const
+const RESPONSE_FIELD = { Data: 'data', McpServers: 'mcp_servers', ServerName: 'server_name' } as const
 const FAILURE_KIND = { Request: 'request', Status: 'status', Json: 'json', Shape: 'shape' } as const
 type FailureKind = typeof FAILURE_KIND[keyof typeof FAILURE_KIND]
 const DEFAULT_OVERALL_TIMEOUT_MS = 5000
 const DEFAULT_REQUEST_TIMEOUT_MS = 3000
 const MAX_OVERALL_TIMEOUT_MS = 5000
-
-export type CodexDiscoveryModel = { readonly id: string; readonly object?: string; readonly mode?: string; readonly type?: string; readonly model_type?: string; readonly input_modalities?: readonly string[] }
 
 export type CodexGatewayDiscoveryInput = { readonly origin: string; readonly apiKey: string; readonly timeoutMs?: number; readonly requestTimeoutMs?: number; readonly fetch?: typeof globalThis.fetch; readonly fetcher?: typeof globalThis.fetch }
 
@@ -130,32 +134,8 @@ class EndpointFailure extends Error {
 }
 
 function readModels(payload: unknown): readonly CodexDiscoveryModel[] {
-  const rows = readDataRows(payload)
-  if (rows === undefined) throw new EndpointFailure(ENDPOINT.Models, FAILURE_KIND.Shape)
-  const models: CodexDiscoveryModel[] = []
-  const seen = new Set<string>()
-  for (const row of rows) {
-    if (!isRecord(row)) continue
-    const idValue = row[RESPONSE_FIELD.Id]
-    if (typeof idValue !== 'string') continue
-    const id = idValue.trim()
-    if (id === '' || seen.has(id)) continue
-    seen.add(id)
-    const object = readOptionalString(row[RESPONSE_FIELD.Object])
-    const mode = readOptionalString(row[RESPONSE_FIELD.Mode])
-    const type = readOptionalString(row[RESPONSE_FIELD.Type])
-    const modelType = readOptionalString(row[RESPONSE_FIELD.ModelType])
-    const inputModalities = readOptionalStringArray(row[RESPONSE_FIELD.InputModalities])
-    models.push({
-      id,
-      ...(object === undefined ? {} : { object }),
-      ...(mode === undefined ? {} : { mode }),
-      ...(type === undefined ? {} : { type }),
-      ...(modelType === undefined ? {} : { model_type: modelType }),
-      ...(inputModalities === undefined ? {} : { input_modalities: inputModalities }),
-    })
-  }
-  if (models.length === 0) throw new EndpointFailure(ENDPOINT.Models, FAILURE_KIND.Shape)
+  const models = parseCodexDiscoveryModels(payload)
+  if (models === undefined) throw new EndpointFailure(ENDPOINT.Models, FAILURE_KIND.Shape)
   return models
 }
 
@@ -228,24 +208,6 @@ function normalizeOrigin(value: string): string {
 function boundedTimeout(value: number | undefined, fallback: number, maximum: number): number {
   if (value === undefined || !Number.isFinite(value)) return fallback
   return Math.min(Math.max(Math.trunc(value), 1), maximum)
-}
-
-function readDataRows(value: unknown): readonly unknown[] | undefined {
-  if (!isRecord(value)) return undefined
-  const data = value[RESPONSE_FIELD.Data]
-  return Array.isArray(data) ? data : undefined
-}
-
-function readOptionalString(value: unknown): string | undefined {
-  if (typeof value !== 'string') return undefined
-  const normalized = value.trim()
-  return normalized === '' ? undefined : normalized
-}
-
-function readOptionalStringArray(value: unknown): readonly string[] | undefined {
-  if (!Array.isArray(value)) return undefined
-  const values = value.map(readOptionalString).filter((entry): entry is string => entry !== undefined)
-  return values.length === 0 ? undefined : values
 }
 
 function readRows(value: unknown): readonly unknown[] | undefined {

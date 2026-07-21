@@ -101,6 +101,30 @@ test('preserves an explicit install target through the Codex wrapper', () => {
   }
 })
 
+test('forwards an explicit Auto Router dry-run through the Codex wrapper', () => {
+  const fixture = createWrapperFixture()
+  try {
+    const result = spawnSync(getNodeRuntime().executable, [
+      fixture.executable,
+      'install',
+      '--auto-router',
+      'dry-run',
+      '--non-interactive',
+    ], { encoding: 'utf8' })
+    expect(result.status).toBe(0)
+    expect(JSON.parse(result.stdout)).toEqual([
+      'install',
+      '--target',
+      'codex',
+      '--auto-router',
+      'dry-run',
+      '--non-interactive',
+    ])
+  } finally {
+    cleanupFixture(fixture.root)
+  }
+})
+
 test('preserves non-install commands through the Codex wrapper', () => {
   const fixture = createWrapperFixture()
   try {

@@ -19,7 +19,7 @@ afterEach(() => {
 describe('install preparation interactive', () => {
   test('uses changed interactive choices before SSO and authenticated discovery', async () => {
     // Given: staged answers change the gateway before accepting all resources
-    const answers = ['', `${VALUE.changedOrigin}/`, '', '', '', '', '', 'y']
+    const answers = ['', `${VALUE.changedOrigin}/`, '', '', '', '', '', '', 'y']
     const writes: string[] = []
     let promptCount = 0
     let onboardedAt = -1

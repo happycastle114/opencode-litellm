@@ -3,8 +3,10 @@
 This fork packages the OpenCode LiteLLM plugin and two onboarding binaries. The
 installer configures model discovery, available search tools, MCP servers,
 LiteLLM MCP toolsets, a shared research skill, and the Codex connection mode
-you choose. It uses LiteLLM's documented SSO wire flow as a small Node.js
-implementation, so the installer does not require Python or the `lite` CLI.
+you choose. Its core path uses LiteLLM's documented SSO wire flow as a small
+Node.js implementation, so normal installs do not require Python or the `lite`
+CLI. Optional Auto Router onboarding delegates to one pinned official LiteLLM
+CLI instead of reproducing that feature.
 
 > Distribution names: the core package is
 > `@happycastle114/opencode-litellm`, and the convenience wrapper is
@@ -19,14 +21,15 @@ The source contracts and support boundary are recorded in
 
 | Target | Managed result |
 |---|---|
-| OpenCode | A detached, revision-addressed checkout of this fork, a `file://` plugin entry, an `@ai-sdk/openai` provider, startup model discovery, available search-tool inventory, MCP discovery, selected MCP toolsets, and the shared `~/.agents/skills/litellm-research-router/SKILL.md` |
+| OpenCode | A detached, revision-addressed checkout of this fork, a `file://` plugin entry, an `@ai-sdk/openai` provider, an immediate model-picker snapshot plus startup refresh, available search-tool inventory, MCP discovery, selected MCP toolsets, and the shared `~/.agents/skills/litellm-research-router/SKILL.md` |
 | Codex | A gateway provider and model catalog, or a ChatGPT OAuth pass-through provider, or both profiles; selected MCP servers and toolsets are written to the managed Codex blocks, together with the shared `~/.agents/skills/litellm-research-router/SKILL.md` |
 | Both | The OpenCode and Codex results, with one shared `~/.agents/skills/litellm-research-router/SKILL.md` asset |
 
 The installer writes environment references and helper paths only. It never
 writes the gateway key or a ChatGPT/Claude OAuth credential into client config.
-OpenCode model and MCP discovery stays in memory at startup; Codex catalogs
-are written as startup snapshots.
+OpenCode writes an additive model snapshot so the picker is populated before
+plugin startup, then refreshes models in memory at startup. MCP discovery stays
+in memory. Codex catalogs are written as startup snapshots.
 
 Every selected target also merges the Claude Skills Gateway marketplace into
 `~/.claude/settings.json` under the stable `extraKnownMarketplaces.litellm` key:
@@ -57,6 +60,9 @@ gateway `/v1` is removed before `/claude-code/marketplace.json` is appended.
 - Node.js `^22.22.2 || ^24.15.0 || >=26.0.0`, `npm`, and `git`.
 - OpenCode and/or Codex installed for the selected target.
 - A LiteLLM gateway reachable at the configured origin.
+- Optional Auto Router setup requires `uv` 0.10.9 or newer. The toolkit runs
+  the exact `litellm[proxy]==1.94.0rc1` artifact in an isolated `uv tool`
+  environment; it does not use an ambient `lite` installation.
 
 A source checkout also needs Bun 1.x for `npm run build`; this is a maintainer
 build prerequisite only. Packed npm artifacts ship prebuilt Node-compatible
@@ -64,8 +70,9 @@ build prerequisite only. Packed npm artifacts ship prebuilt Node-compatible
 
 The built-in SSO flow stores a source-compatible token at
 `~/.litellm/token.json` with POSIX mode `0600`. Python and LiteLLM's `lite`
-executable are optional: the official CLI remains useful for independent
-`whoami`/diagnostics, but is not a prerequisite for this toolkit.
+executable are optional for the normal toolkit path. They are needed only when
+the operator opts into Auto Router, where `uv` resolves the pinned official CLI
+and its proxy extra.
 
 ## Install a fixed GitHub revision
 
@@ -89,8 +96,8 @@ small `@happycastle114/codex-litellm` package has an exact dependency on that
 same core version. Use the filenames printed by `npm pack`:
 
 ```bash
-export CORE_TGZ="$TOOLKIT_PACK_DIR/happycastle114-opencode-litellm-0.6.0.tgz"
-export CODEX_TGZ="$TOOLKIT_PACK_DIR/happycastle114-codex-litellm-0.6.0.tgz"
+export CORE_TGZ="$TOOLKIT_PACK_DIR/happycastle114-opencode-litellm-0.7.0.tgz"
+export CODEX_TGZ="$TOOLKIT_PACK_DIR/happycastle114-codex-litellm-0.7.0.tgz"
 
 # Binary name defaults to the target; --target both configures both clients.
 npx --yes --package "$CORE_TGZ" opencode-litellm install
@@ -111,7 +118,7 @@ Use an ephemeral npm config and an environment token; this does not touch a
 user-level `.npmrc`, Keychain, or a client config file:
 
 ```bash
-export TOOLKIT_VERSION='0.6.0'
+export TOOLKIT_VERSION='0.7.0'
 export NODE_AUTH_TOKEN='<GitHub classic PAT with read:packages>'
 export NPM_CONFIG_USERCONFIG="$(mktemp)"
 umask 077
@@ -143,12 +150,61 @@ authentication (`sso` or `env`), Codex connection mode (`gateway`, `oauth`, or
 rows returned by each discovery surface. Search discovery is an available-tool
 inventory, not proof that the current key may invoke every listed tool. Use
 `--non-interactive` for a deterministic run with explicit values and an
-existing credential.
+existing credential. Non-interactive installs skip Auto Router unless
+`--auto-router configure` or `--auto-router dry-run` is explicit.
 In that mode, `LITELLM_BASE_URL` (or the official CLI-compatible
 `LITELLM_PROXY_URL`) supplies the gateway when `--base-url` is absent. A
 non-empty variable named by `--auth-env` selects environment authentication
 when `--auth` is absent. Explicit flags always win; interactive onboarding
 continues to default to SSO.
+
+### Optional Auto Router for Claude Code
+
+Interactive onboarding offers an opt-in LiteLLM Auto Router step. It affects
+Claude Code only; the OpenCode and Codex configurations described elsewhere in
+this README are unchanged. The same choice is available on both binaries:
+
+```bash
+opencode-litellm install --auto-router configure
+codex-litellm install --auto-router configure
+opencode-litellm install --non-interactive --auto-router dry-run
+```
+
+`configure` requires a TTY. Before changing any client file, the installer
+checks `uv >= 0.10.9`, verifies the pinned CLI reports version `1.94.0rc1`, and
+checks that `autoroute configure` exists. After the client transaction commits,
+it runs the official wizard as:
+
+```text
+uv tool run --isolated --from 'litellm[proxy]==1.94.0rc1' lite autoroute configure
+```
+
+The gateway origin and key are supplied only to that child process as
+`LITELLM_PROXY_URL` and `LITELLM_PROXY_API_KEY`. The toolkit never places the
+key in argv, logs, its own config files, or Keychain. The upstream wizard calls
+`/model_group/info` and writes `~/.litellm/autorouter/config.yaml` with mode
+`0600`. That official file contains the provider API key. This persistence is
+an upstream Auto Router behavior, not a secret store owned by this toolkit.
+
+Start and stop the pinned official proxy with:
+
+```bash
+uv tool run --isolated --from 'litellm[proxy]==1.94.0rc1' lite autoroute up
+uv tool run --isolated --from 'litellm[proxy]==1.94.0rc1' lite autoroute down
+```
+
+`up` chooses its local port and patches Claude settings; this pin does not
+accept a toolkit-supplied `--port`. `down` restores the saved Claude settings.
+After a gateway-key rotation, run `down`, delete
+`~/.litellm/autorouter/config.yaml`, sign in or refresh the environment key,
+then rerun `install --auto-router configure`. `--auto-router dry-run` prints the
+exact secret-free command plan and performs no Auto Router subprocess calls.
+
+PyPI currently publishes `1.94.0rc1` binary wheels for Linux only. On macOS,
+Windows, and other non-Linux platforms, the installer explicitly checks
+`rustc --version` and `cargo --version` before `uv` builds the official sdist.
+A missing toolchain fails before client files are changed; the installer never
+installs Rust automatically.
 
 `--auth-env` accepts a shell-compatible variable name but rejects names owned
 by the launcher, provider authentication, or process runtime:
@@ -228,6 +284,17 @@ opencode-litellm opencode [opencode-args...]
   `OPENCODE_ENABLE_EXA` and never sets it. Selected search tools use the
   non-reserved IDs `litellm_search` (first) and deterministic `litellm_*` names
   for additional tools; the built-in `websearch` ID is never overridden.
+
+An OpenCode install also writes the discovered chat-capable model snapshot into
+the static `provider.litellm.models` registry, so the next picker can expose
+gateway models before the startup plugin hook completes. Discovery metadata is
+mapped through the same typed adapter used by the hook. Existing curated model
+objects win on ID collisions, and unreturned existing rows are retained rather
+than silently pruned. A legacy toolkit-managed whitelist is removed only when
+it exactly matches the old six `alibaba-token/*` entries; user-defined
+whitelists and every blacklist are preserved. Subsequent installs refresh the
+discovered snapshot additively, while runtime discovery can still add current
+gateway rows.
 
 At every direct-launch boundary, ambient `LITELLM_MASTER_KEY`,
 `LITELLM_API_KEY`, `OPENCODE_LITELLM_API_KEY`, and `LITELLM_PROXY_API_KEY` are

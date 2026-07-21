@@ -18,6 +18,7 @@ Options:
   --auth <sso|env>                Gateway authentication
   --auth-env <name>               Gateway key environment variable
   --codex-mode <gateway|oauth|both> Codex connection mode
+  --auto-router <skip|configure|dry-run> Optional Claude Code Auto Router setup
   --search <name>                 Select an available search tool (repeatable)
   --mcp <name>                    Select an available MCP server (repeatable)
   --enable-mcp <name>             Enable a selected MCP server (repeatable)
@@ -35,6 +36,7 @@ const INSTALL_HELP = `Usage: opencode-litellm install [options]
 Configure supported clients for LiteLLM.
 
 Options:
+  --auto-router <skip|configure|dry-run> Optional Claude Code Auto Router setup
   --enable-mcp <name>  Enable a selected MCP server (repeatable)
   --disable-mcp <name> Disable a selected MCP server (repeatable)
   -h, --help           Show help

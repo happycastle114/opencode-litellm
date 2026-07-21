@@ -9,17 +9,16 @@ import {
 import { ConfigurationError } from './errors'
 import { isManagedOpenCodePluginSpec } from './managed-plugin'
 import { version as CURRENT_PACKAGE_VERSION } from '../version'
+import {
+  buildOpenCodeProvider,
+  type OpenCodeProviderIntent,
+} from './opencode-provider'
 
 const PLUGIN_NAME = 'opencode-plugin-litellm'
 const OPENAGENT_PLUGIN_NAME = 'oh-my-openagent'
 const OPENAGENT_PLUGIN_VERSION = '4.19.0'
 export const OH_MY_OPENAGENT_PLUGIN_SPEC = `${OPENAGENT_PLUGIN_NAME}@${OPENAGENT_PLUGIN_VERSION}`
 const LEGACY_OPENAGENT_PLUGIN_NAME = 'oh-my-opencode'
-const PROVIDER_NPM = {
-  chat: '@ai-sdk/openai-compatible',
-  responses: '@ai-sdk/openai',
-} as const
-const PROVIDER_NAME = 'LiteLLM'
 const DEFAULT_SEARCH_MAX_RESULTS = 8
 const PRIMARY_SEARCH_TOOL_NAME = 'litellm_search'
 const SEARCH_TOOL_NAME_PREFIX = 'litellm_'
@@ -31,10 +30,7 @@ const MANAGED_PLUGIN_OPTION_NAMES = new Set([
 ])
 const FORMATTING: FormattingOptions = { insertSpaces: true, tabSize: 2 }
 
-export type OpenCodeEditIntent = {
-  readonly baseUrl: string
-  readonly authEnv: string
-  readonly pluginSpec?: string
+export type OpenCodeEditIntent = OpenCodeProviderIntent & {
   readonly mcpDiscoveryEnabled?: boolean
   readonly search: readonly string[]
   readonly mcp: readonly string[]
@@ -75,7 +71,7 @@ export function planOpenCodeEdits(
   )
   const updated = applyEdits(
     withPlugin,
-    modify(withPlugin, ['provider', 'litellm'], buildProvider(config, intent), {
+    modify(withPlugin, ['provider', 'litellm'], buildOpenCodeProvider(config, intent), {
       formattingOptions: FORMATTING,
     }),
   )
@@ -235,30 +231,6 @@ function buildMcpDiscovery(
     include,
     servers: disable.map((serverName) => ({ serverName, enabled: false })),
   }
-}
-
-function buildProvider(
-  config: unknown,
-  intent: OpenCodeEditIntent,
-): Record<string, unknown> {
-  const origin = intent.baseUrl.replace(/\/+$/, '').replace(/\/v1$/, '')
-  const provider = readLiteLLMProvider(config)
-  const options = isRecord(provider.options) ? provider.options : {}
-  return {
-    ...provider,
-    npm: intent.pluginSpec === undefined ? PROVIDER_NPM.chat : PROVIDER_NPM.responses,
-    name: PROVIDER_NAME,
-    options: {
-      ...options,
-      baseURL: `${origin}/v1`,
-      apiKey: `{env:${intent.authEnv}}`,
-    },
-  }
-}
-
-function readLiteLLMProvider(config: unknown): Readonly<Record<string, unknown>> {
-  if (!isRecord(config) || !isRecord(config.provider)) return {}
-  return isRecord(config.provider.litellm) ? config.provider.litellm : {}
 }
 
 function pluginSpecName(spec: PluginSpec): string {

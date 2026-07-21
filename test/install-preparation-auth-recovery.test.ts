@@ -6,7 +6,7 @@ import { CodexDiscoveryError } from '../src/cli/codex-discovery'
 import type { GatewayToolDiscoveryResult } from '../src/cli/gateway-tool-discovery'
 import { InstallPreparationErrorCode, prepareInstall,
   type InstallPreparationBoundary } from '../src/cli/install-preparation'
-import { CodexMode, InstallAuth, InstallTarget,
+import { CodexMode, InstallAuth, InstallTarget, ToolkitDefault,
   type InstallOptions } from '../src/cli/install-intent'
 import { loadOfficialLiteLLMApiKey } from '../src/cli/official-token'
 
@@ -58,7 +58,7 @@ describe('install preparation authentication recovery', () => {
     async (status) => {
       // Given: an exact-origin token is rejected by authenticated discovery
       writeToken(VALUE.staleApiKey)
-      const answers = ['', '', '', 'y']
+      const answers = ['', '', '', '', 'y']
       const discoveryKeys: string[] = []
       let onboardCount = 0
 
@@ -100,6 +100,7 @@ function options(overrides: Partial<InstallOptions> = {}): InstallOptions {
     target: InstallTarget.OpenCode, baseUrl: VALUE.origin, auth: InstallAuth.Sso,
     authEnv: VALUE.envName, nonInteractive: false,
     opencodeConfig: undefined, codexConfig: undefined, codexMode: CodexMode.Both,
+    autoRouter: ToolkitDefault.InteractiveAutoRouter,
     search: [], mcp: [], toolsets: [], enableMcp: [], disableMcp: [],
     noSearch: false, noMcp: false, noToolsets: false,
     ...overrides,

@@ -1,32 +1,45 @@
 import { CodexMode, InstallAuth, InstallTarget, normalizeOrigin } from './install-intent'
+import {
+  AutoRouterMode,
+  type AutoRouterMode as AutoRouterModeValue,
+} from './auto-router-contracts'
 import type {
   CodexMode as CodexModeValue,
   InstallAuth as InstallAuthValue,
   InstallTarget as InstallTargetValue,
 } from './install-intent'
+import {
+  confirm,
+  OnboardingInputToken,
+  OnboardingResourceAccess,
+  selectResources,
+  selectSingle,
+  type NumberedChoice,
+  type OnboardingIO,
+  type OnboardingResource,
+} from './onboarding-prompts'
+
+export {
+  OnboardingResourceAccess,
+  type OnboardingIO,
+  type OnboardingResource,
+} from './onboarding-prompts'
 
 export const CodexOnboardingMode = CodexMode
 export type CodexOnboardingMode = CodexModeValue
 
-export const OnboardingResourceAccess = { Available: 'available', Unavailable: 'unavailable' } as const
-export type OnboardingResourceAccess = (typeof OnboardingResourceAccess)[keyof typeof OnboardingResourceAccess]
-export type OnboardingResource = { readonly name: string; readonly access: OnboardingResourceAccess }
-
 export type OnboardingInput = {
   readonly defaultTarget: InstallTargetValue; readonly defaultGatewayOrigin: string
   readonly defaultAuth: InstallAuthValue; readonly defaultCodexMode: CodexOnboardingMode
+  readonly autoRouterMode: AutoRouterModeValue
   readonly searchTools: readonly OnboardingResource[]
   readonly mcpServers: readonly OnboardingResource[]; readonly mcpToolsets: readonly OnboardingResource[]
   readonly loadResources?: OnboardingResourceLoader
 }
 
-export interface OnboardingIO {
-  readonly isTTY: boolean; readonly prompt: (message: string) => Promise<string>
-  readonly write: (message: string) => void
-}
-
 type CommonOnboardingPlan = {
   readonly gatewayOrigin: string; readonly auth: InstallAuthValue
+  readonly autoRouter: Exclude<AutoRouterModeValue, typeof AutoRouterMode.Prompt>
   readonly searchTools: readonly string[]; readonly mcpServers: readonly string[]
   readonly mcpToolsets: readonly string[]
 }
@@ -47,18 +60,6 @@ export type OnboardingResult =
       readonly ok: false
       readonly failure: { readonly code: OnboardingFailureCode; readonly message: string }
     }
-
-type NumberedChoice<Value extends string> = { readonly label: string; readonly value: Value }
-
-type SingleSelectionRequest<Value extends string> = {
-  readonly io: OnboardingIO; readonly title: string; readonly prompt: string
-  readonly choices: readonly NumberedChoice<Value>[]; readonly defaultValue: Value
-}
-
-type ResourceSelectionRequest = {
-  readonly io: OnboardingIO; readonly title: string
-  readonly resources: readonly OnboardingResource[]
-}
 
 type OnboardingShape =
   | { readonly target: typeof InstallTarget.OpenCode }
@@ -81,10 +82,6 @@ export type OnboardingResourceLoader = (
   connection: OnboardingConnection,
 ) => Promise<OnboardingResources>
 
-const InputToken = {
-  Default: '', None: '0', Yes: 'y', YesLong: 'yes', No: 'n', NoLong: 'no',
-} as const
-
 const UiText = {
   TargetTitle: 'Install target',
   TargetPrompt: 'Choose a target number',
@@ -96,13 +93,10 @@ const UiText = {
   SearchTitle: 'Search tools',
   McpTitle: 'MCP servers',
   ToolsetTitle: 'MCP toolsets',
-  MultiPrompt: 'Choose comma-separated numbers, 0 for none, or Enter for all',
+  AutoRouterTitle: 'Optional LiteLLM Auto Router (Claude Code only)',
+  AutoRouterPrompt: 'Choose whether to configure Auto Router; OpenCode and Codex stay unchanged',
   ConfirmPrompt: 'Apply this plan? [y/N]',
-  DefaultMarker: ' (default)',
-  InvalidNumber: 'Enter one of the listed numbers.',
   InvalidOrigin: 'Enter an absolute http(s) origin without credentials, query, or fragment.',
-  InvalidMulti: 'Enter unique listed numbers separated by commas, 0, or Enter.',
-  InvalidConfirmation: 'Enter y or n.',
   Cancelled: 'Installation cancelled.',
   TtyRequired:
     'Interactive onboarding requires a TTY. Re-run with --non-interactive and explicit install options.',
@@ -122,15 +116,12 @@ const CODEX_CHOICES: readonly NumberedChoice<CodexOnboardingMode>[] = [
   { label: 'Both profiles', value: CodexMode.Both },
 ]
 
-const DECIMAL_PATTERN = /^[1-9]\d*$/
+type ResolvedAutoRouterMode = Exclude<AutoRouterModeValue, typeof AutoRouterMode.Prompt>
 
-const CONFIRMATION_VALUES: ReadonlyMap<string, boolean> = new Map([
-  [InputToken.Yes, true],
-  [InputToken.YesLong, true],
-  [InputToken.No, false],
-  [InputToken.NoLong, false],
-  [InputToken.Default, false],
-])
+const AUTO_ROUTER_CHOICES: readonly NumberedChoice<ResolvedAutoRouterMode>[] = [
+  { label: 'Skip (default)', value: AutoRouterMode.Skip },
+  { label: 'Configure official LiteLLM Auto Router for Claude Code', value: AutoRouterMode.Configure },
+]
 
 export async function runInstallOnboarding(
   input: OnboardingInput,
@@ -159,43 +150,50 @@ export async function runInstallOnboarding(
   })
   const mcpServers = await selectResources({ io, title: UiText.McpTitle, resources: resources.mcpServers })
   const mcpToolsets = await selectResources({ io, title: UiText.ToolsetTitle, resources: resources.mcpToolsets })
+  const autoRouter = await resolveAutoRouterMode(input.autoRouterMode, io)
   const plan: OnboardingPlan = {
     ...shape,
     gatewayOrigin,
     auth,
+    autoRouter,
     searchTools,
     mcpServers,
     mcpToolsets,
   }
 
   io.write(JSON.stringify(plan, undefined, 2))
-  if (!(await confirm(io))) {
+  if (!(await confirm(io, UiText.ConfirmPrompt))) {
     return failure(OnboardingFailureCode.Cancelled, UiText.Cancelled)
   }
   return { ok: true, plan }
 }
 
-async function selectSingle<Value extends string>(
-  request: SingleSelectionRequest<Value>,
-): Promise<Value> {
-  const lines = request.choices.map(
-    (choice, index) => `${index + 1}. ${choice.label}${choice.value === request.defaultValue ? UiText.DefaultMarker : InputToken.Default}`,
-  )
-  request.io.write([request.title, ...lines].join('\n'))
-  while (true) {
-    const raw = (await request.io.prompt(request.prompt)).trim()
-    if (raw === InputToken.Default) return request.defaultValue
-    const index = parseChoiceNumber(raw, request.choices.length)
-    const choice = index === undefined ? undefined : request.choices[index - 1]
-    if (choice !== undefined) return choice.value
-    request.io.write(UiText.InvalidNumber)
+async function resolveAutoRouterMode(
+  mode: AutoRouterModeValue,
+  io: OnboardingIO,
+): Promise<ResolvedAutoRouterMode> {
+  switch (mode) {
+    case AutoRouterMode.Prompt:
+      return selectSingle({
+        io,
+        title: UiText.AutoRouterTitle,
+        prompt: UiText.AutoRouterPrompt,
+        choices: AUTO_ROUTER_CHOICES,
+        defaultValue: AutoRouterMode.Skip,
+      })
+    case AutoRouterMode.Skip:
+    case AutoRouterMode.Configure:
+    case AutoRouterMode.DryRun:
+      return mode
+    default:
+      return assertNever(mode)
   }
 }
 
 async function selectGatewayOrigin(defaultOrigin: string, io: OnboardingIO): Promise<string> {
   while (true) {
     const raw = (await io.prompt(`${UiText.GatewayPrompt} [${defaultOrigin}]`)).trim()
-    const origin = normalizeOrigin(raw === InputToken.Default ? defaultOrigin : raw)
+    const origin = normalizeOrigin(raw === OnboardingInputToken.Default ? defaultOrigin : raw)
     if (origin !== undefined) return origin
     io.write(UiText.InvalidOrigin)
   }
@@ -216,53 +214,6 @@ async function selectShape(target: InstallTargetValue, defaultCodexMode: CodexOn
       }
     default:
       return assertNever(target)
-  }
-}
-
-async function selectResources(request: ResourceSelectionRequest): Promise<readonly string[]> {
-  const available = request.resources.filter((resource) => resource.access === OnboardingResourceAccess.Available)
-  if (available.length === 0) return []
-
-  const lines = available.map((resource, index) => `${index + 1}. ${resource.name}`)
-  request.io.write([request.title, ...lines].join('\n'))
-  while (true) {
-    const raw = (await request.io.prompt(UiText.MultiPrompt)).trim()
-    if (raw === InputToken.Default) return available.map((resource) => resource.name)
-    if (raw === InputToken.None) return []
-    const indexes = parseMultipleChoiceNumbers(raw, available.length)
-    if (indexes !== undefined) {
-      const selected = new Set(indexes)
-      return available
-        .filter((_resource, index) => selected.has(index + 1))
-        .map((resource) => resource.name)
-    }
-    request.io.write(UiText.InvalidMulti)
-  }
-}
-
-function parseChoiceNumber(raw: string, choiceCount: number): number | undefined {
-  if (!DECIMAL_PATTERN.test(raw)) return undefined
-  const value = Number(raw)
-  return Number.isSafeInteger(value) && value <= choiceCount ? value : undefined
-}
-
-function parseMultipleChoiceNumbers(raw: string, choiceCount: number): readonly number[] | undefined {
-  const tokens = raw.split(',').map((token) => token.trim())
-  const selected = new Set<number>()
-  for (const token of tokens) {
-    const value = parseChoiceNumber(token, choiceCount)
-    if (value === undefined || selected.has(value)) return undefined
-    selected.add(value)
-  }
-  return [...selected]
-}
-
-async function confirm(io: OnboardingIO): Promise<boolean> {
-  while (true) {
-    const raw = (await io.prompt(UiText.ConfirmPrompt)).trim().toLowerCase()
-    const confirmed = CONFIRMATION_VALUES.get(raw)
-    if (confirmed !== undefined) return confirmed
-    io.write(UiText.InvalidConfirmation)
   }
 }
 

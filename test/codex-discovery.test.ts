@@ -87,7 +87,14 @@ describe('Codex gateway discovery', () => {
       return endpoint === ENDPOINT.Models
         ? Response.json({
             data: [
-              { id: 'chat-route', mode: 'chat' },
+              {
+                id: 'chat-route',
+                mode: 'chat',
+                max_input_tokens: 100_000,
+                max_output_tokens: 8_192,
+                supports_function_calling: true,
+                supports_vision: true,
+              },
               { id: 'embedding-route', type: 'embedding', input_modalities: ['text'] },
             ],
           })
@@ -97,7 +104,14 @@ describe('Codex gateway discovery', () => {
     const result = await discoverCodexGatewayResources({ origin: ORIGIN, apiKey: API_KEY, fetcher })
 
     expect(result.models).toEqual([
-      { id: 'chat-route', mode: 'chat' },
+      {
+        id: 'chat-route',
+        mode: 'chat',
+        max_input_tokens: 100_000,
+        max_output_tokens: 8_192,
+        supports_function_calling: true,
+        supports_vision: true,
+      },
       { id: 'embedding-route', type: 'embedding', input_modalities: ['text'] },
     ])
   })

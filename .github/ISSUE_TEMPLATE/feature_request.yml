@@ -35,7 +35,7 @@ body:
     attributes:
       label: Toolkit version or commit (optional)
       description: Include the version or commit where you observed the need.
-      placeholder: 0.6.0 or 40-character commit SHA
+      placeholder: 0.7.0 or 40-character commit SHA
 
   - type: input
     id: client-versions

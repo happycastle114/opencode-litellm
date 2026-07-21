@@ -3,12 +3,184 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { parse as parseJsonc } from 'jsonc-parser'
 import { runCliProgram } from '../src/cli/program'
+import {
+  AUTO_ROUTER_PIN,
+  AutoRouterOperation,
+  AutoRouterPlatform,
+  type AutoRouterBoundary,
+} from '../src/cli/auto-router'
 import { DISCOVERY, setupProgramHome } from './cli-program-test-support'
 
 let dir = ''
 setupProgramHome('opencode-litellm-program-install-', (path) => { dir = path })
 
 describe('CLI program', () => {
+  test('configures the official Auto Router only after the client transaction commits', async () => {
+    // Given: explicit non-interactive Auto Router opt-in and a successful official CLI boundary
+    const path = join(dir, 'autorouter-opencode.jsonc')
+    const secret = 'auto-router-program-secret'
+    const calls: Array<{ readonly operation: string; readonly args: readonly string[] }> = []
+    const autoRouterBoundary: AutoRouterBoundary = {
+      isTTY: true,
+      run: (invocation) => {
+        if (invocation.operation === AutoRouterOperation.Configure) {
+          expect(existsSync(path)).toBe(true)
+        } else {
+          expect(existsSync(path)).toBe(false)
+        }
+        calls.push({ operation: invocation.operation, args: invocation.args })
+        switch (invocation.operation) {
+          case AutoRouterOperation.RuntimeVersion:
+            return { status: 0, signal: null, stdout: 'uv 0.10.9\n', stderr: '' }
+          case AutoRouterOperation.RustCompilerVersion:
+            return { status: 0, signal: null, stdout: 'rustc 1.94.0\n', stderr: '' }
+          case AutoRouterOperation.CargoVersion:
+            return { status: 0, signal: null, stdout: 'cargo 1.94.0\n', stderr: '' }
+          case AutoRouterOperation.CliVersion:
+            return {
+              status: 0,
+              signal: null,
+              stdout: 'LiteLLM Proxy CLI Version: 1.94.0rc1\n',
+              stderr: '',
+            }
+          case AutoRouterOperation.ConfigureHelp:
+          case AutoRouterOperation.Configure:
+            return { status: 0, signal: null, stdout: '', stderr: '' }
+        }
+      },
+    }
+
+    // When: the public install surface completes
+    const result = await runCliProgram([
+      'install', '--target', 'opencode', '--base-url', 'https://litellm.example.com',
+      '--auth', 'env', '--auth-env', 'LITELLM_KEY', '--opencode-config', path,
+      '--no-search', '--no-mcp', '--no-toolsets', '--auto-router', 'configure',
+      '--non-interactive',
+    ], {
+      env: { HOME: dir, LITELLM_KEY: secret },
+      now: () => new Date(0),
+      gatewayDiscovery: async () => DISCOVERY,
+      autoRouterBoundary,
+    })
+
+    // Then: checks precede the configure call and no command argument/output contains the key
+    expect(result.exitCode).toBe(0)
+    expect(calls.map((call) => call.operation)).toEqual([
+      AutoRouterOperation.RuntimeVersion,
+      ...(process.platform !== AutoRouterPlatform.Linux
+        ? [AutoRouterOperation.RustCompilerVersion, AutoRouterOperation.CargoVersion]
+        : []),
+      AutoRouterOperation.CliVersion,
+      AutoRouterOperation.ConfigureHelp,
+      AutoRouterOperation.Configure,
+    ])
+    expect(calls.flatMap((call) => call.args)).not.toContain(secret)
+    expect(`${result.stdout}${result.stderr}`).not.toContain(secret)
+  })
+
+  test('stops before client mutation when the Auto Router preflight fails', async () => {
+    const path = join(dir, 'autorouter-preflight-failure.jsonc')
+    const secret = 'auto-router-preflight-secret'
+    const result = await runCliProgram([
+      'install', '--target', 'opencode', '--base-url', 'https://litellm.example.com',
+      '--auth', 'env', '--auth-env', 'LITELLM_KEY', '--opencode-config', path,
+      '--no-search', '--no-mcp', '--no-toolsets', '--auto-router', 'configure',
+      '--non-interactive',
+    ], {
+      env: { HOME: dir, LITELLM_KEY: secret },
+      now: () => new Date(0),
+      gatewayDiscovery: async () => DISCOVERY,
+      autoRouterBoundary: {
+        isTTY: true,
+        run: () => ({
+          status: 0,
+          signal: null,
+          stdout: 'uv 0.10.8\n',
+          stderr: secret,
+        }),
+      },
+    })
+
+    expect(result.exitCode).toBe(1)
+    expect(existsSync(path)).toBe(false)
+    expect(result.stderr).toContain('uv 0.10.9 or newer')
+    expect(`${result.stdout}${result.stderr}`).not.toContain(secret)
+  })
+
+  test('keeps committed clients and reports partial success when the official wizard fails', async () => {
+    const path = join(dir, 'autorouter-wizard-failure.jsonc')
+    const secret = 'auto-router-wizard-secret'
+    const result = await runCliProgram([
+      'install', '--target', 'opencode', '--base-url', 'https://litellm.example.com',
+      '--auth', 'env', '--auth-env', 'LITELLM_KEY', '--opencode-config', path,
+      '--no-search', '--no-mcp', '--no-toolsets', '--auto-router', 'configure',
+      '--non-interactive',
+    ], {
+      env: { HOME: dir, LITELLM_KEY: secret },
+      now: () => new Date(0),
+      gatewayDiscovery: async () => DISCOVERY,
+      autoRouterBoundary: {
+        isTTY: true,
+        run: (invocation) => {
+          if (invocation.operation === AutoRouterOperation.RuntimeVersion) {
+            return { status: 0, signal: null, stdout: 'uv 0.10.9\n', stderr: '' }
+          }
+          if (invocation.operation === AutoRouterOperation.RustCompilerVersion) {
+            return { status: 0, signal: null, stdout: 'rustc 1.94.0\n', stderr: '' }
+          }
+          if (invocation.operation === AutoRouterOperation.CargoVersion) {
+            return { status: 0, signal: null, stdout: 'cargo 1.94.0\n', stderr: '' }
+          }
+          if (invocation.operation === AutoRouterOperation.CliVersion) {
+            return {
+              status: 0,
+              signal: null,
+              stdout: 'LiteLLM Proxy CLI Version: 1.94.0rc1\n',
+              stderr: '',
+            }
+          }
+          if (invocation.operation === AutoRouterOperation.ConfigureHelp) {
+            return { status: 0, signal: null, stdout: '', stderr: '' }
+          }
+          return { status: 1, signal: null, stdout: '', stderr: secret }
+        },
+      },
+    })
+
+    expect(result.exitCode).toBe(1)
+    expect(existsSync(path)).toBe(true)
+    expect(result.stdout).toContain(`Configured opencode: ${path}`)
+    expect(result.stderr).toContain('Client configuration completed')
+    expect(`${result.stdout}${result.stderr}`).not.toContain(secret)
+  })
+
+  test('prints an Auto Router dry-run plan without invoking a subprocess', async () => {
+    const path = join(dir, 'autorouter-dry-run-opencode.jsonc')
+    let calls = 0
+    const result = await runCliProgram([
+      'install', '--target', 'opencode', '--base-url', 'https://litellm.example.com',
+      '--auth', 'env', '--auth-env', 'LITELLM_KEY', '--opencode-config', path,
+      '--no-search', '--no-mcp', '--no-toolsets', '--auto-router', 'dry-run',
+      '--non-interactive',
+    ], {
+      env: { HOME: dir, LITELLM_KEY: 'dry-run-secret' },
+      now: () => new Date(0),
+      gatewayDiscovery: async () => DISCOVERY,
+      autoRouterBoundary: {
+        isTTY: false,
+        run: () => {
+          calls += 1
+          return { status: 0, signal: null, stdout: '', stderr: '' }
+        },
+      },
+    })
+
+    expect(result.exitCode).toBe(0)
+    expect(calls).toBe(0)
+    expect(result.stdout).toContain(AUTO_ROUTER_PIN.Requirement)
+    expect(result.stdout).not.toContain('dry-run-secret')
+  })
+
   test('installs OpenCode configuration through the command surface', async () => {
     const path = join(dir, 'opencode.jsonc')
     const result = await runCliProgram([

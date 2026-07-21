@@ -32,6 +32,7 @@ describe('install argument parsing', () => {
         opencodeConfig: undefined,
         codexConfig: undefined,
         codexMode: 'both',
+        autoRouter: 'skip',
         search: [],
         mcp: [],
         toolsets: [],
@@ -189,11 +190,23 @@ describe('install argument parsing', () => {
     },
   )
 
+  test.each(['skip', 'configure', 'dry-run'] as const)(
+    'parses --auto-router %s as a typed choice',
+    (autoRouter) => {
+      const parsed = parseCliArgs(['install', '--auto-router', autoRouter])
+
+      expect(parsed.kind).toBe('command')
+      if (parsed.kind !== 'command') return
+      expect(parsed.options.autoRouter).toBe(autoRouter)
+    },
+  )
+
   test.each([
     [['install', '--target'], "Option '--target' requires a value."],
     [['install', '--target', 'invalid'], "Invalid value 'invalid' for '--target'."],
     [['install', '--auth', 'invalid'], "Invalid value 'invalid' for '--auth'."],
     [['install', '--codex-mode', 'invalid'], "Invalid value 'invalid' for '--codex-mode'."],
+    [['install', '--auto-router', 'invalid'], "Invalid value 'invalid' for '--auto-router'."],
     [['install', '--base-url'], "Option '--base-url' requires a value."],
     [['install', '--unknown'], "Unknown option '--unknown' for command 'install'."],
   ])('produces a deterministic parse error for %j', (argv, message) => {

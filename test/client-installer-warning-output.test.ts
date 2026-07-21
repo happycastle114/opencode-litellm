@@ -9,7 +9,7 @@ import {
   INSTALL_SELECTION_WARNING_KIND,
   type PreparedInstall,
 } from '../src/cli/install-preparation'
-import { CodexMode, InstallAuth, InstallTarget } from '../src/cli/install-intent'
+import { CodexMode, InstallAuth, InstallTarget, ToolkitDefault } from '../src/cli/install-intent'
 import {
   GATEWAY_DISCOVERY_RESOURCE,
   GATEWAY_DISCOVERY_WARNING_KIND,
@@ -36,6 +36,7 @@ test('reports explicit optional resources as configured without verification whe
       opencodeConfig: configPath,
       codexConfig: undefined,
       codexMode: CodexMode.Both,
+      autoRouter: ToolkitDefault.NonInteractiveAutoRouter,
       search: ['agy-search'],
       mcp: [],
       toolsets: ['research/core'],

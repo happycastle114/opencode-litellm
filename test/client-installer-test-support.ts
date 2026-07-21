@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { readBundledCodexCatalog } from '../src/cli/codex-discovery'
 import type { PreparedInstall } from '../src/cli/install-preparation'
-import { CodexMode, InstallAuth, InstallTarget } from '../src/cli/install-intent'
+import { CodexMode, InstallAuth, InstallTarget, ToolkitDefault } from '../src/cli/install-intent'
 
 export const VALUE = {
   ApiKey: 'sk-installer-secret',
@@ -41,6 +41,7 @@ export function preparedInstall(
       opencodeConfig: undefined,
       codexConfig: undefined,
       codexMode: CodexMode.Both,
+      autoRouter: ToolkitDefault.NonInteractiveAutoRouter,
       search: ['search-visible'],
       mcp: ['mcp-visible'],
       toolsets: ['toolset-visible'],

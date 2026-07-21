@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { InstallAuth, InstallTarget } from '../src/cli/install-intent'
+import { AutoRouterMode } from '../src/cli/auto-router'
 import {
   CodexOnboardingMode,
   OnboardingFailureCode,
@@ -32,6 +33,7 @@ function input(overrides: Partial<OnboardingInput> = {}): OnboardingInput {
     defaultGatewayOrigin: 'https://gateway.example.com/',
     defaultAuth: InstallAuth.Sso,
     defaultCodexMode: CodexOnboardingMode.Both,
+    autoRouterMode: AutoRouterMode.Prompt,
     searchTools: [
       { name: 'agy-search', access: OnboardingResourceAccess.Available },
       { name: 'private-search', access: OnboardingResourceAccess.Unavailable },
@@ -52,7 +54,7 @@ function input(overrides: Partial<OnboardingInput> = {}): OnboardingInput {
 describe('install onboarding', () => {
   test('builds a confirmed both-target plan from numbered selections', async () => {
     // Given: an operator chooses both clients, environment auth, OAuth, and resource subsets
-    const io = scriptedIO(['3', 'https://other.example.com/', '2', '2', '2', '', '0', 'maybe', 'y'])
+    const io = scriptedIO(['3', 'https://other.example.com/', '2', '2', '2', '', '0', '2', 'maybe', 'y'])
 
     // When: the interactive onboarding completes
     const result = await runInstallOnboarding(input(), io)
@@ -65,6 +67,7 @@ describe('install onboarding', () => {
         gatewayOrigin: 'https://other.example.com',
         auth: InstallAuth.Environment,
         codexMode: CodexOnboardingMode.OAuth,
+        autoRouter: AutoRouterMode.Configure,
         searchTools: ['exa-search'],
         mcpServers: ['github', 'filesystem'],
         mcpToolsets: [],
@@ -74,7 +77,7 @@ describe('install onboarding', () => {
 
   test('uses executable-derived and all-available defaults', async () => {
     // Given: Codex is the executable-derived target and every configurable answer is defaulted
-    const io = scriptedIO(['', '', '', '', '', '', '', 'yes'])
+    const io = scriptedIO(['', '', '', '', '', '', '', '', 'yes'])
 
     // When: onboarding accepts the defaults
     const result = await runInstallOnboarding(
@@ -90,6 +93,7 @@ describe('install onboarding', () => {
         gatewayOrigin: 'https://gateway.example.com',
         auth: InstallAuth.Sso,
         codexMode: CodexOnboardingMode.Both,
+        autoRouter: AutoRouterMode.Skip,
         searchTools: ['agy-search', 'exa-search'],
         mcpServers: ['github', 'filesystem'],
         mcpToolsets: ['research'],
@@ -106,6 +110,7 @@ describe('install onboarding', () => {
       '1,1', '1',
       '1,0', '0',
       '2', '',
+      '3', '',
       'later', 'n',
     ])
 
@@ -120,7 +125,7 @@ describe('install onboarding', () => {
         message: 'Installation cancelled.',
       },
     })
-    expect(io.promptCount()).toBe(14)
+    expect(io.promptCount()).toBe(16)
   })
 
   test('fails without reading input when no TTY is attached', async () => {
@@ -140,7 +145,7 @@ describe('install onboarding', () => {
 
   test('skips empty catalogs and returns deterministic catalog order', async () => {
     // Given: only search has available resources and the operator selects them in reverse order
-    const io = scriptedIO(['', '', '', '2,1', 'y'])
+    const io = scriptedIO(['', '', '', '2,1', '', 'y'])
 
     // When: OpenCode onboarding completes
     const result = await runInstallOnboarding(
@@ -154,11 +159,11 @@ describe('install onboarding', () => {
     expect(result.plan.searchTools).toEqual(['agy-search', 'exa-search'])
     expect(result.plan.mcpServers).toEqual([])
     expect(result.plan.mcpToolsets).toEqual([])
-    expect(io.promptCount()).toBe(5)
+    expect(io.promptCount()).toBe(6)
   })
 
   test('loads available resources after the gateway and auth choices are known', async () => {
-    const io = scriptedIO(['', 'https://selected.example.com', '2', '', 'y'])
+    const io = scriptedIO(['', 'https://selected.example.com', '2', '', '', 'y'])
     const connections: unknown[] = []
 
     const result = await runInstallOnboarding(input({
