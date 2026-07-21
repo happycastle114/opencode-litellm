@@ -1,7 +1,8 @@
 import type { PluginOptions } from '@opencode-ai/plugin'
-
-const SERVER_NAME_PATTERN = /^[a-z][a-z0-9_-]*$/
-const TOOLSET_CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f]/
+import {
+  isValidToolName,
+  isValidToolsetName,
+} from '../utils/tool-name-validation'
 const TOOLSET_OPTION_NAME = 'toolsets' as const
 const DISCOVERY_FIELDS = new Set([
   'enabled',
@@ -82,7 +83,7 @@ export function parseMcpDiscoveryOptions(
 }
 
 export function isMcpServerName(value: string): boolean {
-  return SERVER_NAME_PATTERN.test(value)
+  return isValidToolName(value)
 }
 
 function defaults(): McpDiscoveryOptions {
@@ -125,7 +126,7 @@ function readServers(value: unknown): readonly McpServerOption[] {
 }
 
 function readName(value: unknown, field: string): string {
-  if (typeof value !== 'string' || !isMcpServerName(value)) {
+  if (typeof value !== 'string' || !isValidToolName(value)) {
     fail(field, 'expected a lowercase name using letters, numbers, underscores, or hyphens')
   }
   return value
@@ -173,8 +174,8 @@ function readToolsetName(value: unknown, field: string): string {
     failToolset(field, 'expected a non-empty printable string')
   }
   const name = value.trim()
-  if (name === '' || TOOLSET_CONTROL_CHARACTER_PATTERN.test(name)) {
-    failToolset(field, 'expected a non-empty printable string')
+  if (!isValidToolsetName(name)) {
+    failToolset(field, "expected a non-empty printable string without '/'")
   }
   return name
 }

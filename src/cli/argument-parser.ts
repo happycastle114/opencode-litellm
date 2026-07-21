@@ -3,6 +3,8 @@ import {
   CodexMode,
   InstallTarget,
   ToolkitDefault,
+  isValidEnvironmentName,
+  mcpStateOverrideConflict,
   type InstallOptions,
 } from './install-intent'
 
@@ -31,6 +33,7 @@ export function parseInstallOptions(
   const values = new Map<string, string>()
   const search: string[] = []
   const mcp: string[] = []
+  const enableMcp: string[] = []
   const disableMcp: string[] = []
   const toolsets: string[] = []
   let nonInteractive = false
@@ -52,15 +55,22 @@ export function parseInstallOptions(
       if (option === '--search') search.push(value)
       else if (option === '--mcp') mcp.push(value)
       else if (option === '--toolset') toolsets.push(value)
+      else if (option === '--enable-mcp') enableMcp.push(value)
       else if (option === '--disable-mcp') disableMcp.push(value)
       else values.set(option, value)
       index += 1
     }
   }
 
+  const stateOverrideError = mcpStateOverrideConflict(enableMcp, disableMcp)
+  if (stateOverrideError !== undefined) return fail(stateOverrideError)
+
   const target = readTarget(values.get('--target') ?? ToolkitDefault.Target, '--target')
   if (!target.ok) return target
   const authEnvironment = values.get('--auth-env') ?? ToolkitDefault.AuthEnvironment
+  if (!isValidEnvironmentName(authEnvironment)) {
+    return fail(`Invalid value '${authEnvironment}' for '--auth-env'.`)
+  }
   const defaultAuth = nonInteractive && hasCredential(environment[authEnvironment])
     ? InstallAuth.Environment
     : ToolkitDefault.Auth
@@ -85,6 +95,7 @@ export function parseInstallOptions(
       search,
       mcp,
       toolsets,
+      enableMcp,
       disableMcp,
       noSearch,
       noMcp,
@@ -127,7 +138,7 @@ export function parseDoctorOptions(argv: readonly string[]): OptionParseResult<D
 
 const VALUE_OPTIONS = new Set([
   '--target', '--base-url', '--auth', '--auth-env', '--opencode-config', '--codex-config',
-  '--codex-mode', '--search', '--mcp', '--toolset', '--disable-mcp',
+  '--codex-mode', '--search', '--mcp', '--toolset', '--enable-mcp', '--disable-mcp',
 ])
 const DOCTOR_VALUE_OPTIONS = new Set(['--target', '--opencode-config', '--codex-config'])
 

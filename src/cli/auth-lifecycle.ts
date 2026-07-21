@@ -1,6 +1,7 @@
 import { readFileSync, unlinkSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { isHeaderSafeApiKey } from '../utils/api-key'
 
 const TOKEN_FILE = {
   directory: '.litellm',
@@ -93,7 +94,7 @@ export function inspectLiteLLMAuth(
     return { status: INSPECTION_STATUS.Malformed, tokenPresent: false }
   }
 
-  const tokenPresent = isNonEmptyString(parsed[TOKEN_FILE.key])
+  const tokenPresent = isHeaderSafeApiKey(parsed[TOKEN_FILE.key])
   const baseUrl = parsed[TOKEN_FILE.baseUrl]
   if (!isNonEmptyString(baseUrl)) {
     return { status: INSPECTION_STATUS.Malformed, tokenPresent }

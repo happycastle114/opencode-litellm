@@ -114,7 +114,11 @@ describe('Node onboarding boundaries', () => {
     try {
       await boundaries.open({ url: 'https://llm.example.test/verify', userCode: 'CODE-1234' })
     } catch (error) {
-      failure = error
+      if (error instanceof NodeSsoBoundaryError) {
+        failure = error
+      } else {
+        throw error
+      }
     }
 
     // Then: selection is validated and the launch error is typed and deterministic

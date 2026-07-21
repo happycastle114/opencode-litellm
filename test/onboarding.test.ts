@@ -33,16 +33,16 @@ function input(overrides: Partial<OnboardingInput> = {}): OnboardingInput {
     defaultAuth: InstallAuth.Sso,
     defaultCodexMode: CodexOnboardingMode.Both,
     searchTools: [
-      { name: 'agy-search', access: OnboardingResourceAccess.Authorized },
+      { name: 'agy-search', access: OnboardingResourceAccess.Available },
       { name: 'private-search', access: OnboardingResourceAccess.Unavailable },
-      { name: 'exa-search', access: OnboardingResourceAccess.Authorized },
+      { name: 'exa-search', access: OnboardingResourceAccess.Available },
     ],
     mcpServers: [
-      { name: 'github', access: OnboardingResourceAccess.Authorized },
-      { name: 'filesystem', access: OnboardingResourceAccess.Authorized },
+      { name: 'github', access: OnboardingResourceAccess.Available },
+      { name: 'filesystem', access: OnboardingResourceAccess.Available },
     ],
     mcpToolsets: [
-      { name: 'research', access: OnboardingResourceAccess.Authorized },
+      { name: 'research', access: OnboardingResourceAccess.Available },
       { name: 'admin', access: OnboardingResourceAccess.Unavailable },
     ],
     ...overrides,
@@ -57,7 +57,7 @@ describe('install onboarding', () => {
     // When: the interactive onboarding completes
     const result = await runInstallOnboarding(input(), io)
 
-    // Then: the typed plan contains normalized, authorized selections only
+    // Then: the typed plan contains normalized, available selections only
     expect(result).toEqual({
       ok: true,
       plan: {
@@ -72,7 +72,7 @@ describe('install onboarding', () => {
     })
   })
 
-  test('uses executable-derived and all-authorized defaults', async () => {
+  test('uses executable-derived and all-available defaults', async () => {
     // Given: Codex is the executable-derived target and every configurable answer is defaulted
     const io = scriptedIO(['', '', '', '', '', '', '', 'yes'])
 
@@ -139,7 +139,7 @@ describe('install onboarding', () => {
   })
 
   test('skips empty catalogs and returns deterministic catalog order', async () => {
-    // Given: only search has authorized resources and the operator selects them in reverse order
+    // Given: only search has available resources and the operator selects them in reverse order
     const io = scriptedIO(['', '', '', '2,1', 'y'])
 
     // When: OpenCode onboarding completes
@@ -157,7 +157,7 @@ describe('install onboarding', () => {
     expect(io.promptCount()).toBe(5)
   })
 
-  test('loads authorized resources after the gateway and auth choices are known', async () => {
+  test('loads available resources after the gateway and auth choices are known', async () => {
     const io = scriptedIO(['', 'https://selected.example.com', '2', '', 'y'])
     const connections: unknown[] = []
 
@@ -165,7 +165,7 @@ describe('install onboarding', () => {
       loadResources: async (connection) => {
         connections.push(connection)
         return {
-          searchTools: [{ name: 'live-search', access: OnboardingResourceAccess.Authorized }],
+          searchTools: [{ name: 'live-search', access: OnboardingResourceAccess.Available }],
           mcpServers: [],
           mcpToolsets: [],
         }

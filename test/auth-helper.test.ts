@@ -61,6 +61,9 @@ describe('Codex command-backed auth helper', () => {
     ['stored trailing slash', JSON.stringify({ base_url: `${URL.Gateway}/`, key: TOKEN.Key })],
     ['missing key', JSON.stringify({ base_url: URL.Gateway })],
     ['empty key', JSON.stringify({ base_url: URL.Gateway, key: '' })],
+    ['CR key', JSON.stringify({ base_url: URL.Gateway, key: `${TOKEN.Key}\r` })],
+    ['LF key', JSON.stringify({ base_url: URL.Gateway, key: `${TOKEN.Key}\n` })],
+    ['control-character key', JSON.stringify({ base_url: URL.Gateway, key: `${TOKEN.Key}\u0000` })],
     ['jwt_token without key', JSON.stringify({ base_url: URL.Gateway, jwt_token: TOKEN.Jwt })],
   ] as const)('fails closed for %s without leaking secrets', (_label, contents) => {
     const helperPath = installHelper()

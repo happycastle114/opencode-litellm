@@ -8,7 +8,7 @@ import type {
 export const CodexOnboardingMode = CodexMode
 export type CodexOnboardingMode = CodexModeValue
 
-export const OnboardingResourceAccess = { Authorized: 'authorized', Unavailable: 'unavailable' } as const
+export const OnboardingResourceAccess = { Available: 'available', Unavailable: 'unavailable' } as const
 export type OnboardingResourceAccess = (typeof OnboardingResourceAccess)[keyof typeof OnboardingResourceAccess]
 export type OnboardingResource = { readonly name: string; readonly access: OnboardingResourceAccess }
 
@@ -220,19 +220,19 @@ async function selectShape(target: InstallTargetValue, defaultCodexMode: CodexOn
 }
 
 async function selectResources(request: ResourceSelectionRequest): Promise<readonly string[]> {
-  const authorized = request.resources.filter((resource) => resource.access === OnboardingResourceAccess.Authorized)
-  if (authorized.length === 0) return []
+  const available = request.resources.filter((resource) => resource.access === OnboardingResourceAccess.Available)
+  if (available.length === 0) return []
 
-  const lines = authorized.map((resource, index) => `${index + 1}. ${resource.name}`)
+  const lines = available.map((resource, index) => `${index + 1}. ${resource.name}`)
   request.io.write([request.title, ...lines].join('\n'))
   while (true) {
     const raw = (await request.io.prompt(UiText.MultiPrompt)).trim()
-    if (raw === InputToken.Default) return authorized.map((resource) => resource.name)
+    if (raw === InputToken.Default) return available.map((resource) => resource.name)
     if (raw === InputToken.None) return []
-    const indexes = parseMultipleChoiceNumbers(raw, authorized.length)
+    const indexes = parseMultipleChoiceNumbers(raw, available.length)
     if (indexes !== undefined) {
       const selected = new Set(indexes)
-      return authorized
+      return available
         .filter((_resource, index) => selected.has(index + 1))
         .map((resource) => resource.name)
     }

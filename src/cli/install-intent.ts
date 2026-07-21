@@ -1,4 +1,74 @@
-const TOOL_NAME_PATTERN = /^[a-z][a-z0-9_-]*$/
+import {
+  isValidToolName,
+  isValidToolsetName,
+} from '../utils/tool-name-validation'
+export {
+  TOOL_NAME_PATTERN,
+  isValidToolName,
+  isValidToolsetName,
+} from '../utils/tool-name-validation'
+export type {
+  McpToolsetName,
+  OpenCodeToolName,
+} from '../utils/tool-name-validation'
+
+const ENVIRONMENT_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/
+const GatewayPath = {
+  V1: '/v1',
+} as const
+
+export const ReservedAuthEnvironment = {
+  CodexHome: 'CODEX_HOME',
+  OpenCodeConfig: 'OPENCODE_CONFIG',
+  OpenCodeConfigDirectory: 'OPENCODE_CONFIG_DIR',
+  OpenCodeEnableExa: 'OPENCODE_ENABLE_EXA',
+  OpenAIApiKey: 'OPENAI_API_KEY',
+  CodexApiKey: 'CODEX_API_KEY',
+  AnthropicBaseUrl: 'ANTHROPIC_BASE_URL',
+  AnthropicApiKey: 'ANTHROPIC_API_KEY',
+  AnthropicAuthToken: 'ANTHROPIC_AUTH_TOKEN',
+  AnthropicCustomHeaders: 'ANTHROPIC_CUSTOM_HEADERS',
+  OpenAIBaseUrl: 'OPENAI_BASE_URL',
+  LiteLLMBaseUrl: 'LITELLM_BASE_URL',
+  LiteLLMMasterKey: 'LITELLM_MASTER_KEY',
+  LiteLLMProxyUrl: 'LITELLM_PROXY_URL',
+  Home: 'HOME',
+  XdgConfigHome: 'XDG_CONFIG_HOME',
+  Path: 'PATH',
+  NodeOptions: 'NODE_OPTIONS',
+} as const
+
+export type ReservedAuthEnvironment =
+  (typeof ReservedAuthEnvironment)[keyof typeof ReservedAuthEnvironment]
+
+const RESERVED_AUTH_ENVIRONMENTS: ReadonlySet<string> = new Set(
+  Object.values(ReservedAuthEnvironment),
+)
+
+export function isValidEnvironmentName(value: string): boolean {
+  return ENVIRONMENT_NAME_PATTERN.test(value) && !RESERVED_AUTH_ENVIRONMENTS.has(value)
+}
+
+export const McpServerId = {
+  MinimaxSearch: 'minimax_search',
+  Zread: 'zread',
+  ZaiWebReader: 'zai_web_reader',
+} as const
+
+export type McpServerId = (typeof McpServerId)[keyof typeof McpServerId]
+
+export const McpDefaultState = {
+  Enabled: 'enabled',
+  Disabled: 'disabled',
+} as const
+
+export type McpDefaultState = (typeof McpDefaultState)[keyof typeof McpDefaultState]
+
+export const McpServerDefaultStates: ReadonlyMap<string, McpDefaultState> = new Map([
+  [McpServerId.MinimaxSearch, McpDefaultState.Disabled],
+  [McpServerId.Zread, McpDefaultState.Enabled],
+  [McpServerId.ZaiWebReader, McpDefaultState.Enabled],
+])
 
 export const InstallTarget = {
   OpenCode: 'opencode',
@@ -43,6 +113,7 @@ export type InstallOptions = {
   readonly search: readonly string[]
   readonly mcp: readonly string[]
   readonly toolsets: readonly string[]
+  readonly enableMcp: readonly string[]
   readonly disableMcp: readonly string[]
   readonly noSearch: boolean
   readonly noMcp: boolean
@@ -55,6 +126,7 @@ export type OpenCodeInstallIntent = {
   readonly search: readonly string[]
   readonly mcp: readonly string[]
   readonly toolsets: readonly string[]
+  readonly enableMcp: readonly string[]
   readonly disableMcp: readonly string[]
   readonly opencodeConfig: string | undefined
 }
@@ -85,6 +157,13 @@ export function resolveInstallIntent(options: InstallOptions): InstallIntentResu
     return fail(`Missing required options: ${missing.join(', ')}.`)
   }
 
+  if (options.authEnv !== undefined && !isValidEnvironmentName(options.authEnv)) {
+    return fail("'--auth-env' must be a valid environment variable name.")
+  }
+
+  const stateOverrideError = mcpStateOverrideConflict(options.enableMcp, options.disableMcp)
+  if (stateOverrideError !== undefined) return fail(stateOverrideError)
+
   const baseUrl = normalizeOrigin(options.baseUrl ?? '')
   if (baseUrl === undefined) {
     return fail(
@@ -92,7 +171,12 @@ export function resolveInstallIntent(options: InstallOptions): InstallIntentResu
     )
   }
 
-  const names = validateNames([...options.search, ...options.mcp, ...options.disableMcp])
+  const names = validateNames([
+    ...options.search,
+    ...options.mcp,
+    ...options.enableMcp,
+    ...options.disableMcp,
+  ])
   if (names !== undefined) return fail(names)
   const toolsets = validateToolsetNames(options.toolsets)
   if (toolsets !== undefined) return fail(toolsets)
@@ -107,6 +191,7 @@ export function resolveInstallIntent(options: InstallOptions): InstallIntentResu
             search: options.noSearch ? [] : options.search,
             mcp: options.noMcp ? [] : options.mcp,
             toolsets: options.noToolsets ? [] : options.toolsets,
+            enableMcp: options.noMcp ? [] : options.enableMcp,
             disableMcp: options.noMcp ? [] : options.disableMcp,
             opencodeConfig: options.opencodeConfig,
           }
@@ -116,6 +201,19 @@ export function resolveInstallIntent(options: InstallOptions): InstallIntentResu
         : undefined,
     },
   }
+}
+
+export function mcpStateOverrideConflict(
+  enabledNames: readonly string[],
+  disabledNames: readonly string[],
+): string | undefined {
+  const disabled = new Set(disabledNames)
+  for (const name of enabledNames) {
+    if (disabled.has(name)) {
+      return `MCP server '${name}' cannot be both enabled and disabled.`
+    }
+  }
+  return undefined
 }
 
 export function normalizeOrigin(raw: string): string | undefined {
@@ -129,7 +227,10 @@ export function normalizeOrigin(raw: string): string | undefined {
   if (url.username !== '' || url.password !== '') return undefined
   if (url.search !== '' || url.hash !== '') return undefined
   const path = url.pathname.replace(/\/+$/, '')
-  return `${url.protocol}//${url.host}${path}`
+  const gatewayPath = path.endsWith(GatewayPath.V1)
+    ? path.slice(0, -GatewayPath.V1.length).replace(/\/+$/, '')
+    : path
+  return `${url.protocol}//${url.host}${gatewayPath}`
 }
 
 function collectMissing(options: InstallOptions): readonly string[] {
@@ -142,7 +243,7 @@ function collectMissing(options: InstallOptions): readonly string[] {
 
 function validateNames(names: readonly string[]): string | undefined {
   for (const name of names) {
-    if (!TOOL_NAME_PATTERN.test(name)) {
+    if (!isValidToolName(name)) {
       return `Invalid tool or server name '${name}'; use lowercase letters, numbers, underscores, or hyphens.`
     }
   }
@@ -151,8 +252,8 @@ function validateNames(names: readonly string[]): string | undefined {
 
 function validateToolsetNames(names: readonly string[]): string | undefined {
   for (const name of names) {
-    if (name.trim() === '' || /[\u0000-\u001f\u007f]/.test(name)) {
-      return `Invalid MCP toolset name '${name}'; use a non-empty printable name.`
+    if (!isValidToolsetName(name)) {
+      return `Invalid MCP toolset name '${name}'; use a non-empty printable name without '/'.`
     }
   }
   return undefined

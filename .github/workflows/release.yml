@@ -2,51 +2,287 @@ name: Publish to npm
 
 on:
   push:
-    tags: ['v*']
-  release:
-    types: [published]
-  workflow_dispatch:
+    tags:
+      - 'v0.6.0'
 
 jobs:
   publish:
     runs-on: ubuntu-latest
+    env:
+      NPM_CONFIG_ENGINE_STRICT: 'true'
+      RELEASE_VERSION: '0.6.0'
     permissions:
-      contents: write # needed to create the GitHub Release
-      id-token: write # for npm provenance
+      contents: write
+      id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0 # full history so release notes can diff against prior tag
+          fetch-depth: 0
 
-      # Trusted Publishing (OIDC) requires npm >= 11.5.1. Node 24 ships
-      # with npm 11 by default, avoiding a flaky in-place npm self-upgrade
-      # across majors (which fails with MODULE_NOT_FOUND on the hosted runner).
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 24
+          node-version: 24.15.0
           registry-url: https://registry.npmjs.org
-          cache: npm
+          package-manager-cache: false
+
+      - name: Setup npm Trusted Publishing CLI
+        run: |
+          set -euo pipefail
+          npm install --global npm@12.0.1 --force
+          npm_version="$(npm --version)"
+          node - "$npm_version" <<'NODE'
+          const [major, minor, patch] = process.argv[2].split('.').map(Number)
+          const supported = [major, minor, patch].every(Number.isInteger) &&
+            (major > 11 || (major === 11 && (minor > 5 || (minor === 5 && patch >= 1))))
+          if (!supported) throw new Error(`npm ${process.argv[2]} is below the Trusted Publishing minimum of 11.5.1`)
+          console.log(`Using npm ${process.argv[2]} for Trusted Publishing`)
+          NODE
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.14
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Typecheck
-        run: npm run typecheck
+      - name: Verify release tag and ancestry
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF_NAME" == "v${RELEASE_VERSION}" ]] || {
+            printf 'Only v%s may be published; received %s\n' "$RELEASE_VERSION" "$GITHUB_REF_NAME" >&2
+            exit 1
+          }
+          git fetch origin refs/heads/main:refs/remotes/origin/main --no-tags --prune
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || {
+            printf 'Release SHA %s is not contained in origin/main\n' "$GITHUB_SHA" >&2
+            exit 1
+          }
+          node - <<'NODE'
+          const root = require('./package.json')
+          const wrapper = require('./packages/codex-litellm/package.json')
+          const expected = process.env.RELEASE_VERSION
+          const coreDependency = wrapper.dependencies?.[root.name]
+          if (root.version !== expected || wrapper.version !== expected || coreDependency !== expected) {
+            throw new Error(`Release version mismatch: expected=${expected} core=${root.version} wrapper=${wrapper.version} dependency=${coreDependency}`)
+          }
+          if (root.repository?.url !== wrapper.repository?.url) {
+            throw new Error(`Repository metadata mismatch: ${root.repository?.url} != ${wrapper.repository?.url}`)
+          }
+          NODE
 
-      # Uses npm Trusted Publishing (OIDC) — no NPM_TOKEN secret required.
-      # The trusted publisher must be configured on npmjs.com:
-      #   https://www.npmjs.com/package/opencode-plugin-litellm/access
-      # with org=yuseferi, repo=opencode-litellm, workflow=release.yml.
-      - name: Publish to npm
-        run: npm publish --access public --provenance
+      - name: Test, build, and typecheck
+        run: npm test
 
-      # Only create a GitHub Release when this run was triggered by a tag
-      # push. When the trigger is `release: published`, the Release already
-      # exists and this step would 422.
+      - name: Pack tested tarballs
+        run: |
+          set -euo pipefail
+          CORE_PACKAGE="$(node -p "const p=require('./package.json'); p.name+'@'+p.version")"
+          WRAPPER_PACKAGE="$(node -p "const p=require('./packages/codex-litellm/package.json'); p.name+'@'+p.version")"
+          core_stage="$RUNNER_TEMP/core-stage"
+          wrapper_stage="$RUNNER_TEMP/wrapper-stage"
+          mkdir -p "$core_stage" "$wrapper_stage"
+          cp package.json README.md LICENSE "$core_stage/"
+          cp -R src dist skills "$core_stage/"
+          cp packages/codex-litellm/package.json packages/codex-litellm/README.md packages/codex-litellm/LICENSE "$wrapper_stage/"
+          cp -R packages/codex-litellm/bin "$wrapper_stage/"
+          node - "$GITHUB_SHA" "$core_stage/package.json" "$wrapper_stage/package.json" <<'NODE'
+          const fs = require('node:fs')
+          const [gitHead, ...manifests] = process.argv.slice(2)
+          for (const path of manifests) {
+            const manifest = JSON.parse(fs.readFileSync(path, 'utf8'))
+            manifest.gitHead = gitHead
+            fs.writeFileSync(path, `${JSON.stringify(manifest, null, 2)}\n`)
+          }
+          NODE
+          (cd "$core_stage" && npm pack --ignore-scripts --json --pack-destination "$RUNNER_TEMP") > "$RUNNER_TEMP/core-pack.json"
+          (cd "$wrapper_stage" && npm pack --ignore-scripts --json --pack-destination "$RUNNER_TEMP") > "$RUNNER_TEMP/wrapper-pack.json"
+
+          pack_field() {
+            node - "$1" "$2" <<'NODE'
+          const fs = require('node:fs')
+          const path = require('node:path')
+          const [manifest, field] = process.argv.slice(2)
+          const [entry] = JSON.parse(fs.readFileSync(manifest, 'utf8'))
+          if (!entry || typeof entry[field] !== 'string') throw new Error(`npm pack has no ${field}`)
+          process.stdout.write(field === 'filename' ? path.resolve(path.dirname(manifest), entry[field]) : entry[field])
+          NODE
+          }
+          manifest_field() {
+            tar -xOf "$1" package/package.json | node -e '
+          let raw = ""
+          process.stdin.on("data", (chunk) => { raw += chunk })
+          process.stdin.on("end", () => {
+            const manifest = JSON.parse(raw)
+            const value = manifest[process.argv[1]]
+            if (typeof value !== "string") throw new Error(`Tarball manifest has no ${process.argv[1]}`)
+            process.stdout.write(value)
+          })
+            ' "$2"
+          }
+          integrity_for() {
+            node - "$1" <<'NODE'
+          const fs = require('node:fs')
+          const crypto = require('node:crypto')
+          const bytes = fs.readFileSync(process.argv[2])
+          process.stdout.write(`sha512-${crypto.createHash('sha512').update(bytes).digest('base64')}`)
+          NODE
+          }
+
+          CORE_TARBALL="$(pack_field "$RUNNER_TEMP/core-pack.json" filename)"
+          WRAPPER_TARBALL="$(pack_field "$RUNNER_TEMP/wrapper-pack.json" filename)"
+          [[ "$(pack_field "$RUNNER_TEMP/core-pack.json" name)@$(pack_field "$RUNNER_TEMP/core-pack.json" version)" == "$CORE_PACKAGE" ]]
+          [[ "$(pack_field "$RUNNER_TEMP/wrapper-pack.json" name)@$(pack_field "$RUNNER_TEMP/wrapper-pack.json" version)" == "$WRAPPER_PACKAGE" ]]
+          [[ -s "$CORE_TARBALL" && -s "$WRAPPER_TARBALL" ]]
+          [[ "$(manifest_field "$CORE_TARBALL" gitHead)" == "$GITHUB_SHA" ]]
+          [[ "$(manifest_field "$WRAPPER_TARBALL" gitHead)" == "$GITHUB_SHA" ]]
+          {
+            printf 'CORE_PACKAGE=%s\n' "$CORE_PACKAGE"
+            printf 'WRAPPER_PACKAGE=%s\n' "$WRAPPER_PACKAGE"
+            printf 'CORE_TARBALL=%s\n' "$CORE_TARBALL"
+            printf 'WRAPPER_TARBALL=%s\n' "$WRAPPER_TARBALL"
+            printf 'CORE_INTEGRITY=%s\n' "$(integrity_for "$CORE_TARBALL")"
+            printf 'WRAPPER_INTEGRITY=%s\n' "$(integrity_for "$WRAPPER_TARBALL")"
+          } >> "$GITHUB_ENV"
+          printf 'Core tarball: %s\nWrapper tarball: %s\n' "$CORE_TARBALL" "$WRAPPER_TARBALL"
+
+      - name: Verify packed tarballs
+        run: |
+          set -euo pipefail
+          consumer="$(mktemp -d)"
+          trap 'rm -rf "$consumer"' EXIT
+          printf '{"name":"packed-release-consumer","private":true,"version":"0.0.0"}\n' > "$consumer/package.json"
+          (
+            cd "$consumer"
+            npm install --ignore-scripts --no-audit --no-fund "$CORE_TARBALL"
+            npm install --ignore-scripts --no-audit --no-fund "$WRAPPER_TARBALL"
+            node - <<'NODE'
+          const fs = require('node:fs')
+          const read = (path) => JSON.parse(fs.readFileSync(path, 'utf8'))
+          const wrapper = read('node_modules/codex-litellm/package.json')
+          const core = read('node_modules/@happycastle114/opencode-litellm/package.json')
+          if (core.name !== '@happycastle114/opencode-litellm' || core.version !== process.env.RELEASE_VERSION || core.gitHead !== process.env.GITHUB_SHA) {
+            throw new Error('Packed core manifest identity mismatch')
+          }
+          if (wrapper.name !== 'codex-litellm' || wrapper.version !== process.env.RELEASE_VERSION || wrapper.gitHead !== process.env.GITHUB_SHA) {
+            throw new Error('Packed wrapper manifest identity mismatch')
+          }
+          if (wrapper.dependencies?.['@happycastle114/opencode-litellm'] !== process.env.RELEASE_VERSION) {
+            throw new Error('Packed wrapper dependency is not exact')
+          }
+          NODE
+            node_modules/.bin/opencode-litellm --help >/dev/null
+            node_modules/.bin/codex-litellm --help >/dev/null
+          )
+
+      - name: Verify npm package records exist
+        run: |
+          set -euo pipefail
+          check_record() {
+            local package_name="$1"
+            local result
+            result="$(node scripts/verify-npm-release-metadata.mjs record --package "$package_name")"
+            local status
+            status="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).status)' "$result")"
+            if [[ "$status" != found ]]; then
+              printf 'Bootstrap required for %s; refusing to consume %s from this workflow\n' "$package_name" "$RELEASE_VERSION" >&2
+              return 1
+            fi
+          }
+          check_record "${CORE_PACKAGE%@*}"
+          check_record "${WRAPPER_PACKAGE%@*}"
+
+      - name: Check pre-existing npm metadata
+        id: registry
+        run: |
+          set -euo pipefail
+          check_package() {
+            local package_id="$1"
+            local package_spec="$2"
+            local integrity="$3"
+            local result
+            result="$(node scripts/verify-npm-release-metadata.mjs preflight --package "$package_spec" --git-head "$GITHUB_SHA" --integrity "$integrity")"
+            printf '%s\n' "$result" > "$RUNNER_TEMP/${package_id}-preflight.json"
+            local status
+            status="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).status)' "$result")"
+            case "$status" in
+              missing)
+                printf 'publish_%s=true\n' "$package_id" >> "$GITHUB_OUTPUT"
+                ;;
+              valid)
+                printf 'publish_%s=false\n' "$package_id" >> "$GITHUB_OUTPUT"
+                ;;
+              *)
+                printf 'Unexpected preflight status for %s: %s\n' "$package_spec" "$status" >&2
+                return 1
+                ;;
+            esac
+          }
+          check_package core "$CORE_PACKAGE" "$CORE_INTEGRITY"
+          check_package wrapper "$WRAPPER_PACKAGE" "$WRAPPER_INTEGRITY"
+
+      - name: Publish scoped core tarball
+        if: steps.registry.outputs.publish_core == 'true'
+        run: npm publish "$CORE_TARBALL" --ignore-scripts --provenance --access public
+
+      - name: Publish Codex wrapper tarball
+        if: steps.registry.outputs.publish_wrapper == 'true'
+        run: npm publish "$WRAPPER_TARBALL" --ignore-scripts --provenance --access public
+
+      - name: Verify published npm metadata
+        run: |
+          set -euo pipefail
+          node scripts/verify-npm-release-metadata.mjs readback \
+            --package "$CORE_PACKAGE" \
+            --git-head "$GITHUB_SHA" \
+            --integrity "$CORE_INTEGRITY" \
+            --attempts 6 \
+            --delay-ms 5000
+          node scripts/verify-npm-release-metadata.mjs readback \
+            --package "$WRAPPER_PACKAGE" \
+            --git-head "$GITHUB_SHA" \
+            --integrity "$WRAPPER_INTEGRITY" \
+            --attempts 6 \
+            --delay-ms 5000
+
+      - name: Verify clean Codex consumer install
+        run: |
+          set -euo pipefail
+          consumer="$(mktemp -d)"
+          trap 'rm -rf "$consumer"' EXIT
+          printf '{"name":"release-consumer","private":true,"version":"0.0.0"}\n' > "$consumer/package.json"
+          (
+            cd "$consumer"
+            npm install --ignore-scripts --no-audit --no-fund "$WRAPPER_PACKAGE"
+            node - <<'NODE'
+          const fs = require('node:fs')
+          const read = (path) => JSON.parse(fs.readFileSync(path, 'utf8'))
+          const wrapper = read('node_modules/codex-litellm/package.json')
+          const core = read('node_modules/@happycastle114/opencode-litellm/package.json')
+          if (wrapper.name !== 'codex-litellm' || wrapper.version !== process.env.RELEASE_VERSION || wrapper.gitHead !== process.env.GITHUB_SHA) {
+            throw new Error('Installed wrapper manifest identity mismatch')
+          }
+          if (core.name !== '@happycastle114/opencode-litellm' || core.gitHead !== process.env.GITHUB_SHA) {
+            throw new Error('Installed core manifest identity mismatch')
+          }
+          if (wrapper.dependencies?.['@happycastle114/opencode-litellm'] !== process.env.RELEASE_VERSION) {
+            throw new Error(`Wrapper dependency is not exact ${process.env.RELEASE_VERSION}`)
+          }
+          if (core.version !== process.env.RELEASE_VERSION) throw new Error(`Installed core is ${core.version}`)
+          NODE
+            test -s node_modules/.bin/opencode-litellm
+            test -s node_modules/.bin/codex-litellm
+            node_modules/.bin/opencode-litellm --help > "$RUNNER_TEMP/opencode-cli-help.txt"
+            node_modules/.bin/codex-litellm --help > "$RUNNER_TEMP/codex-cli-help.txt"
+            test -s "$RUNNER_TEMP/opencode-cli-help.txt"
+            test -s "$RUNNER_TEMP/codex-cli-help.txt"
+            npm audit signatures
+          )
+
       - name: Create GitHub Release
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+        if: success()
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}

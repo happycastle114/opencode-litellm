@@ -4,9 +4,13 @@
   "version": "0.6.0",
   "description": "OpenCode plugin for LiteLLM proxy support with auto-detection and dynamic model discovery",
   "type": "module",
-  "main": "./src/index.ts",
+  "main": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs"
+    },
     "./cli": "./dist/opencode-litellm.mjs"
   },
   "bin": {
@@ -14,7 +18,10 @@
     "codex-litellm": "./dist/opencode-litellm.mjs"
   },
   "engines": {
-    "node": ">=20"
+    "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "files": [
     "src",
@@ -25,7 +32,8 @@
   "scripts": {
     "test": "npm run build && bun test",
     "typecheck": "tsc --noEmit",
-    "build": "npm run typecheck && bun build src/cli.mts --target=node --format=esm --packages=external --outfile=dist/opencode-litellm.mjs && chmod +x dist/opencode-litellm.mjs",
+    "clean": "node scripts/clean-dist.mjs",
+    "build": "npm run clean && npm run typecheck && tsc --emitDeclarationOnly --outDir dist && node scripts/normalize-declaration-specifiers.mjs && bun build src/index.ts --target=node --format=esm --packages=external --outfile=dist/index.mjs >/dev/null && bun build src/cli.mts --target=node --format=esm --packages=external --outfile=dist/opencode-litellm.mjs >/dev/null && chmod +x dist/opencode-litellm.mjs",
     "prepack": "npm run build",
     "prepublishOnly": "npm run build"
   },
@@ -48,13 +56,15 @@
   },
   "homepage": "https://github.com/happycastle114/opencode-litellm#readme",
   "dependencies": {
-    "@opencode-ai/plugin": "^1.14.0",
-    "@opencode-ai/sdk": "^1.2.0",
+    "@opencode-ai/plugin": "1.18.4",
+    "@opencode-ai/sdk": "1.18.4",
     "jsonc-parser": "3.3.1",
+    "proper-lockfile": "4.1.2",
     "smol-toml": "1.7.0"
   },
   "devDependencies": {
     "@types/node": "^25.0.3",
+    "@types/proper-lockfile": "4.1.4",
     "typescript": "^5.9.3"
   }
 }

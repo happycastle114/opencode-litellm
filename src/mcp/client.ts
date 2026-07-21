@@ -1,5 +1,6 @@
 import { normalizeBaseURL } from '../utils/litellm-api'
 import { isMcpServerName } from './options'
+import { resolveHeaderSafeApiKey } from '../utils/api-key'
 
 const MCP_SERVERS_ENDPOINT = '/v1/mcp/server'
 const ENV_REFERENCE_PATTERN = /^\{env:([A-Za-z_][A-Za-z0-9_]*)\}$/
@@ -23,7 +24,11 @@ export async function discoverLiteLLMMcpServers(
   try {
     const headers = new Headers(endpoint.customHeaders)
     headers.set('Content-Type', 'application/json')
-    if (endpoint.apiKey) headers.set('Authorization', `Bearer ${endpoint.apiKey}`)
+    const apiKey = resolveHeaderSafeApiKey(endpoint.apiKey)
+    if (endpoint.apiKey !== undefined && apiKey === undefined) {
+      throw new McpDiscoveryError('LiteLLM MCP server discovery requires a safe API key')
+    }
+    if (apiKey !== undefined) headers.set('Authorization', `Bearer ${apiKey}`)
     response = await fetch(
       `${normalizeBaseURL(endpoint.baseURL)}${MCP_SERVERS_ENDPOINT}`,
       {
@@ -77,16 +82,24 @@ export function parseMcpServersResponse(value: unknown): readonly string[] {
 export function resolveMcpAuthorization(
   configuredKey?: string,
 ): string | undefined {
+  if (configuredKey !== undefined) {
+    const variableName = ENV_REFERENCE_PATTERN.exec(configuredKey)?.[1]
+    if (variableName !== undefined) {
+      const referencedKey = process.env[variableName]
+      const key = resolveHeaderSafeApiKey(referencedKey)
+      return key === undefined ? undefined : `Bearer ${key}`
+    }
+    if (configuredKey.includes('{') || configuredKey.includes('}')) return undefined
+    const key = resolveHeaderSafeApiKey(configuredKey)
+    return key === undefined ? undefined : `Bearer ${key}`
+  }
+
   const standardKey =
     process.env.OPENCODE_LITELLM_API_KEY ??
     process.env.LITELLM_API_KEY ??
     process.env.LITELLM_MASTER_KEY
-  if (standardKey !== undefined) return `Bearer ${standardKey}`
-  if (configuredKey === undefined) return undefined
-
-  const variableName = ENV_REFERENCE_PATTERN.exec(configuredKey)?.[1]
-  const referencedKey = variableName === undefined ? undefined : process.env[variableName]
-  return referencedKey === undefined ? undefined : `Bearer ${referencedKey}`
+  const key = resolveHeaderSafeApiKey(standardKey)
+  return key === undefined ? undefined : `Bearer ${key}`
 }
 
 function readRows(value: unknown): readonly unknown[] {

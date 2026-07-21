@@ -22,12 +22,12 @@ afterEach(async () => {
 })
 
 describe('LiteLLM MCP toolset options', () => {
-  test('parses selected printable names and rejects duplicate or empty names', () => {
-    const options = parseMcpToolsetOptions({
-      toolsets: ['research/core', 'ops review'],
-    })
+  test('parses selected printable names and rejects duplicate, empty, or slash names', () => {
+    const options = parseMcpToolsetOptions({ toolsets: ['ops review'] })
 
-    expect(options).toEqual(['research/core', 'ops review'])
+    expect(options).toEqual(['ops review'])
+    expect(() => parseMcpToolsetOptions({ toolsets: ['research/core'] }))
+      .toThrow('toolsets')
     expect(() => parseMcpToolsetOptions({ toolsets: ['research', 'research'] }))
       .toThrow('toolsets')
     expect(() => parseMcpToolsetOptions({ toolsets: [''] })).toThrow('toolsets')
@@ -41,7 +41,7 @@ describe('OpenCode toolset installer configuration', () => {
       authEnv: 'LITELLM_API_KEY',
       search: [],
       mcp: [],
-      toolsets: ['research/core'],
+      toolsets: ['research core'],
       disableMcp: [],
     } as const
 
@@ -49,7 +49,7 @@ describe('OpenCode toolset installer configuration', () => {
     const twice = applyOpenCodeEdits(once, planOpenCodeEdits(once, intent))
     const parsed = parseJsonc(once)
 
-    expect(parsed.plugin[0][1].toolsets).toEqual(['research/core'])
+    expect(parsed.plugin[0][1].toolsets).toEqual(['research core'])
     expect(once).not.toContain('/toolset/')
     expect(once).not.toContain('Bearer ')
     expect(twice).toBe(once)
@@ -57,6 +57,113 @@ describe('OpenCode toolset installer configuration', () => {
 })
 
 describe('LiteLLM MCP toolset runtime registration', () => {
+  test('reconciles evolving discovery and reserves global server/toolset keys', () => {
+    const options = parseMcpDiscoveryOptions({ mcpDiscovery: { enabled: true } })
+    const serverConfig: Config = {}
+    mergeDiscoveredMcpServers({
+      config: serverConfig,
+      baseURL: 'https://litellm.example.com',
+      serverNames: ['foo_bar'],
+      options,
+      authorization: 'Bearer runtime-secret',
+    })
+    mergeDiscoveredMcpServers({
+      config: serverConfig,
+      baseURL: 'https://litellm.example.com',
+      serverNames: ['foo_bar', 'foo-bar'],
+      options,
+      authorization: 'Bearer runtime-secret',
+    })
+
+    const toolsetConfig: Config = {}
+    mergeDiscoveredMcpServers({
+      config: toolsetConfig,
+      baseURL: 'https://litellm.example.com',
+      serverNames: [],
+      toolsets: ['foo!'],
+      options,
+      authorization: 'Bearer runtime-secret',
+    })
+    mergeDiscoveredMcpServers({
+      config: toolsetConfig,
+      baseURL: 'https://litellm.example.com',
+      serverNames: [],
+      toolsets: ['foo', 'foo!'],
+      options,
+      authorization: 'Bearer runtime-secret',
+    })
+
+    const crossConfig: Config = {}
+    const added = mergeDiscoveredMcpServers({
+      config: crossConfig,
+      baseURL: 'https://litellm.example.com',
+      serverNames: ['toolset-foo'],
+      toolsets: ['foo', 'foo!', 'foo-2'],
+      options,
+      authorization: 'Bearer runtime-secret',
+    })
+
+    const urls = (config: Config) => Object.values(config.mcp ?? {})
+      .map((entry) => (entry as { url: string }).url)
+      .sort()
+    expect(urls(serverConfig)).toEqual([
+      'https://litellm.example.com/foo-bar/mcp',
+      'https://litellm.example.com/foo_bar/mcp',
+    ])
+    expect(urls(toolsetConfig)).toEqual([
+      'https://litellm.example.com/toolset/foo!/mcp',
+      'https://litellm.example.com/toolset/foo/mcp',
+    ])
+    expect(added).toBe(4)
+    expect(urls(crossConfig)).toEqual(expect.arrayContaining([
+      'https://litellm.example.com/toolset/foo-2/mcp',
+      'https://litellm.example.com/toolset/foo!/mcp',
+      'https://litellm.example.com/toolset/foo/mcp',
+      'https://litellm.example.com/toolset-foo/mcp',
+    ]))
+
+    const fresh = (servers: readonly string[], toolsets: readonly string[]) => {
+      const config: Config = {}
+      mergeDiscoveredMcpServers({ config, baseURL: 'https://litellm.example.com',
+        serverNames: servers, toolsets, options, authorization: 'Bearer runtime-secret' })
+      return JSON.stringify(config)
+    }
+    expect(fresh(['b', 'a'], ['z', 'y'])).toBe(fresh(['a', 'b'], ['y', 'z']))
+  })
+
+  test('keeps server names that normalize to one key on distinct URLs and reinstalls idempotently', () => {
+    const config: Config = {}
+    const options = parseMcpDiscoveryOptions({
+      mcpDiscovery: { enabled: true, requestTimeoutMs: 15000 },
+    })
+    const input = {
+      config,
+      baseURL: 'https://litellm.example.com',
+      serverNames: ['foo_bar', 'foo-bar', 'foo_bar'],
+      options,
+      authorization: 'Bearer runtime-secret',
+    } as const
+
+    const first = mergeDiscoveredMcpServers(input)
+    const once = JSON.stringify(config)
+    const second = mergeDiscoveredMcpServers({
+      ...input,
+      serverNames: ['foo-bar', 'foo_bar'],
+    })
+
+    expect(first).toBe(2)
+    expect(second).toBe(0)
+    expect(Object.values(config.mcp ?? {}).map((entry) => entry.url).sort()).toEqual([
+      'https://litellm.example.com/foo-bar/mcp',
+      'https://litellm.example.com/foo_bar/mcp',
+    ])
+    expect(Object.keys(config.mcp ?? {})).toEqual([
+      'litellm-foo-bar',
+      'litellm-foo-bar-2',
+    ])
+    expect(JSON.stringify(config)).toBe(once)
+  })
+
   test('normalizes arbitrary names, suffixes slug collisions, and deduplicates exact names', () => {
     const config: Config = {}
     const options = parseMcpDiscoveryOptions({
@@ -67,7 +174,7 @@ describe('LiteLLM MCP toolset runtime registration', () => {
       config,
       baseURL: 'https://litellm.example.com',
       serverNames: [],
-      toolsets: ['team/alpha', 'team alpha', 'team-alpha', 'team/alpha'],
+      toolsets: ['team alpha', 'team.alpha', 'team-alpha', 'team alpha'],
       options,
       authorization: 'Bearer runtime-secret',
     })
@@ -76,7 +183,7 @@ describe('LiteLLM MCP toolset runtime registration', () => {
       config,
       baseURL: 'https://litellm.example.com',
       serverNames: [],
-      toolsets: ['team/alpha', 'team alpha', 'team-alpha', 'team/alpha'],
+      toolsets: ['team alpha', 'team.alpha', 'team-alpha', 'team alpha'],
       options,
       authorization: 'Bearer runtime-secret',
     })
@@ -89,7 +196,7 @@ describe('LiteLLM MCP toolset runtime registration', () => {
       'litellm-toolset-team-alpha-3',
     ])
     expect(config.mcp?.['litellm-toolset-team-alpha-2']?.url).toBe(
-      'https://litellm.example.com/mcp/team%20alpha',
+      'https://litellm.example.com/toolset/team.alpha/mcp',
     )
     expect(JSON.stringify(config)).toBe(once)
   })
@@ -105,7 +212,7 @@ describe('LiteLLM MCP toolset runtime registration', () => {
     }
     const config: Config = configured(baseURL)
     const hooks = await LiteLLMPlugin({}, {
-      toolsets: ['research/core'],
+      toolsets: ['research core'],
       mcpDiscovery: { enabled: true, include: ['zread'] },
     })
 
@@ -116,7 +223,7 @@ describe('LiteLLM MCP toolset runtime registration', () => {
     expect(Object.values(config.mcp ?? {})).toEqual(expect.arrayContaining([
       {
         type: 'remote',
-        url: `${baseURL}/mcp/research%2Fcore`,
+        url: `${baseURL}/toolset/research%20core/mcp`,
         enabled: true,
         oauth: false,
         timeout: 15000,
@@ -134,7 +241,7 @@ describe('LiteLLM MCP toolset runtime registration', () => {
     expect(JSON.stringify(config)).toBe(first)
   })
 
-  test('does not register a toolset from an unresolved literal provider key', async () => {
+  test('registers a toolset from the configured literal provider key', async () => {
     delete process.env.OPENCODE_LITELLM_API_KEY
     globalThis.fetch = async () => Response.json({ data: [{ model_group: 'test-model' }] })
     const config = configured('https://litellm.example.com', 'literal-secret')
@@ -142,8 +249,8 @@ describe('LiteLLM MCP toolset runtime registration', () => {
 
     await hooks.config?.(config)
 
-    expect(config.mcp).toBeUndefined()
-    expect(JSON.stringify(config)).not.toContain('Bearer literal-secret')
+    expect(config.mcp?.['litellm-toolset-research']?.headers?.Authorization)
+      .toBe('Bearer literal-secret')
   })
 })
 

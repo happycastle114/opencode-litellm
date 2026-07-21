@@ -50,6 +50,8 @@ describe('official LiteLLM token.json loader', () => {
     ['malformed JSON', MALFORMED_JSON],
     ['missing key', JSON.stringify({ base_url: URL.gatewayOrigin })],
     ['missing base_url', JSON.stringify({ key: TOKEN.gatewayKey })],
+    ['CR key', JSON.stringify({ base_url: URL.gatewayOrigin, key: `${TOKEN.gatewayKey}\r` })],
+    ['LF key', JSON.stringify({ base_url: URL.gatewayOrigin, key: `${TOKEN.gatewayKey}\n` })],
     ['cross-origin token', JSON.stringify({ base_url: URL.crossOrigin, key: TOKEN.gatewayKey })],
     ['API-path token', JSON.stringify({ base_url: `${URL.gatewayOrigin}/v1`, key: TOKEN.gatewayKey })],
     ['jwt_token without key', JSON.stringify({ base_url: URL.gatewayOrigin, jwt_token: TOKEN.jwtDecoy })],

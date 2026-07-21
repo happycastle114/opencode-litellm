@@ -1,10 +1,13 @@
-import { normalizeOrigin, ToolkitDefault } from './install-intent'
+import {
+  isValidEnvironmentName,
+  normalizeOrigin,
+  ToolkitDefault,
+} from './install-intent'
 
 const OPTION = {
   AuthEnvironment: '--auth-env',
   BaseUrl: '--base-url',
 } as const
-const ENVIRONMENT_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/
 
 export type AuthCommandOptions = {
   readonly baseUrl: string
@@ -39,7 +42,7 @@ export function parseAuthCommandOptions(
     return failure(`Option '${OPTION.BaseUrl}' must be an absolute http(s) origin.`)
   }
   const authEnv = values.get(OPTION.AuthEnvironment) ?? ToolkitDefault.AuthEnvironment
-  return ENVIRONMENT_NAME_PATTERN.test(authEnv)
+  return isValidEnvironmentName(authEnv)
     ? success(baseUrl, authEnv)
     : failure(`Option '${OPTION.AuthEnvironment}' must be a valid environment variable name.`)
 }

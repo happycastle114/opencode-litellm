@@ -3,10 +3,10 @@ import { dirname, isAbsolute, join } from 'node:path'
 import { parse as parseJsonc, type ParseError } from 'jsonc-parser'
 import { parse as parseToml } from 'smol-toml'
 import { CodexProviderId } from './codex-config'
+import { isManagedOpenCodePluginSpec } from './managed-plugin'
 import { version as CURRENT_PACKAGE_VERSION } from '../version'
 
 const PLUGIN_NAME = 'opencode-plugin-litellm'
-const MANAGED_PLUGIN_SUFFIX = '/opencode-litellm-git/src/index.ts'
 const PROVIDER_NPM = '@ai-sdk/openai'
 const ENV_REFERENCE = /^\{env:[A-Za-z_][A-Za-z0-9_]*\}$/
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/
@@ -208,12 +208,12 @@ function checkPlugin(config: unknown, path: string): DoctorCheck {
   const litellm = specs.filter(
     (spec): spec is string =>
       typeof spec === 'string' &&
-      (spec.startsWith(`${PLUGIN_NAME}@`) || spec.endsWith(MANAGED_PLUGIN_SUFFIX)),
+      (spec.startsWith(`${PLUGIN_NAME}@`) || isManagedOpenCodePluginSpec(spec)),
   )
   if (litellm.length === 0) {
     return check('plugin', 'error', 'No opencode-plugin-litellm entry found', path)
   }
-  const managed = litellm.find((spec) => spec.endsWith(MANAGED_PLUGIN_SUFFIX))
+  const managed = litellm.find(isManagedOpenCodePluginSpec)
   if (managed !== undefined) {
     return check('plugin', 'ok', `Plugin uses managed checkout ${managed}`, path)
   }

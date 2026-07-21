@@ -1,61 +1,19 @@
 import { describe, expect, test } from 'bun:test'
-import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 import { pathToFileURL } from 'node:url'
 import { parse as parseJsonc } from 'jsonc-parser'
-import { applyOpenCodeEdits, planOpenCodeEdits } from '../src/cli/opencode-config'
 import {
-  ManagedPluginCheckoutError,
-  ensureManagedOpenCodePlugin,
-  planManagedOpenCodePlugin,
-} from '../src/cli/managed-plugin'
-
-const MANAGED_PLUGIN = {
-  repository: 'https://github.com/happycastle114/opencode-litellm.git',
-  revision: '83ea2674a8afb578a670188fb3b522fc242a77cb',
-  checkoutDirectory: 'opencode-litellm-git',
-  entrypoint: 'src/index.ts',
-} as const
-const COMMAND_RESULT = {
-  correctOrigin: { exitCode: 0, stdout: `${MANAGED_PLUGIN.repository}\n`, stderr: '' },
-  wrongOrigin: { exitCode: 0, stdout: 'https://attacker.example.test/plugin.git\n', stderr: '' },
-  clean: { exitCode: 0, stdout: '', stderr: '' },
-  dirty: { exitCode: 0, stdout: ' M src/index.ts\n', stderr: '' },
-  unexpected: { exitCode: 127, stdout: '', stderr: 'unexpected command' },
-} as const
-const FULL_GIT_SHA = /^[0-9a-f]{40}$/
-const BASE_INTENT = {
-  baseUrl: 'https://llm.example.test',
-  authEnv: 'OPENCODE_LITELLM_API_KEY',
-  search: [],
-  mcp: [],
-  disableMcp: [],
-} as const
-
-type CommandInvocation = {
-  readonly executable: string
-  readonly args: readonly string[]
-  readonly cwd?: string
-}
-
-function createBoundary(results: readonly (typeof COMMAND_RESULT)[keyof typeof COMMAND_RESULT][]) {
-  const calls: CommandInvocation[] = []
-  let index = 0
-  return {
-    calls,
-    boundary: {
-      fs: { exists: (_path: string) => true },
-      command: {
-        run: async (invocation: CommandInvocation) => {
-          calls.push(invocation)
-          const result = results[index]
-          index += 1
-          return result ?? COMMAND_RESULT.unexpected
-        },
-      },
-    },
-  }
-}
+  OH_MY_OPENAGENT_PLUGIN_SPEC,
+  applyOpenCodeEdits,
+  planOpenCodeEdits,
+} from '../src/cli/opencode-config'
+import { planManagedOpenCodePlugin } from '../src/cli/managed-plugin'
+import {
+  BASE_INTENT,
+  FULL_GIT_SHA,
+  MANAGED_PLUGIN,
+} from './managed-plugin-test-support'
 
 describe('managed OpenCode plugin install plan', () => {
   test('uses a file URL for the managed checkout pinned to an exact full SHA', () => {
@@ -66,7 +24,12 @@ describe('managed OpenCode plugin install plan', () => {
     const plan = planManagedOpenCodePlugin({ opencodeConfigDir })
 
     // Then: the checkout, entrypoint, and immutable revision are explicit
-    const checkoutPath = join(opencodeConfigDir, 'vendor', MANAGED_PLUGIN.checkoutDirectory)
+    const checkoutPath = join(
+      opencodeConfigDir,
+      'vendor',
+      MANAGED_PLUGIN.checkoutDirectory,
+      MANAGED_PLUGIN.revision,
+    )
     const entrypointPath = join(checkoutPath, MANAGED_PLUGIN.entrypoint)
     expect(plan).toEqual({
       repository: MANAGED_PLUGIN.repository,
@@ -90,30 +53,6 @@ describe('managed OpenCode plugin install plan', () => {
     const output = applyOpenCodeEdits(source, planOpenCodeEdits(source, intent))
 
     // Then: the durable config references the managed checkout, not a registry selector
-    expect(parseJsonc(output).plugin).toEqual([plan.pluginSpec])
-  })
-
-  test('rejects a checkout whose origin differs before update commands run', async () => {
-    // Given: an existing checkout reporting a foreign origin
-    const plan = planManagedOpenCodePlugin({ opencodeConfigDir: join(tmpdir(), 'opencode') })
-    const fake = createBoundary([COMMAND_RESULT.wrongOrigin])
-
-    // When/Then: checkout preparation fails closed at the origin boundary
-    await expect(ensureManagedOpenCodePlugin(plan, fake.boundary)).rejects.toBeInstanceOf(
-      ManagedPluginCheckoutError,
-    )
-    expect(fake.calls).toHaveLength(1)
-  })
-
-  test('rejects a dirty checkout before fetch or detached checkout', async () => {
-    // Given: the correct origin with local modifications
-    const plan = planManagedOpenCodePlugin({ opencodeConfigDir: join(tmpdir(), 'opencode') })
-    const fake = createBoundary([COMMAND_RESULT.correctOrigin, COMMAND_RESULT.dirty])
-
-    // When/Then: checkout preparation preserves local work and stops
-    await expect(ensureManagedOpenCodePlugin(plan, fake.boundary)).rejects.toBeInstanceOf(
-      ManagedPluginCheckoutError,
-    )
-    expect(fake.calls).toHaveLength(2)
+    expect(parseJsonc(output).plugin).toEqual([plan.pluginSpec, OH_MY_OPENAGENT_PLUGIN_SPEC])
   })
 })

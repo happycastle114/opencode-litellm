@@ -1,4 +1,5 @@
 import { normalizeBaseURL } from '../utils/litellm-api'
+import { resolveHeaderSafeApiKey } from '../utils/api-key'
 
 const ENV_PLACEHOLDER_PATTERN = /^\{env:([A-Za-z_][A-Za-z0-9_]*)\}$/
 
@@ -39,32 +40,34 @@ export class LiteLLMSearchError extends Error {
 }
 
 export function resolveSearchApiKey(configuredKey?: string): string | undefined {
+  if (configuredKey !== undefined) {
+    const placeholder = ENV_PLACEHOLDER_PATTERN.exec(configuredKey)
+    const variableName = placeholder?.[1]
+    if (variableName !== undefined) return resolveHeaderSafeApiKey(process.env[variableName])
+    if (configuredKey.includes('{') || configuredKey.includes('}')) return undefined
+    return resolveHeaderSafeApiKey(configuredKey)
+  }
+
   const standardKey =
     process.env.OPENCODE_LITELLM_API_KEY ??
     process.env.LITELLM_API_KEY ??
     process.env.LITELLM_MASTER_KEY
-  if (standardKey !== undefined) return standardKey
-  if (configuredKey === undefined) return undefined
-
-  const placeholder = ENV_PLACEHOLDER_PATTERN.exec(configuredKey)
-  const variableName = placeholder?.[1]
-  if (variableName !== undefined) return process.env[variableName]
-  if (configuredKey.includes('{') || configuredKey.includes('}')) return undefined
-  return configuredKey
+  return resolveHeaderSafeApiKey(standardKey)
 }
 
 export async function searchLiteLLM(
   invocation: LiteLLMSearchInvocation,
 ): Promise<LiteLLMSearchResponse> {
   const { endpoint, searchToolName, request, signal } = invocation
-  if (!endpoint.apiKey) {
+  const apiKey = resolveHeaderSafeApiKey(endpoint.apiKey)
+  if (apiKey === undefined) {
     throw new LiteLLMSearchError('LiteLLM search API key is not configured')
   }
 
   let response: Response
   try {
     const headers = new Headers(endpoint.customHeaders)
-    headers.set('Authorization', `Bearer ${endpoint.apiKey}`)
+    headers.set('Authorization', `Bearer ${apiKey}`)
     headers.set('Content-Type', 'application/json')
     response = await fetch(buildSearchURL(endpoint.baseURL, searchToolName), {
       method: 'POST',

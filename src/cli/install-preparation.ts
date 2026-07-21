@@ -7,10 +7,11 @@ import {
   resolveGatewayOrigin,
   type InstallPreparationBoundary,
 } from './install-preparation-auth'
+import type { DeferredSsoToken } from './install-preparation-auth'
 import { loadAuthenticatedConnection,
   type AuthenticatedConnection } from './install-preparation-discovery'
 import { resourcesForOnboarding, selectDisabledMcp, selectInstallResources,
-  type InstallSelection, type InstallSelectionWarning } from './install-preparation-selection'
+  type InstallSelectionWarning } from './install-preparation-selection'
 import { runInstallOnboarding, type OnboardingConnection, type OnboardingPlan,
   type OnboardingResult } from './onboarding'
 
@@ -33,6 +34,7 @@ export type PreparedInstall = {
   readonly apiKey: string
   readonly discovery: GatewayToolDiscoveryResult
   readonly selectionWarnings: readonly InstallSelectionWarning[]
+  readonly deferredSsoToken?: DeferredSsoToken
 }
 
 type PreparationInput = {
@@ -46,7 +48,6 @@ type InteractiveResultInput = {
   readonly preparation: PreparationInput
   readonly plan: OnboardingPlan
   readonly connection: AuthenticatedConnection
-  readonly disabledMcp: InstallSelection
 }
 
 export async function prepareInstall(
@@ -81,6 +82,7 @@ async function prepareNonInteractive(input: PreparationInput): Promise<PreparedI
       search: selected.search.names,
       mcp: selected.mcp.names,
       toolsets: selected.toolsets.names,
+      enableMcp: input.options.noMcp ? [] : input.options.enableMcp,
       disableMcp: selected.disabledMcp.names,
     },
     apiKey: connection.apiKey,
@@ -91,6 +93,9 @@ async function prepareNonInteractive(input: PreparationInput): Promise<PreparedI
       ...selected.toolsets.warnings,
       ...selected.disabledMcp.warnings,
     ],
+    ...(connection.deferredSsoToken === undefined
+      ? {}
+      : { deferredSsoToken: connection.deferredSsoToken }),
   }
 }
 
@@ -143,12 +148,16 @@ async function prepareInteractive(input: PreparationInput): Promise<PreparedInst
     preparation: input,
     plan: result.plan,
     connection,
-    disabledMcp: selectDisabledMcp(input.options, connection.discovery),
   })
 }
 
 function interactiveResult(input: InteractiveResultInput): PreparedInstall {
-  const { preparation, plan, connection, disabledMcp } = input
+  const { preparation, plan, connection } = input
+  const disabledMcp = selectDisabledMcp(
+    preparation.options,
+    connection.discovery,
+    plan.mcpServers,
+  )
   return {
     options: {
       ...preparation.options,
@@ -160,11 +169,15 @@ function interactiveResult(input: InteractiveResultInput): PreparedInstall {
       search: preparation.options.noSearch ? [] : plan.searchTools,
       mcp: preparation.options.noMcp ? [] : plan.mcpServers,
       toolsets: preparation.options.noToolsets ? [] : plan.mcpToolsets,
+      enableMcp: preparation.options.noMcp ? [] : preparation.options.enableMcp,
       disableMcp: disabledMcp.names,
     },
     apiKey: connection.apiKey,
     discovery: connection.discovery,
     selectionWarnings: disabledMcp.warnings,
+    ...(connection.deferredSsoToken === undefined
+      ? {}
+      : { deferredSsoToken: connection.deferredSsoToken }),
   }
 }
 

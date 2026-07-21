@@ -1,86 +1,31 @@
-import type { Config, Plugin, PluginInput } from '@opencode-ai/plugin'
-import { homedir } from 'node:os'
-import { join } from 'node:path'
-import {
-  autoDetectLiteLLM,
-  discoverLiteLLMModels,
-  normalizeBaseURL,
-} from '../utils/litellm-api'
-import {
-  formatModelName,
-  categorizeModel,
-} from '../utils/format-model-name'
-import type { LiteLLMModel } from '../types'
-import {
-  resolveSearchApiKey,
-  type LiteLLMSearchEndpoint,
-} from '../search/client'
+import type { Plugin } from '@opencode-ai/plugin'
+import type { LiteLLMSearchEndpoint } from '../search/client'
 import { parseSearchToolOptions } from '../search/options'
 import { createSearchTools } from '../search/tools'
-import {
-  discoverLiteLLMMcpServers,
-  resolveMcpAuthorization,
-} from '../mcp/client'
-import { mergeDiscoveredMcpServers } from '../mcp/merge'
 import {
   parseMcpDiscoveryOptions,
   parseMcpToolsetOptions,
 } from '../mcp/options'
-import { loadOfficialLiteLLMApiKey } from '../cli/official-token'
+import {
+  PROVIDER_RESOLUTION,
+  resolveProvider,
+  toSearchEndpoint,
+  type PublicPluginConfig,
+} from './provider-resolution'
+import { discoverAndMergeModels } from './model-discovery'
+import { discoverAndMergeMcpServers } from './mcp-discovery'
 
-const CHAT_PROVIDER_ID = 'litellm'
+type PublicPluginHooks = {
+  readonly config?: (config: PublicPluginConfig) => Promise<void>
+  readonly [key: string]: unknown
+}
+
+type PublicPlugin = (
+  input: object,
+  options?: Record<string, unknown>,
+) => Promise<PublicPluginHooks>
+
 const DISCOVERY_TIMEOUT_MS = 5000
-const PROVIDER_NPM = '@ai-sdk/openai'
-const OFFICIAL_TOKEN_PATH = ['.litellm', 'token.json'] as const
-const AUTHORIZATION_PREFIX = 'Bearer '
-
-/**
- * Read `customHeaders` from a provider options block.
- */
-function readCustomHeaders(
-  options: Record<string, unknown>,
-): Record<string, string> | undefined {
-  const raw = options.customHeaders
-  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-    const out: Record<string, string> = {}
-    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
-      if (typeof v === 'string') out[k] = v
-    }
-    return Object.keys(out).length > 0 ? out : undefined
-  }
-  return undefined
-}
-
-/**
- * Convert a discovered LiteLLM model into an OpenCode config-level
- * model entry (the shape used in `provider.*.models` inside
- * `opencode.json`).
- */
-function toConfigModel(model: LiteLLMModel): Record<string, unknown> {
-  const type = categorizeModel(model)
-  const entry: Record<string, unknown> = {
-    name: formatModelName(model),
-  }
-  if (model.max_input_tokens || model.max_output_tokens) {
-    entry.limit = {
-      context: model.max_input_tokens ?? 0,
-      output: model.max_output_tokens ?? 0,
-    }
-  }
-  if (model.supports_function_calling) {
-    entry.tool_call = true
-  }
-  if (model.supports_vision) {
-    entry.attachment = true
-  }
-  if (type === 'embedding' || type === 'image' || type === 'audio') {
-    // skip non-chat models from the config — they can't be used as
-    // primary chat models and would clutter the picker.
-    return entry
-  }
-  return entry
-}
-
 /**
  * LiteLLM Plugin for OpenCode.
  *
@@ -105,10 +50,10 @@ function toConfigModel(model: LiteLLMModel): Record<string, unknown> {
  *   }
  * }
  */
-export const LiteLLMPlugin: Plugin = async (
-  _input: PluginInput,
-  pluginOptions,
-) => {
+const liteLLMPluginImplementation: PublicPlugin = (async (
+  _input: object,
+  pluginOptions?: Record<string, unknown>,
+): Promise<PublicPluginHooks> => {
   const searchToolOptions = parseSearchToolOptions(pluginOptions)
   const mcpDiscoveryOptions = parseMcpDiscoveryOptions(pluginOptions)
   const mcpToolsets = parseMcpToolsetOptions(pluginOptions)
@@ -118,171 +63,59 @@ export const LiteLLMPlugin: Plugin = async (
     () => searchEndpoint,
   )
   return {
-    config: async (config: Config) => {
-      // Ensure the provider entry exists
-      if (!config.provider) config.provider = {}
-
-      const existing = config.provider[CHAT_PROVIDER_ID] as
-        | Record<string, unknown>
-        | undefined
-      const options = (existing?.options ?? {}) as Record<string, unknown>
-      const configuredBase =
-        typeof options.baseURL === 'string' ? options.baseURL : undefined
-      const configuredKey =
-        typeof options.apiKey === 'string' && options.apiKey
-          ? options.apiKey
-          : undefined
-      const officialKey = configuredBase === undefined
-        ? undefined
-        : loadOfficialLiteLLMApiKey({
-            tokenFilePath: join(process.env.HOME ?? homedir(), ...OFFICIAL_TOKEN_PATH),
-            expectedBaseURL: normalizeBaseURL(configuredBase),
-          })
-      const apiKey = resolveSearchApiKey(configuredKey) ?? officialKey
-      const customHeaders = readCustomHeaders(options)
-
-      // Resolve base URL
-      let baseURL: string | null = null
-      if (configuredBase) {
-        baseURL = normalizeBaseURL(configuredBase)
-      } else {
-        baseURL = await autoDetectLiteLLM(apiKey, customHeaders)
+    config: async (config: PublicPluginConfig) => {
+      searchEndpoint = undefined
+      const resolution = await resolveProvider(config)
+      if (resolution.kind === PROVIDER_RESOLUTION.UnresolvedCredential) {
+        console.warn(
+          '[opencode-litellm] Configured LiteLLM credential could not be resolved; discovery is disabled.',
+        )
+        return
       }
-
-      if (!baseURL) {
+      if (resolution.kind === PROVIDER_RESOLUTION.Unavailable) {
         console.warn(
           '[opencode-litellm] No LiteLLM proxy found. Configure provider.litellm.options.baseURL or start LiteLLM on port 4000/8000/8080.',
         )
         return
       }
-      const resolvedBaseURL = baseURL
-      searchEndpoint = {
-        baseURL: resolvedBaseURL,
-        apiKey,
-        customHeaders,
-      }
-
-      // Create provider entry if it doesn't exist
-      if (!existing) {
-        config.provider[CHAT_PROVIDER_ID] = {
-          npm: PROVIDER_NPM,
-          name: 'LiteLLM (proxy)',
-          options: {
-            baseURL: `${baseURL}/v1`,
-          },
-          models: {},
-        }
-      }
-
-      const provider = config.provider[CHAT_PROVIDER_ID] as Record<
-        string,
-        unknown
-      >
-
-      // LiteLLM Responses models require the official OpenAI adapter.
-      provider.npm = PROVIDER_NPM
-
-      // Ensure options.baseURL is set
-      if (!provider.options) {
-        provider.options = { baseURL: `${baseURL}/v1` }
-      }
-      const providerOptions = provider.options as Record<string, unknown>
-      if (apiKey !== undefined) providerOptions.apiKey = apiKey
-
-      // Ensure models map exists
-      if (!provider.models) {
-        provider.models = {}
-      }
-
-      const models = provider.models as Record<string, unknown>
+      searchEndpoint = toSearchEndpoint(resolution)
       const discoveryController = new AbortController()
-
-      const discoverModels = async () => {
-        const discovered = await discoverLiteLLMModels(
-          resolvedBaseURL,
-          apiKey,
-          customHeaders,
-          discoveryController.signal,
-        )
-        if (discovered.length === 0) {
-          console.warn(
-            '[opencode-litellm] LiteLLM responded but exposed zero models.',
-          )
-          return
-        }
-
-        for (const model of discovered) {
-          // Don't overwrite user-curated entries
-          if (models[model.id]) continue
-          models[model.id] = toConfigModel(model)
-        }
-
-        // Remove the seed placeholder if real models were discovered
-        if (models['_'] && Object.keys(models).length > 1) {
-          delete models['_']
-        }
-
-        console.log(
-          `[opencode-litellm] Discovered ${discovered.length} models from ${baseURL}`,
-        )
-      }
-
-      const discoverMcpServers = async () => {
-        if (!mcpDiscoveryOptions.enabled && mcpToolsets.length === 0) return
-        const authorization =
-          resolveMcpAuthorization(configuredKey) ??
-          (officialKey === undefined
-            ? undefined
-            : `${AUTHORIZATION_PREFIX}${officialKey}`)
-        if (authorization === undefined) {
-          console.warn(
-            '[opencode-litellm] MCP discovery requires a resolvable environment credential.',
-          )
-          return
-        }
-
-        try {
-          const serverNames = mcpDiscoveryOptions.enabled
-            ? await discoverLiteLLMMcpServers({
-                baseURL: resolvedBaseURL,
-                apiKey,
-                customHeaders,
-                timeoutMs: mcpDiscoveryOptions.timeoutMs,
-                signal: discoveryController.signal,
-              })
-            : []
-          mergeDiscoveredMcpServers({
-            config,
-            baseURL: resolvedBaseURL,
-            serverNames,
-            toolsets: mcpToolsets,
-            options: mcpDiscoveryOptions,
-            authorization,
-          })
-        } catch (error) {
-          console.warn(
-            '[opencode-litellm] MCP discovery failed:',
-            error instanceof Error ? error.message : String(error),
-          )
-        }
-      }
-
       const timeout = setTimeout(
         () => discoveryController.abort(),
         DISCOVERY_TIMEOUT_MS,
       )
       try {
-        await Promise.all([discoverModels(), discoverMcpServers()])
+        await Promise.all([
+          discoverAndMergeModels({
+            baseURL: resolution.baseURL,
+            apiKey: resolution.apiKey,
+            customHeaders: resolution.customHeaders,
+            signal: discoveryController.signal,
+            models: resolution.models,
+          }),
+          discoverAndMergeMcpServers({
+            config: resolution.config,
+            baseURL: resolution.baseURL,
+            apiKey: resolution.apiKey,
+            customHeaders: resolution.customHeaders,
+            options: mcpDiscoveryOptions,
+            toolsets: mcpToolsets,
+            signal: discoveryController.signal,
+          }),
+        ])
       } finally {
         clearTimeout(timeout)
       }
     },
     ...(searchToolOptions.length === 0 ? {} : { tool: searchTools }),
   }
-}
+}) satisfies Plugin
 
 // Re-export the responses plugin for backwards compat, but it's now a no-op.
 // The config hook approach handles all models in a single provider.
-export const LiteLLMResponsesPlugin: Plugin = async (_input: PluginInput) => {
+const liteLLMResponsesPluginImplementation: PublicPlugin = (async (_input: object): Promise<PublicPluginHooks> => {
   return {}
-}
+}) satisfies Plugin
+
+export const LiteLLMPlugin = liteLLMPluginImplementation
+export const LiteLLMResponsesPlugin = liteLLMResponsesPluginImplementation

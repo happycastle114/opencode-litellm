@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 const binaryPath = fileURLToPath(new URL('../dist/opencode-litellm.mjs', import.meta.url))
 
 describe('bundled CLI binary', () => {
-  test('is directly executable and exposes help through Node 20+', () => {
+  test('is directly executable and exposes help through a supported Node runtime', () => {
     // Given: the package build has produced its public binary artifact
     accessSync(binaryPath, constants.X_OK)
 

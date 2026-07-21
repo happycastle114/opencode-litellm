@@ -12,6 +12,7 @@ import {
   resolveGatewayOrigin,
   type ConnectionLoadRequest,
   type InstallPreparationError,
+  type DeferredSsoToken,
   type ResolvedCredential,
 } from './install-preparation-auth'
 
@@ -21,6 +22,7 @@ export type AuthenticatedConnection = {
   readonly origin: string
   readonly apiKey: string
   readonly discovery: GatewayToolDiscoveryResult
+  readonly deferredSsoToken?: DeferredSsoToken
 }
 
 type RecoveryRequest = {
@@ -37,7 +39,7 @@ export async function loadAuthenticatedConnection(
   const credential = await resolveCredential(request, origin)
   try {
     const discovery = await runDiscovery(request, origin, credential.apiKey)
-    return { origin, apiKey: credential.apiKey, discovery }
+    return authenticatedConnection(origin, credential, discovery)
   } catch (failure: unknown) {
     if (!(failure instanceof CodexDiscoveryError)) throw discoveryFailed(origin)
     return recoverDiscovery({ load: request, origin, credential, failure })
@@ -56,7 +58,7 @@ async function recoverDiscovery(input: RecoveryRequest): Promise<AuthenticatedCo
       const refreshed = await refreshSsoCredential(input.load, input.origin)
       try {
         const discovery = await runDiscovery(input.load, input.origin, refreshed.apiKey)
-        return { origin: input.origin, apiKey: refreshed.apiKey, discovery }
+        return authenticatedConnection(input.origin, refreshed, discovery)
       } catch (failure: unknown) {
         if (!(failure instanceof CodexDiscoveryError)) throw discoveryFailed(input.origin)
         if (isAuthenticationFailure(failure)) throw reauthenticationRequired(input.origin)
@@ -65,6 +67,21 @@ async function recoverDiscovery(input: RecoveryRequest): Promise<AuthenticatedCo
     }
     default:
       return assertNever(input.credential)
+  }
+}
+
+function authenticatedConnection(
+  origin: string,
+  credential: ResolvedCredential,
+  discovery: GatewayToolDiscoveryResult,
+): AuthenticatedConnection {
+  return {
+    origin,
+    apiKey: credential.apiKey,
+    discovery,
+    ...(credential.deferredSsoToken === undefined
+      ? {}
+      : { deferredSsoToken: credential.deferredSsoToken }),
   }
 }
 

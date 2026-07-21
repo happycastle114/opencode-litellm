@@ -40,6 +40,7 @@ describe('client-aware install defaults', () => {
       search: [],
       mcp: [],
       toolsets: [],
+      enableMcp: [],
       noSearch: false,
       noMcp: false,
       noToolsets: false,

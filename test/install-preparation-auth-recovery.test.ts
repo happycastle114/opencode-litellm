@@ -100,7 +100,7 @@ function options(overrides: Partial<InstallOptions> = {}): InstallOptions {
     target: InstallTarget.OpenCode, baseUrl: VALUE.origin, auth: InstallAuth.Sso,
     authEnv: VALUE.envName, nonInteractive: false,
     opencodeConfig: undefined, codexConfig: undefined, codexMode: CodexMode.Both,
-    search: [], mcp: [], toolsets: [], disableMcp: [],
+    search: [], mcp: [], toolsets: [], enableMcp: [], disableMcp: [],
     noSearch: false, noMcp: false, noToolsets: false,
     ...overrides,
   }

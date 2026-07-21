@@ -8,12 +8,22 @@
     "codex-litellm": "./bin/codex-litellm.mjs"
   },
   "files": [
-    "bin"
+    "bin",
+    "README.md",
+    "LICENSE"
   ],
   "engines": {
-    "node": ">=20"
+    "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
   },
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/happycastle114/opencode-litellm.git"
+  },
+  "bugs": {
+    "url": "https://github.com/happycastle114/opencode-litellm/issues"
+  },
+  "homepage": "https://github.com/happycastle114/opencode-litellm#readme",
   "dependencies": {
     "@happycastle114/opencode-litellm": "0.6.0"
   }

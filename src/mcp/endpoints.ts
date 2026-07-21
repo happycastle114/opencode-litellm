@@ -5,5 +5,5 @@ export function mcpServerEndpoint(origin: string, serverName: string): string {
 }
 
 export function mcpToolsetEndpoint(origin: string, toolsetName: string): string {
-  return `${origin}/${MCP_PATH}/${encodeURIComponent(toolsetName)}`
+  return `${origin}/toolset/${encodeURIComponent(toolsetName)}/${MCP_PATH}`
 }

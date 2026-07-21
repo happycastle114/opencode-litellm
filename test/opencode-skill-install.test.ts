@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { installOpenCodeSkill } from '../src/cli/skill-install'
@@ -15,6 +15,7 @@ const SECRET = {
   first: 'sk-first-secret-must-not-be-written',
   second: 'sk-second-secret-must-not-be-written',
 } as const
+const PLATFORM = { Windows: 'win32' } as const
 
 const originalKey = process.env[ENVIRONMENT.key]
 let directory: string
@@ -64,6 +65,7 @@ describe('shared agent skill installation', () => {
       sourcePath,
     })
     const before = readFileSync(first.destination, 'utf8')
+    if (process.platform !== PLATFORM.Windows) chmodSync(first.destination, 0o644)
     process.env[ENVIRONMENT.key] = SECRET.second
 
     // When: the same skill is installed again
@@ -79,6 +81,9 @@ describe('shared agent skill installation', () => {
       destination: first.destination,
     })
     expect(readFileSync(second.destination, 'utf8')).toBe(before)
+    if (process.platform !== PLATFORM.Windows) {
+      expect(statSync(second.destination).mode & 0o777).toBe(0o600)
+    }
     expect(before).not.toContain(SECRET.first)
     expect(before).not.toContain(SECRET.second)
   })

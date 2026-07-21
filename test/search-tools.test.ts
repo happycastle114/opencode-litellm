@@ -68,16 +68,15 @@ describe('configured LiteLLM search tools', () => {
 
     try {
       const hooks = await configuredPlugin(server.baseURL, {
-        toolName: 'websearch',
+        toolName: 'litellm_search',
         searchToolName: 'agy-search',
         defaultMaxResults: 4,
-        overrideBuiltin: true,
       })
       const metadata: MetadataUpdate[] = []
       const context = createContext(metadata)
 
-      // When: OpenCode executes the replacement websearch tool
-      const result = await hooks.tool?.websearch?.execute(
+      // When: OpenCode executes the non-reserved LiteLLM search tool
+      const result = await hooks.tool?.litellm_search?.execute(
         { query: 'current LiteLLM docs', search_domain_filter: ['docs.litellm.ai'] },
         context,
       )

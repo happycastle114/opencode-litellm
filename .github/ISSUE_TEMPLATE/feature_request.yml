@@ -1,7 +1,49 @@
-name: ✨ Feature request
-description: Suggest an idea for the plugin
+name: ✨ Toolkit feature request
+description: Suggest an improvement to the OpenCode, Codex, or Claude toolkit
 labels: ["enhancement"]
 body:
+  - type: dropdown
+    id: target
+    attributes:
+      label: Target surface
+      description: Which client or shared capability should this improve?
+      options:
+        - OpenCode
+        - Codex
+        - Claude launcher
+        - Shared discovery, MCP, toolsets, SSO, or skills
+        - Packaging or installation
+        - Not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: package-target
+    attributes:
+      label: Package target
+      description: Which package should own the change, if known?
+      options:
+        - "@happycastle114/opencode-litellm (core)"
+        - "codex-litellm (Codex wrapper)"
+        - Both packages
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: toolkit-version
+    attributes:
+      label: Toolkit version or commit (optional)
+      description: Include the version or commit where you observed the need.
+      placeholder: 0.6.0 or 40-character commit SHA
+
+  - type: input
+    id: client-versions
+    attributes:
+      label: Relevant client versions (optional)
+      description: Include OpenCode, Codex, and/or Claude Code versions when relevant.
+      placeholder: OpenCode 1.14.28; Codex 0.XX.X; Claude Code 1.0.x
+
   - type: textarea
     id: problem
     attributes:
@@ -15,7 +57,7 @@ body:
     id: solution
     attributes:
       label: Proposed solution
-      placeholder: Describe how you'd like the plugin to behave.
+      placeholder: Describe how you'd like the toolkit to behave.
     validations:
       required: true
 
@@ -29,7 +71,9 @@ body:
     id: scope
     attributes:
       label: Scope check
-      description: This plugin focuses narrowly on LiteLLM model discovery. Please confirm your request fits that scope.
+      description: Confirm that this request fits the current toolkit boundary.
       options:
-        - label: My request is related to LiteLLM model discovery, configuration, or routing
+        - label: My request improves an OpenCode, Codex, or Claude launcher flow
+          required: true
+        - label: My request concerns LiteLLM discovery, MCP/toolsets, SSO, shared skills, packaging, or installation
           required: true

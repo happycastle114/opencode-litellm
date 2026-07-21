@@ -17,8 +17,8 @@ afterEach(() => {
 })
 
 describe('LiteLLM search API key resolution', () => {
-  test('prefers the OpenCode-specific key', () => {
-    // Given: every supported environment key is set
+  test('prefers a configured literal key over standard ambient keys', () => {
+    // Given: a configured provider key and every standard fallback
     process.env.OPENCODE_LITELLM_API_KEY = 'opencode'
     process.env.LITELLM_API_KEY = 'litellm'
     process.env.LITELLM_MASTER_KEY = 'master'
@@ -26,30 +26,36 @@ describe('LiteLLM search API key resolution', () => {
     // When: search authentication is resolved
     const key = resolveSearchApiKey('configured')
 
-    // Then: the OpenCode-specific key wins
-    expect(key).toBe('opencode')
+    // Then: the configured provider identity wins
+    expect(key).toBe('configured')
   })
 
   test.each([
-    ['LiteLLM key', 'litellm', 'master', 'litellm'],
-    ['master key', undefined, 'master', 'master'],
-    ['configured key', undefined, undefined, 'configured'],
-  ])('falls back to the %s', (_label, litellmKey, masterKey, expected) => {
+    ['OpenCode key', 'opencode', 'litellm', 'master', 'opencode'],
+    ['LiteLLM key', undefined, 'litellm', 'master', 'litellm'],
+    ['master key', undefined, undefined, 'master', 'master'],
+  ])('falls back to the %s only when no provider key is configured', (
+    _label,
+    openCodeKey,
+    litellmKey,
+    masterKey,
+    expected,
+  ) => {
     // Given: higher-priority key sources are absent
-    delete process.env.OPENCODE_LITELLM_API_KEY
+    restoreEnv('OPENCODE_LITELLM_API_KEY', openCodeKey)
     restoreEnv('LITELLM_API_KEY', litellmKey)
     restoreEnv('LITELLM_MASTER_KEY', masterKey)
 
     // When: search authentication is resolved
-    const key = resolveSearchApiKey('configured')
+    const key = resolveSearchApiKey()
 
     // Then: the next documented source is selected
     expect(key).toBe(expected)
   })
 
   test('resolves an exact configured environment placeholder', () => {
-    // Given: standard keys are absent and the configured variable exists
-    clearStandardKeys()
+    // Given: the configured variable and a more privileged ambient fallback exist
+    process.env.LITELLM_MASTER_KEY = 'ambient-master'
     process.env.SEARCH_CONFIGURED_KEY = 'resolved-key'
 
     // When: the exact OpenCode placeholder is resolved
@@ -60,8 +66,8 @@ describe('LiteLLM search API key resolution', () => {
   })
 
   test('returns undefined when the configured placeholder variable is missing', () => {
-    // Given: neither standard keys nor the configured variable exist
-    clearStandardKeys()
+    // Given: the configured variable is missing while an ambient fallback exists
+    process.env.LITELLM_MASTER_KEY = 'ambient-master'
     delete process.env.SEARCH_CONFIGURED_KEY
 
     // When: the exact placeholder is resolved
@@ -77,8 +83,8 @@ describe('LiteLLM search API key resolution', () => {
     '{file:/tmp/key}',
     '${SEARCH_CONFIGURED_KEY}',
   ])('rejects non-exact configured template syntax: %s', (configuredKey) => {
-    // Given: a variable exists but the configured value is not an exact env placeholder
-    clearStandardKeys()
+    // Given: a variable and ambient fallback exist but the configured syntax is invalid
+    process.env.LITELLM_MASTER_KEY = 'ambient-master'
     process.env.SEARCH_CONFIGURED_KEY = 'resolved-key'
 
     // When: the configured value is resolved
@@ -127,10 +133,4 @@ describe('LiteLLM search response compatibility', () => {
 function restoreEnv(name: string, value: string | undefined): void {
   if (value === undefined) delete process.env[name]
   else process.env[name] = value
-}
-
-function clearStandardKeys(): void {
-  delete process.env.OPENCODE_LITELLM_API_KEY
-  delete process.env.LITELLM_API_KEY
-  delete process.env.LITELLM_MASTER_KEY
 }

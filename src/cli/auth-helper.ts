@@ -24,10 +24,11 @@ const FIELD = {
   key: 'key',
 } as const
 
-const FILE_MODE = 0o700
+export const CODEX_AUTH_HELPER_MODE = 0o700
 const DIRECTORY_MODE = 0o700
 const IS_WINDOWS = process.platform === 'win32'
 const ENV_NAME_PATTERN = '^[A-Za-z_][A-Za-z0-9_]*$'
+const API_KEY_CONTROL_PATTERN = '[\\u0000-\\u001f\\u007f]'
 
 export const CODEX_AUTH_HELPER_FILE_NAME = AUTH_HELPER.fileName
 
@@ -107,6 +108,7 @@ const CONFIG = {
   baseURLField: ${baseURLField},
   keyField: ${keyField},
   envNamePattern: /${ENV_NAME_PATTERN}/,
+  apiKeyControlPattern: /${API_KEY_CONTROL_PATTERN}/,
 }
 
 function fail(message) {
@@ -146,7 +148,7 @@ function readGatewayKey() {
     fail('Codex auth token belongs to a different gateway.')
     return undefined
   }
-  if (typeof key !== 'string' || key.length === 0) {
+  if (typeof key !== 'string' || key.trim() === '' || CONFIG.apiKeyControlPattern.test(key)) {
     fail('Codex auth token does not contain a usable key.')
     return undefined
   }
@@ -212,7 +214,7 @@ export function installCodexAuthHelper(
   })
 
   if (existsSync(destination) && readFileSync(destination, 'utf8') === source) {
-    if (!IS_WINDOWS) chmodSync(destination, FILE_MODE)
+    if (!IS_WINDOWS) chmodSync(destination, CODEX_AUTH_HELPER_MODE)
     return { status: 'unchanged', destination }
   }
 
@@ -220,10 +222,10 @@ export function installCodexAuthHelper(
   try {
     writeFileSync(temporary, source, {
       encoding: 'utf8',
-      ...(IS_WINDOWS ? {} : { mode: FILE_MODE }),
+      ...(IS_WINDOWS ? {} : { mode: CODEX_AUTH_HELPER_MODE }),
     })
     renameSync(temporary, destination)
-    if (!IS_WINDOWS) chmodSync(destination, FILE_MODE)
+    if (!IS_WINDOWS) chmodSync(destination, CODEX_AUTH_HELPER_MODE)
   } finally {
     if (existsSync(temporary)) unlinkSync(temporary)
   }

@@ -1,5 +1,8 @@
 import { describe, expect, test } from 'bun:test'
-import { parseMcpDiscoveryOptions } from '../src/mcp/options'
+import {
+  parseMcpDiscoveryOptions,
+  parseMcpToolsetOptions,
+} from '../src/mcp/options'
 
 describe('LiteLLM MCP discovery options', () => {
   test('defaults to disabled when the option is omitted', () => {
@@ -16,6 +19,14 @@ describe('LiteLLM MCP discovery options', () => {
       timeoutMs: 3000,
       requestTimeoutMs: 15000,
     })
+  })
+
+  test('rejects toolset names containing a slash while allowing printable spaces', () => {
+    // Given: a toolset path that Starlette cannot capture after URL decoding
+    // When/Then: plugin options reject the unsafe path but retain ordinary spaces
+    expect(parseMcpToolsetOptions({ toolsets: ['research core'] })).toEqual(['research core'])
+    expect(() => parseMcpToolsetOptions({ toolsets: ['research/core'] }))
+      .toThrow("without '/'")
   })
 
   test.each([

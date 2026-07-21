@@ -23,9 +23,11 @@ Options:
   --auth <sso|env>                Gateway authentication
   --auth-env <name>               Gateway key environment variable
   --codex-mode <gateway|oauth|both> Codex connection mode
-  --search <name>                 Select an authorized search tool (repeatable)
-  --mcp <name>                    Select an authorized MCP server (repeatable)
-  --toolset <name>                Select an authorized MCP toolset (repeatable)
+  --search <name>                 Select an available search tool (repeatable)
+  --mcp <name>                    Select an available MCP server (repeatable)
+  --enable-mcp <name>             Enable a selected MCP server (repeatable)
+  --disable-mcp <name>            Disable a selected MCP server (repeatable)
+  --toolset <name>                Select an available MCP toolset (repeatable)
   --no-search                     Disable search tool registration
   --no-mcp                        Disable MCP server registration
   --no-toolsets                   Disable MCP toolset registration
@@ -38,7 +40,9 @@ const INSTALL_HELP = `Usage: opencode-litellm install [options]
 Configure supported clients for LiteLLM.
 
 Options:
-  -h, --help  Show help
+  --enable-mcp <name>  Enable a selected MCP server (repeatable)
+  --disable-mcp <name> Disable a selected MCP server (repeatable)
+  -h, --help           Show help
 `
 
 const DOCTOR_HELP = `Usage: opencode-litellm doctor [options]
@@ -87,6 +91,7 @@ describe('CLI argument parsing', () => {
         search: [],
         mcp: [],
         toolsets: [],
+        enableMcp: [],
         disableMcp: [],
         noSearch: false,
         noMcp: false,

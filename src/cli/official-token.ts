@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { isHeaderSafeApiKey } from '../utils/api-key'
 
 const TOKEN_FIELD = {
   baseURL: 'base_url',
@@ -47,8 +48,7 @@ export function loadOfficialLiteLLMApiKey(
   const key = parsed[TOKEN_FIELD.key]
   if (
     typeof storedBaseURL !== 'string' ||
-    typeof key !== 'string' ||
-    key.length === 0
+    !isHeaderSafeApiKey(key)
   ) {
     return undefined
   }

@@ -16,12 +16,11 @@ describe('LiteLLMPlugin search tool options', () => {
     const options = {
       searchTools: [
         {
-          toolName: 'websearch',
+          toolName: 'litellm_search',
           searchToolName: 'agy-search',
-          overrideBuiltin: true,
         },
         {
-          toolName: 'exa_search',
+          toolName: 'litellm_exa_search',
           searchToolName: 'exa-search',
           description: 'Search with Exa',
           defaultMaxResults: 7,
@@ -33,11 +32,12 @@ describe('LiteLLMPlugin search tool options', () => {
     const hooks = await LiteLLMPlugin({}, options)
 
     // Then: both configured names are exposed through Hooks.tool
-    expect(Object.keys(hooks.tool ?? {})).toEqual(['websearch', 'exa_search'])
+    expect(Object.keys(hooks.tool ?? {})).toEqual(['litellm_search', 'litellm_exa_search'])
   })
 
   test.each([
-    ['websearch without overrideBuiltin', { toolName: 'websearch', searchToolName: 'agy-search' }],
+    ['reserved websearch tool ID', { toolName: 'websearch', searchToolName: 'agy-search' }],
+    ['obsolete overrideBuiltin field', { toolName: 'litellm_search', searchToolName: 'agy-search', overrideBuiltin: true }],
     ['invalid toolName', { toolName: 'Web Search', searchToolName: 'agy-search' }],
     ['invalid searchToolName', { toolName: 'search', searchToolName: '../agy' }],
     ['defaultMaxResults below one', { toolName: 'search', searchToolName: 'agy-search', defaultMaxResults: 0 }],

@@ -1,269 +1,233 @@
-import { spawn } from 'node:child_process'
-import { existsSync, mkdirSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
+import { existsSync, mkdirSync, renameSync, rmdirSync, rmSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import { nodeManagedPluginBoundary } from './managed-plugin-node-boundary'
+import {
+  MANAGED_OPEN_CODE_PLUGIN,
+  MANAGED_PLUGIN_ACTIVATION_STATUS,
+  MANAGED_PLUGIN_EXECUTABLE,
+  MANAGED_PLUGIN_FULL_SHA_PATTERN,
+  MANAGED_PLUGIN_OPERATION,
+  ManagedPluginCheckoutError,
+  type ManagedOpenCodePluginActivation,
+  type ManagedOpenCodePluginPlan,
+  type ManagedPluginBoundary,
+  type ManagedPluginPlanOptions,
+} from './managed-plugin-types'
+import {
+  managedPluginGitInvocation,
+  runRequiredManagedPluginCommand,
+  verifyManagedPluginCheckout,
+} from './managed-plugin-verification'
 
-const MANAGED_PLUGIN = { repository: 'https://github.com/happycastle114/opencode-litellm.git', revision: '83ea2674a8afb578a670188fb3b522fc242a77cb', checkoutDirectory: 'opencode-litellm-git', entrypoint: 'src/index.ts', remote: 'origin', packageLock: 'package-lock.json' } as const
-const EXECUTABLE = { git: 'git', npm: 'npm', remote: MANAGED_PLUGIN.remote } as const
+const DIRECTORY_MODE = 0o700
+const FILE_PROTOCOL = 'file:' as const
+const DIRECTORY_CLEANUP_ERROR_CODE = { NotFound: 'ENOENT' } as const
 
-const FULL_SHA_PATTERN = /^[0-9a-f]{40}$/
+export {
+  MANAGED_PLUGIN_ACTIVATION_STATUS,
+  ManagedPluginCheckoutError,
+  type ManagedOpenCodePluginActivation,
+  type ManagedOpenCodePluginPlan,
+  type ManagedPluginBoundary,
+  type ManagedPluginCommandInvocation,
+  type ManagedPluginCommandResult,
+  type ManagedPluginPlanOptions,
+} from './managed-plugin-types'
 
-export type ManagedOpenCodePluginPlan = {
-  readonly repository: string
-  readonly revision: string
-  readonly checkoutPath: string
-  readonly entrypointPath: string
-  readonly pluginSpec: string
-}
+export function isManagedOpenCodePluginSpec(value: string): boolean {
+  let url: URL
+  try { url = new URL(value) } catch { return false }
+  if (url.protocol !== FILE_PROTOCOL || url.search !== '' || url.hash !== '') return false
 
-export type ManagedPluginPlanOptions = {
-  readonly opencodeConfigDir: string
-}
-
-export type ManagedPluginCommandInvocation = {
-  readonly executable: string
-  readonly args: readonly string[]
-  readonly cwd?: string
-}
-
-export type ManagedPluginCommandResult = {
-  readonly exitCode: number
-  readonly stdout: string
-  readonly stderr: string
-}
-
-export type ManagedPluginBoundary = {
-  readonly fs: {
-    readonly exists: (path: string) => boolean
+  let path: string
+  try { path = fileURLToPath(url) } catch { return false }
+  const segments = path.split('/')
+  const checkoutIndex = segments.lastIndexOf(MANAGED_OPEN_CODE_PLUGIN.checkoutDirectory)
+  if (checkoutIndex < 0) return false
+  const suffix = segments.slice(checkoutIndex + 1)
+  if (suffix.length === 2) {
+    return suffix.join('/') === MANAGED_OPEN_CODE_PLUGIN.entrypoint
   }
-  readonly command: {
-    readonly run: (
-      invocation: ManagedPluginCommandInvocation,
-    ) => Promise<ManagedPluginCommandResult>
-  }
-}
-
-export class ManagedPluginCheckoutError extends Error {
-  readonly name = 'ManagedPluginCheckoutError'
-
-  constructor(
-    readonly operation: string,
-    readonly checkoutPath: string,
-    message: string,
-  ) {
-    super(`${message} (${operation}: ${checkoutPath})`)
-  }
+  return suffix.length === 3 &&
+    suffix.slice(1).join('/') === MANAGED_OPEN_CODE_PLUGIN.entrypoint &&
+    MANAGED_PLUGIN_FULL_SHA_PATTERN.test(suffix[0])
 }
 
 export function planManagedOpenCodePlugin(
   options: ManagedPluginPlanOptions,
 ): ManagedOpenCodePluginPlan {
-  if (!FULL_SHA_PATTERN.test(MANAGED_PLUGIN.revision)) {
+  if (!MANAGED_PLUGIN_FULL_SHA_PATTERN.test(MANAGED_OPEN_CODE_PLUGIN.revision)) {
     throw new ManagedPluginCheckoutError(
-      'plan',
+      MANAGED_PLUGIN_OPERATION.Plan,
       options.opencodeConfigDir,
       'Managed plugin revision must be a full 40-character SHA',
     )
   }
-
   const checkoutPath = join(
     options.opencodeConfigDir,
     'vendor',
-    MANAGED_PLUGIN.checkoutDirectory,
+    MANAGED_OPEN_CODE_PLUGIN.checkoutDirectory,
+    MANAGED_OPEN_CODE_PLUGIN.revision,
   )
-  const entrypointPath = join(checkoutPath, MANAGED_PLUGIN.entrypoint)
+  return planAtCheckoutPath({
+    repository: MANAGED_OPEN_CODE_PLUGIN.repository,
+    revision: MANAGED_OPEN_CODE_PLUGIN.revision,
+    checkoutPath,
+    entrypointPath: '',
+    pluginSpec: '',
+  }, checkoutPath)
+}
+
+export async function ensureManagedOpenCodePlugin(
+  plan: ManagedOpenCodePluginPlan,
+  boundary: ManagedPluginBoundary = nodeManagedPluginBoundary(),
+): Promise<ManagedOpenCodePluginPlan> {
+  const activation = await activateManagedOpenCodePlugin(plan, boundary)
+  completeManagedOpenCodePluginActivation(activation)
+  return activation.plan
+}
+
+export async function activateManagedOpenCodePlugin(
+  plan: ManagedOpenCodePluginPlan,
+  boundary: ManagedPluginBoundary = nodeManagedPluginBoundary(),
+): Promise<ManagedOpenCodePluginActivation> {
+  if (boundary.fs.exists(plan.checkoutPath)) {
+    await verifyManagedPluginCheckout(plan, boundary)
+    return { plan, status: MANAGED_PLUGIN_ACTIVATION_STATUS.Existing }
+  }
+
+  const createdParents = createCheckoutParents(dirname(plan.checkoutPath))
+  const stagingPath = `${plan.checkoutPath}.staging-${randomUUID()}`
+  const stagedPlan = planAtCheckoutPath(plan, stagingPath)
+  let status: ManagedOpenCodePluginActivation['status'] =
+    MANAGED_PLUGIN_ACTIVATION_STATUS.New
+  try {
+    await prepareStagedCheckout(stagedPlan, boundary)
+    try {
+      activateCheckout(stagingPath, plan.checkoutPath, boundary)
+    } catch (error) {
+      if (!boundary.fs.exists(plan.checkoutPath)) throw error
+      await verifyManagedPluginCheckout(plan, boundary)
+      status = MANAGED_PLUGIN_ACTIVATION_STATUS.Existing
+    }
+  } catch (error) {
+    removeStagingCheckout(stagingPath, boundary)
+    removeEmptyCheckoutParents(createdParents)
+    throw error
+  }
+  if (status === MANAGED_PLUGIN_ACTIVATION_STATUS.Existing) {
+    removeStagingCheckout(stagingPath, boundary)
+  }
+  return { plan, status }
+}
+
+export function rollbackManagedOpenCodePluginActivation(
+  _activation: ManagedOpenCodePluginActivation,
+  _boundary: ManagedPluginBoundary = nodeManagedPluginBoundary(),
+): void {
+}
+
+export function completeManagedOpenCodePluginActivation(
+  _activation: ManagedOpenCodePluginActivation,
+): void {
+}
+
+async function prepareStagedCheckout(
+  plan: ManagedOpenCodePluginPlan,
+  boundary: ManagedPluginBoundary,
+): Promise<void> {
+  await runRequiredManagedPluginCommand(boundary, {
+    executable: MANAGED_PLUGIN_EXECUTABLE.Git,
+    args: [
+      MANAGED_PLUGIN_OPERATION.Clone,
+      '--origin',
+      MANAGED_OPEN_CODE_PLUGIN.remote,
+      plan.repository,
+      plan.checkoutPath,
+    ],
+  }, MANAGED_PLUGIN_OPERATION.Clone, plan.checkoutPath)
+  await runRequiredManagedPluginCommand(boundary, managedPluginGitInvocation(
+    plan.checkoutPath,
+    ['fetch', '--prune', MANAGED_OPEN_CODE_PLUGIN.remote, plan.revision],
+  ), MANAGED_PLUGIN_OPERATION.Fetch, plan.checkoutPath)
+  await runRequiredManagedPluginCommand(boundary, managedPluginGitInvocation(
+    plan.checkoutPath,
+    ['checkout', '--detach', plan.revision],
+  ), MANAGED_PLUGIN_OPERATION.Checkout, plan.checkoutPath)
+  await runRequiredManagedPluginCommand(boundary, {
+    executable: MANAGED_PLUGIN_EXECUTABLE.Npm,
+    args: ['ci', '--ignore-scripts', '--no-audit', '--no-fund'],
+    cwd: plan.checkoutPath,
+  }, MANAGED_PLUGIN_OPERATION.NpmCi, plan.checkoutPath)
+  await verifyManagedPluginCheckout(plan, boundary)
+}
+
+function planAtCheckoutPath(
+  plan: ManagedOpenCodePluginPlan,
+  checkoutPath: string,
+): ManagedOpenCodePluginPlan {
+  const entrypointPath = join(checkoutPath, MANAGED_OPEN_CODE_PLUGIN.entrypoint)
   return {
-    repository: MANAGED_PLUGIN.repository,
-    revision: MANAGED_PLUGIN.revision,
+    ...plan,
     checkoutPath,
     entrypointPath,
     pluginSpec: pathToFileURL(entrypointPath).href,
   }
 }
 
-export async function ensureManagedOpenCodePlugin(
-  plan: ManagedOpenCodePluginPlan,
-  boundary: ManagedPluginBoundary = nodeBoundary(),
-): Promise<ManagedOpenCodePluginPlan> {
-  const checkoutExists = boundary.fs.exists(plan.checkoutPath)
-  if (checkoutExists) {
-    await verifyExistingCheckout(plan, boundary)
-  } else {
-    mkdirSync(dirname(plan.checkoutPath), { recursive: true })
-    await runRequired(
-      boundary,
-      {
-        executable: EXECUTABLE.git,
-        args: [
-          'clone',
-          '--origin',
-          MANAGED_PLUGIN.remote,
-          plan.repository,
-          plan.checkoutPath,
-        ],
-      },
-      'clone',
-      plan.checkoutPath,
-    )
-  }
-
-  await runRequired(
-    boundary,
-    gitInvocation(plan.checkoutPath, [
-      'fetch',
-      '--prune',
-      EXECUTABLE.remote,
-      plan.revision,
-    ]),
-    'fetch',
-    plan.checkoutPath,
-  )
-  await runRequired(
-    boundary,
-    gitInvocation(plan.checkoutPath, [
-      'checkout',
-      '--detach',
-      plan.revision,
-    ]),
-    'checkout',
-    plan.checkoutPath,
-  )
-
-  const head = await runRequired(
-    boundary,
-    gitInvocation(plan.checkoutPath, ['rev-parse', 'HEAD']),
-    'verify revision',
-    plan.checkoutPath,
-  )
-  if (head.stdout.trim() !== plan.revision) {
-    throw new ManagedPluginCheckoutError(
-      'verify revision',
-      plan.checkoutPath,
-      `Managed plugin checkout is not pinned to ${plan.revision}`,
-    )
-  }
-
-  const lockPath = join(plan.checkoutPath, MANAGED_PLUGIN.packageLock)
-  const installCommand = boundary.fs.exists(lockPath)
-    ? 'ci'
-    : 'install'
-  await runRequired(
-    boundary,
-    {
-      executable: EXECUTABLE.npm,
-      args: [
-        installCommand,
-        '--ignore-scripts',
-        '--no-audit',
-        '--no-fund',
-      ],
-      cwd: plan.checkoutPath,
-    },
-    installCommand,
-    plan.checkoutPath,
-  )
-  return plan
-}
-
-async function verifyExistingCheckout(
-  plan: ManagedOpenCodePluginPlan,
-  boundary: ManagedPluginBoundary,
-): Promise<void> {
-  const origin = await runRequired(
-    boundary,
-    gitInvocation(plan.checkoutPath, [
-      'remote',
-      'get-url',
-      EXECUTABLE.remote,
-    ]),
-    'read origin',
-    plan.checkoutPath,
-  )
-  if (origin.stdout.trim() !== plan.repository) {
-    throw new ManagedPluginCheckoutError(
-      'read origin',
-      plan.checkoutPath,
-      `Managed plugin origin must be ${plan.repository}`,
-    )
-  }
-
-  const status = await runRequired(
-    boundary,
-    gitInvocation(plan.checkoutPath, [
-      'status',
-      '--porcelain',
-      '--untracked-files=all',
-    ]),
-    'read status',
-    plan.checkoutPath,
-  )
-  if (status.stdout.trim() !== '') {
-    throw new ManagedPluginCheckoutError(
-      'read status',
-      plan.checkoutPath,
-      'Managed plugin checkout has uncommitted changes',
-    )
-  }
-}
-
-function gitInvocation(
+function activateCheckout(
+  stagingPath: string,
   checkoutPath: string,
-  args: readonly string[],
-): ManagedPluginCommandInvocation {
-  return { executable: EXECUTABLE.git, args: ['-C', checkoutPath, ...args] }
-}
-
-async function runRequired(
   boundary: ManagedPluginBoundary,
-  invocation: ManagedPluginCommandInvocation,
-  operation: string,
-  checkoutPath: string,
-): Promise<ManagedPluginCommandResult> {
-  const result = await boundary.command.run(invocation)
-  if (result.exitCode !== 0) {
-    throw new ManagedPluginCheckoutError(
-      operation,
-      checkoutPath,
-      result.stderr.trim() || `Command exited with status ${result.exitCode}`,
-    )
+): void {
+  if (boundary.fs.rename !== undefined) {
+    boundary.fs.rename(stagingPath, checkoutPath)
+    return
   }
-  return result
+  if (boundary.fs.exists(stagingPath)) renameSync(stagingPath, checkoutPath)
 }
 
-function nodeBoundary(): ManagedPluginBoundary {
-  return {
-    fs: { exists: existsSync },
-    command: { run: runNodeCommand },
+function removeStagingCheckout(
+  stagingPath: string,
+  boundary: ManagedPluginBoundary,
+): void {
+  if (boundary.fs.remove !== undefined) {
+    boundary.fs.remove(stagingPath)
+    return
+  }
+  if (boundary.fs.exists(stagingPath)) {
+    rmSync(stagingPath, { recursive: true, force: true })
   }
 }
 
-function runNodeCommand(
-  invocation: ManagedPluginCommandInvocation,
-): Promise<ManagedPluginCommandResult> {
-  return new Promise((resolve) => {
-    const child = spawn(invocation.executable, [...invocation.args], {
-      cwd: invocation.cwd,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    })
-    let stdout = ''
-    let stderr = ''
-    if (child.stdout !== null) {
-      child.stdout.setEncoding('utf8')
-      child.stdout.on('data', (chunk: string) => {
-        stdout += chunk
-      })
+function createCheckoutParents(path: string): readonly string[] {
+  const missing: string[] = []
+  let current = path
+  while (!existsSync(current)) {
+    missing.push(current)
+    const parent = dirname(current)
+    if (parent === current) break
+    current = parent
+  }
+  for (const directory of [...missing].reverse()) {
+    mkdirSync(directory, { mode: DIRECTORY_MODE })
+  }
+  return missing
+}
+
+function removeEmptyCheckoutParents(paths: readonly string[]): void {
+  for (const path of paths) {
+    try {
+      rmdirSync(path)
+    } catch (error) {
+      if (!isFileSystemError(error) ||
+        error.code !== DIRECTORY_CLEANUP_ERROR_CODE.NotFound) throw error
     }
-    if (child.stderr !== null) {
-      child.stderr.setEncoding('utf8')
-      child.stderr.on('data', (chunk: string) => {
-        stderr += chunk
-      })
-    }
-    child.on('error', (error: Error) => {
-      resolve({ exitCode: 127, stdout, stderr: error.message })
-    })
-    child.on('close', (exitCode: number | null) => {
-      resolve({ exitCode: exitCode ?? 1, stdout, stderr })
-    })
-  })
+  }
+}
+
+function isFileSystemError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && 'code' in error
 }

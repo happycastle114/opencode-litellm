@@ -6,12 +6,14 @@ import {
 import { InstallAuth, normalizeOrigin } from './install-intent'
 import {
   onboardLiteLLMSso,
+  SsoTokenPersistence,
   type SsoOnboardingBoundaries,
   type SsoOnboardingInput,
   type SsoOnboardingResult,
 } from './onboarding-sso'
 import type { OnboardingConnection, OnboardingIO } from './onboarding'
 import { loadOfficialLiteLLMApiKey } from './official-token'
+import { isHeaderSafeApiKey } from '../utils/api-key'
 
 const TOKEN_PATH = ['.litellm', 'token.json'] as const
 export const InstallCredentialKind = {
@@ -71,9 +73,15 @@ export type ConnectionLoadRequest = {
 }
 
 export type ResolvedCredential =
-  | { readonly kind: typeof InstallCredentialKind.Environment; readonly apiKey: string }
-  | { readonly kind: typeof InstallCredentialKind.StoredSso; readonly apiKey: string }
-  | { readonly kind: typeof InstallCredentialKind.FreshSso; readonly apiKey: string }
+  ({ readonly apiKey: string; readonly deferredSsoToken?: DeferredSsoToken }) & (
+    | { readonly kind: typeof InstallCredentialKind.Environment }
+    | { readonly kind: typeof InstallCredentialKind.StoredSso }
+    | { readonly kind: typeof InstallCredentialKind.FreshSso }
+  )
+
+export type DeferredSsoToken = {
+  readonly contents: string
+}
 
 export function resolveGatewayOrigin(value: string): string {
   const origin = normalizeOrigin(value)
@@ -110,7 +118,7 @@ function environmentCredential(
   env: Readonly<Record<string, string | undefined>>,
 ): ResolvedCredential {
   const apiKey = env[authEnv]
-  if (apiKey !== undefined && apiKey !== '') {
+  if (isHeaderSafeApiKey(apiKey)) {
     return { kind: InstallCredentialKind.Environment, apiKey }
   }
   throw preparationError(
@@ -150,10 +158,12 @@ async function onboardSso(
       'Interactive LiteLLM SSO requires browser and team-selection boundaries.',
     )
   }
+  let result: SsoOnboardingResult
   try {
-    await (request.boundary.onboard ?? onboardLiteLLMSso)({
+    result = await (request.boundary.onboard ?? onboardLiteLLMSso)({
       baseUrl: origin,
       tokenFilePath,
+      tokenPersistence: SsoTokenPersistence.Defer,
       now: request.boundary.now,
       boundaries: request.boundary.ssoBoundaries,
     })
@@ -163,9 +173,26 @@ async function onboardSso(
       `LiteLLM SSO did not complete for ${origin}; rerun the interactive login.`,
     )
   }
+  const deferred = deferredSsoToken(result.token, origin)
+  if (deferred !== undefined) {
+    return {
+      kind: InstallCredentialKind.FreshSso,
+      apiKey: deferred.apiKey,
+      deferredSsoToken: { contents: deferred.contents },
+    }
+  }
   const refreshed = loadSsoKey(tokenFilePath, origin)
   if (refreshed === undefined) throw missingSsoCredential(origin)
   return { kind: InstallCredentialKind.FreshSso, apiKey: refreshed }
+}
+
+function deferredSsoToken(
+  token: Readonly<Record<string, unknown>> | undefined,
+  origin: string,
+): { readonly apiKey: string; readonly contents: string } | undefined {
+  if (token === undefined || token.base_url !== origin ||
+    !isHeaderSafeApiKey(token.key)) return undefined
+  return { apiKey: token.key, contents: JSON.stringify(token, null, 2) }
 }
 
 function loadSsoKey(tokenFilePath: string, origin: string): string | undefined {

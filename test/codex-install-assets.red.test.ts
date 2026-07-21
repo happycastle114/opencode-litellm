@@ -11,6 +11,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { parse as parseToml } from 'smol-toml'
 import { runCliProgram } from '../src/cli/program'
+import { readBundledCodexCatalog } from '../src/cli/codex-discovery'
 
 const PROVIDER_ID = {
   GatewaySso: 'litellm-gateway-sso',
@@ -28,15 +29,16 @@ const DISCOVERED = {
 } as const
 
 const GATEWAY_ORIGIN = 'https://litellm.example.com'
-const BUNDLED_CATALOG = {
-  models: [{
-    slug: 'gpt-test',
-    display_name: 'GPT Test',
-    visibility: 'list',
-    supported_in_api: true,
-    priority: 1,
-  }],
-} as const
+const BUNDLED_CATALOG = readBundledCodexCatalog({
+  spawn: () => ({
+    status: 0,
+    stdout: readFileSync(
+      new URL('./fixtures/codex-bundled-catalog-0.144.1.json', import.meta.url),
+      'utf8',
+    ),
+    stderr: '',
+  }),
+})
 const originalFetch = globalThis.fetch
 
 let home: string
@@ -167,10 +169,7 @@ async function installCodex() {
   ], {
     env: { HOME: home, LITELLM_PROXY_API_KEY: 'test-proxy-key' },
     now: () => new Date(0),
-    bundledCodexCatalog: () => ({
-      json: `${JSON.stringify(BUNDLED_CATALOG, null, 2)}\n`,
-      defaultModel: 'gpt-test',
-    }),
+    bundledCodexCatalog: () => BUNDLED_CATALOG,
   })
 }
 

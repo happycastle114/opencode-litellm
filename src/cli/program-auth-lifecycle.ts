@@ -17,6 +17,7 @@ import {
   type SsoOnboardingInput,
 } from './onboarding-sso'
 import { PathResolutionError } from './paths'
+import { withClientInstallPlanningLock } from './client-install-planning-lock'
 
 const AUTH_COMMAND = {
   Login: 'login',
@@ -44,21 +45,36 @@ export async function runAuthLifecycleCommand(
   if (!parsed.ok) return failure(parsed.message)
   const homeDirectory = resolveHome(context.env)
   const tokenFilePath = join(homeDirectory, ...TOKEN_PATH)
+  if (command === AUTH_COMMAND.WhoAmI) {
+    return inspectAuth(parsed.options.baseUrl, tokenFilePath)
+  }
+  return withClientInstallPlanningLock(homeDirectory, async () => {
+    return mutateAuth(command, parsed.options, tokenFilePath, homeDirectory, context)
+  })
+}
+
+async function mutateAuth(
+  command: Exclude<ProgramAuthCommand, typeof AUTH_COMMAND.WhoAmI>,
+  options: { readonly baseUrl: string; readonly authEnv: string },
+  tokenFilePath: string,
+  homeDirectory: string,
+  context: ProgramAuthContext,
+): Promise<CliResult> {
   switch (command) {
     case AUTH_COMMAND.Login:
       if (context.ssoBoundaries === undefined) {
         return failure('LiteLLM SSO login requires an interactive browser boundary.')
       }
       await (context.ssoOnboarding ?? onboardLiteLLMSso)({
-        baseUrl: parsed.options.baseUrl,
+        baseUrl: options.baseUrl,
         tokenFilePath,
         now: () => context.now().getTime(),
         boundaries: context.ssoBoundaries,
       })
       return lifecycleResult(
-        `Authenticated LiteLLM SSO for ${parsed.options.baseUrl}.`,
+        `Authenticated LiteLLM SSO for ${options.baseUrl}.`,
         syncCodexSessionEnvironment(
-          parsed.options.authEnv,
+          options.authEnv,
           context,
           homeDirectory,
         ),
@@ -68,23 +84,21 @@ export async function runAuthLifecycleCommand(
       const result = logoutLiteLLMAuth({ tokenFilePath })
       return lifecycleResult(
         `LiteLLM SSO session ${result.status}.`,
-        clearCodexSessionEnvironment(parsed.options.authEnv, context),
+        clearCodexSessionEnvironment(options.authEnv, context),
         true,
       )
     }
-    case AUTH_COMMAND.WhoAmI: {
-      const inspection = inspectLiteLLMAuth({
-        baseUrl: parsed.options.baseUrl,
-        tokenFilePath,
-      })
-      return {
-        exitCode: inspection.status === AuthInspectionStatus.Authenticated ? 0 : 1,
-        stdout: `${JSON.stringify(inspection, null, 2)}\n`,
-        stderr: '',
-      }
-    }
     default:
       return assertNever(command)
+  }
+}
+
+function inspectAuth(baseUrl: string, tokenFilePath: string): CliResult {
+  const inspection = inspectLiteLLMAuth({ baseUrl, tokenFilePath })
+  return {
+    exitCode: inspection.status === AuthInspectionStatus.Authenticated ? 0 : 1,
+    stdout: `${JSON.stringify(inspection, null, 2)}\n`,
+    stderr: '',
   }
 }
 

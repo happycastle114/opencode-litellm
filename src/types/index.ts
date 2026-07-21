@@ -24,6 +24,8 @@ export interface LiteLLMModel {
    * `/v1/chat/completions` (e.g. `gpt-5*`, `o1/o3/o4*` with reasoning).
    */
   mode?: string
+  type?: string
+  model_type?: string
   max_tokens?: number
   max_input_tokens?: number
   max_output_tokens?: number

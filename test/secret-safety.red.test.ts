@@ -3,10 +3,21 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { runCliProgram } from '../src/cli/program'
+import { readBundledCodexCatalog } from '../src/cli/codex-discovery'
 import { parse as parseToml } from 'smol-toml'
 
 const SECRET = 'sk-test-secret-should-never-be-written'
 const JWT_DECOY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.decoy.payload'
+const BUNDLED_CATALOG = readBundledCodexCatalog({
+  spawn: () => ({
+    status: 0,
+    stdout: readFileSync(
+      new URL('./fixtures/codex-bundled-catalog-0.144.1.json', import.meta.url),
+      'utf8',
+    ),
+    stderr: '',
+  }),
+})
 
 describe('generated client assets', () => {
   test('contain no secret or JWT decoy and choose exactly one auth source per profile', async () => {
@@ -18,10 +29,7 @@ describe('generated client assets', () => {
       const result = await runCliProgram(['install', '--target', 'both', '--base-url', 'https://litellm.example.com', '--auth', 'env', '--auth-env', 'LITELLM_API_KEY', '--opencode-config', join(home, '.config/opencode/opencode.jsonc'), '--codex-config', configPath, '--non-interactive'], {
         env: { HOME: home, LITELLM_API_KEY: SECRET },
         now: () => new Date(0),
-        bundledCodexCatalog: () => ({
-          json: `${JSON.stringify({ models: [{ slug: 'gpt-test', visibility: 'list', supported_in_api: true, priority: 1 }] }, null, 2)}\n`,
-          defaultModel: 'gpt-test',
-        }),
+        bundledCodexCatalog: () => BUNDLED_CATALOG,
       })
       expect(result.exitCode).toBe(0)
       expect(existsSync(join(home, '.litellm', 'token.json'))).toBe(false)

@@ -9,6 +9,7 @@ const originalKeys = {
   opencode: process.env.OPENCODE_LITELLM_API_KEY,
   litellm: process.env.LITELLM_API_KEY,
   master: process.env.LITELLM_MASTER_KEY,
+  configured: process.env.CUSTOM_GATEWAY_KEY,
 }
 const servers: Array<{ close: () => Promise<void> }> = []
 
@@ -16,6 +17,7 @@ afterEach(async () => {
   restoreEnv('OPENCODE_LITELLM_API_KEY', originalKeys.opencode)
   restoreEnv('LITELLM_API_KEY', originalKeys.litellm)
   restoreEnv('LITELLM_MASTER_KEY', originalKeys.master)
+  restoreEnv('CUSTOM_GATEWAY_KEY', originalKeys.configured)
   await Promise.all(servers.splice(0).map((server) => server.close()))
 })
 
@@ -54,7 +56,7 @@ describe('LiteLLM MCP response parsing', () => {
 describe('LiteLLM MCP config registration', () => {
   test('applies include, exclude, enabled overrides, and preserves conflicts', async () => {
     // Given: discovered servers and an explicit conflicting MCP entry
-    process.env.OPENCODE_LITELLM_API_KEY = 'runtime-secret'
+    process.env.LITELLM_API_KEY = 'runtime-secret'
     const server = await startServer((request, response) => {
       if (request.url === '/model_group/info') {
         sendJson(response, { data: [{ model_group: 'test-model' }] })
@@ -123,8 +125,8 @@ describe('LiteLLM MCP config registration', () => {
     expect(config.mcp).toBeUndefined()
   })
 
-  test('requires a resolvable environment credential for generated MCP config', async () => {
-    // Given: discovery can use a literal provider key but no safe reference exists
+  test('uses a configured literal credential for generated MCP config', async () => {
+    // Given: discovery is configured with a literal provider key
     delete process.env.OPENCODE_LITELLM_API_KEY
     delete process.env.LITELLM_API_KEY
     delete process.env.LITELLM_MASTER_KEY
@@ -144,9 +146,37 @@ describe('LiteLLM MCP config registration', () => {
     // When: the config hook runs
     await hooks.config?.(config)
 
-    // Then: no secret-bearing MCP entry is generated
-    expect(config.mcp).toBeUndefined()
-    expect(JSON.stringify(config)).not.toContain('Bearer literal-secret')
+    // Then: the in-memory MCP entry uses the configured provider identity
+    expect(config.mcp?.['litellm-zread']?.headers?.Authorization).toBe('Bearer literal-secret')
+  })
+
+  test('prefers the configured provider environment over an ambient master key', async () => {
+    // Given: a least-privilege provider key reference and a conflicting ambient master key
+    process.env.CUSTOM_GATEWAY_KEY = 'configured-key'
+    process.env.LITELLM_MASTER_KEY = 'ambient-master'
+    const authorizationByPath = new Map<string, string | undefined>()
+    const server = await startServer((request, response) => {
+      authorizationByPath.set(request.url ?? '', request.headers.authorization)
+      if (request.url === '/model_group/info') {
+        sendJson(response, { data: [{ model_group: 'test-model' }] })
+        return
+      }
+      sendJson(response, [{ server_name: 'zread' }])
+    })
+    servers.push(server)
+    const config = configured(server.baseURL, undefined, '{env:CUSTOM_GATEWAY_KEY}')
+    const hooks = await LiteLLMPlugin({}, {
+      mcpDiscovery: { enabled: true, include: ['zread'] },
+    })
+
+    // When: model and MCP discovery resolve the provider identity
+    await hooks.config?.(config)
+
+    // Then: every runtime surface uses the configured key instead of the master key
+    expect(authorizationByPath.get('/model_group/info')).toBe('Bearer configured-key')
+    expect(authorizationByPath.get('/v1/mcp/server')).toBe('Bearer configured-key')
+    expect(config.provider?.litellm?.options?.apiKey).toBe('configured-key')
+    expect(config.mcp?.['litellm-zread']?.headers?.Authorization).toBe('Bearer configured-key')
   })
 
   test('keeps model and MCP discovery failure-isolated', async () => {

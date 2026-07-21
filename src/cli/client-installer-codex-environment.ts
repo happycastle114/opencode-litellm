@@ -48,14 +48,17 @@ export function syncCodexSessionEnvironment(
   if (!usesMacOSSession(boundary)) return []
   const helperPath = resolveCodexAuthHelperPath(homeDirectory)
   if (!existsSync(helperPath)) return []
-  const result = runCodexSpawn(boundary, process.execPath, [
-    helperPath,
-    HELPER_ARGUMENT.LaunchctlSetEnvironment,
-    authEnv,
-  ])
-  return processSucceeded(result)
-    ? []
-    : [`Could not export ${authEnv} to the current macOS launchd session; run 'codex-litellm codex --profile codex-oauth' or rerun the installer after login.`]
+  const warning = sessionExportWarning(authEnv)
+  try {
+    const result = runCodexSpawn(boundary, process.execPath, [
+      helperPath,
+      HELPER_ARGUMENT.LaunchctlSetEnvironment,
+      authEnv,
+    ])
+    return processSucceeded(result) ? [] : [warning]
+  } catch {
+    return [warning]
+  }
 }
 
 export function clearCodexSessionEnvironment(
@@ -113,6 +116,10 @@ function processSucceeded(result: CodexSpawnResult): boolean {
   return status === 0 &&
     (result.signal === undefined || result.signal === null) &&
     result.error === undefined
+}
+
+function sessionExportWarning(authEnv: string): string {
+  return `Could not export ${authEnv} to the current macOS launchd session; run 'codex-litellm codex --profile codex-oauth' or rerun the installer after login.`
 }
 
 function assertNever(value: never): never {

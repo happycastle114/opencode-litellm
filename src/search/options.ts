@@ -1,14 +1,20 @@
 import type { PluginOptions } from '@opencode-ai/plugin'
-
-const TOOL_NAME_PATTERN = /^[a-z][a-z0-9_-]*$/
+import { isValidToolName } from '../utils/tool-name-validation'
 
 export type LiteLLMSearchToolOption = {
   readonly toolName: string
   readonly searchToolName: string
   readonly description?: string
   readonly defaultMaxResults?: number
-  readonly overrideBuiltin?: boolean
 }
+
+const RESERVED_TOOL_NAME = 'websearch'
+const SEARCH_TOOL_FIELDS = new Set([
+  'toolName',
+  'searchToolName',
+  'description',
+  'defaultMaxResults',
+])
 
 export type LiteLLMPluginOptions = {
   readonly searchTools?: readonly LiteLLMSearchToolOption[]
@@ -36,8 +42,15 @@ export function parseSearchToolOptions(
     if (!isRecord(raw)) {
       throw new SearchToolConfigurationError(field, 'expected an object')
     }
+    rejectUnknownFields(raw, field)
 
     const toolName = readName(raw.toolName, `${field}.toolName`)
+    if (toolName === RESERVED_TOOL_NAME) {
+      throw new SearchToolConfigurationError(
+        `${field}.toolName`,
+        `name "${RESERVED_TOOL_NAME}" is reserved by OpenCode`,
+      )
+    }
     const searchToolName = readName(
       raw.searchToolName,
       `${field}.searchToolName`,
@@ -55,23 +68,11 @@ export function parseSearchToolOptions(
       raw.defaultMaxResults,
       field,
     )
-    const overrideBuiltin = readOptionalBoolean(
-      raw.overrideBuiltin,
-      `${field}.overrideBuiltin`,
-    )
-    if (toolName === 'websearch' && overrideBuiltin !== true) {
-      throw new SearchToolConfigurationError(
-        `${field}.overrideBuiltin`,
-        'must be true when toolName is "websearch"',
-      )
-    }
-
     return {
       toolName,
       searchToolName,
       ...(description === undefined ? {} : { description }),
       ...(defaultMaxResults === undefined ? {} : { defaultMaxResults }),
-      ...(overrideBuiltin === undefined ? {} : { overrideBuiltin }),
     }
   })
 }
@@ -81,7 +82,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function readName(value: unknown, field: string): string {
-  if (typeof value !== 'string' || !TOOL_NAME_PATTERN.test(value)) {
+  if (typeof value !== 'string' || !isValidToolName(value)) {
     throw new SearchToolConfigurationError(
       field,
       'expected a lowercase name using letters, numbers, underscores, or hyphens',
@@ -118,10 +119,13 @@ function readOptionalMaxResults(
   return value
 }
 
-function readOptionalBoolean(value: unknown, field: string): boolean | undefined {
-  if (value === undefined) return undefined
-  if (typeof value !== 'boolean') {
-    throw new SearchToolConfigurationError(field, 'expected a boolean')
+function rejectUnknownFields(
+  value: Readonly<Record<string, unknown>>,
+  field: string,
+): void {
+  for (const name of Object.keys(value)) {
+    if (!SEARCH_TOOL_FIELDS.has(name)) {
+      throw new SearchToolConfigurationError(`${field}.${name}`, 'unknown field')
+    }
   }
-  return value
 }

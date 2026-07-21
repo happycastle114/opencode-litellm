@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { readFileSync } from 'node:fs'
 import {
   CodexDiscoveryError,
   discoverCodexGatewayResources,
@@ -13,6 +14,10 @@ const ENDPOINT = {
 
 const ORIGIN = 'https://gateway.example.test'
 const API_KEY = 'proxy-key-for-test'
+const BUNDLED_CATALOG_FIXTURE = readFileSync(
+  new URL('./fixtures/codex-bundled-catalog-0.144.1.json', import.meta.url),
+  'utf8',
+)
 
 describe('Codex gateway discovery', () => {
   test('rejects an empty API key before making discovery requests', async () => {
@@ -74,6 +79,27 @@ describe('Codex gateway discovery', () => {
     ])
     expect(result.mcpServerNames).toEqual(['research_docs', 'zread'])
     expect(result.warnings).toEqual([])
+  })
+
+  test('retains explicit modality metadata for downstream picker filtering', async () => {
+    const fetcher: typeof fetch = async (input) => {
+      const endpoint = new URL(String(input)).pathname
+      return endpoint === ENDPOINT.Models
+        ? Response.json({
+            data: [
+              { id: 'chat-route', mode: 'chat' },
+              { id: 'embedding-route', type: 'embedding', input_modalities: ['text'] },
+            ],
+          })
+        : Response.json([])
+    }
+
+    const result = await discoverCodexGatewayResources({ origin: ORIGIN, apiKey: API_KEY, fetcher })
+
+    expect(result.models).toEqual([
+      { id: 'chat-route', mode: 'chat' },
+      { id: 'embedding-route', type: 'embedding', input_modalities: ['text'] },
+    ])
   })
 
   test('fails when model discovery is unavailable or malformed', async () => {
@@ -191,30 +217,26 @@ describe('Codex gateway discovery', () => {
 })
 
 describe('Bundled Codex catalog discovery', () => {
-  test('accepts stderr warnings and preserves bundled model capabilities', () => {
-    // Given: the Codex CLI emits a valid catalog and a warning on stderr
-    const source = JSON.stringify({
-      models: [{
-        slug: 'gpt-test',
-        display_name: 'GPT Test',
-        visibility: 'list',
-        supported_in_api: true,
-        priority: 7,
-        supported_reasoning_levels: [{ effort: 'high' }],
-      }],
-    })
+  test('selects the lowest-priority visible model as the inherited prompt template', () => {
+    // Given: the Codex CLI emits the 0.144.1-shaped fixture and a warning on stderr
     const boundary: CodexSpawnBoundary = {
-      spawn: () => ({ status: 0, stdout: source, stderr: 'WARNING: local aliases unavailable\n' }),
+      spawn: () => ({
+        status: 0,
+        stdout: BUNDLED_CATALOG_FIXTURE,
+        stderr: 'WARNING: local aliases unavailable\n',
+      }),
     }
 
     // When: the bundled catalog is read
     const result = readBundledCodexCatalog(boundary)
+    const source = JSON.parse(BUNDLED_CATALOG_FIXTURE)
 
-    // Then: bytes are normalized and no capability fields are invented
-    expect(result.json).toBe(`${JSON.stringify(JSON.parse(source), null, 2)}\n`)
-    expect(result.defaultModel).toBe('gpt-test')
-    expect(result.json).toContain('supported_reasoning_levels')
-    expect(result.json).not.toContain('supports_parallel_tool_calls')
+    // Then: bytes are normalized and the first Codex-sorted visible row supplies prompt behavior
+    expect(result.json).toBe(`${JSON.stringify(source, null, 2)}\n`)
+    expect(result.defaultModel).toBe(source.models[0].slug)
+    expect(result.template.base_instructions).toBe(source.models[0].base_instructions)
+    expect(result.template.model_messages).toEqual(source.models[0].model_messages)
+    expect(result.template.comp_hash).toBe(source.models[0].comp_hash)
   })
 
   test('rejects missing Codex and invalid or empty stdout without leaking details', () => {
@@ -240,5 +262,33 @@ describe('Bundled Codex catalog discovery', () => {
 
     // When/Then: process failure is not mistaken for a valid catalog
     expect(() => readBundledCodexCatalog(boundary)).toThrow(/codex.*(failed|exit)/i)
+  })
+
+  test.each([
+    ['missing base instructions', {
+      slug: 'invalid-template',
+      visibility: 'list',
+      supported_in_api: true,
+      priority: 1,
+      model_messages: { instructions_template: 'template' },
+    }],
+    ['missing model message template', {
+      slug: 'invalid-template',
+      visibility: 'list',
+      supported_in_api: true,
+      priority: 1,
+      base_instructions: 'base',
+      model_messages: null,
+    }],
+  ])('rejects a selected prompt template with %s', (_label, model) => {
+    const boundary: CodexSpawnBoundary = {
+      spawn: () => ({
+        status: 0,
+        stdout: JSON.stringify({ models: [model] }),
+        stderr: '',
+      }),
+    }
+
+    expect(() => readBundledCodexCatalog(boundary)).toThrow(/template|catalog/i)
   })
 })

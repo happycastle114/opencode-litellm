@@ -1,44 +1,15 @@
 import { describe, expect, test } from 'bun:test'
 import { parse as parseJsonc } from 'jsonc-parser'
-import { planOpenCodeEdits, applyOpenCodeEdits } from '../src/cli/opencode-config'
+import {
+  OH_MY_OPENAGENT_PLUGIN_SPEC,
+  PLUGIN_SPEC,
+  baseIntent,
+  render,
+} from './opencode-config-test-support'
+import { planOpenCodeEdits } from '../src/cli/opencode-config'
 import { ConfigurationError } from '../src/cli/errors'
-import packageJson from '../package.json' with { type: 'json' }
-
-const PACKAGE_VERSION = packageJson.version
-const PLUGIN_SPEC = `opencode-plugin-litellm@${PACKAGE_VERSION}`
-
-const baseIntent = {
-  baseUrl: 'https://litellm.example.com',
-  authEnv: 'LITELLM_API_KEY',
-  search: [],
-  mcp: [],
-  disableMcp: [],
-} as const
-
-function render(source: string, intent = baseIntent): string {
-  const edits = planOpenCodeEdits(source, intent)
-  return applyOpenCodeEdits(source, edits)
-}
 
 describe('opencode JSONC editing', () => {
-  test('creates provider and plugin in an empty config', () => {
-    // Given: an empty JSON object
-    // When: the opencode edits are applied
-    const output = render('{}')
-    const parsed = parseJsonc(output)
-
-    // Then: the provider is shaped with an env reference only
-    expect(parsed.provider.litellm).toEqual({
-      npm: '@ai-sdk/openai-compatible',
-      name: 'LiteLLM',
-      options: {
-        baseURL: 'https://litellm.example.com/v1',
-        apiKey: '{env:LITELLM_API_KEY}',
-      },
-    })
-    expect(parsed.plugin).toEqual([PLUGIN_SPEC])
-  })
-
   test('preserves comments and unrelated keys', () => {
     // Given: a config with comments and unrelated content
     const source = `{
@@ -112,6 +83,40 @@ describe('opencode JSONC editing', () => {
     expect(parsed.plugin).toContain('keep@1.0.0')
   })
 
+  test('replaces an unversioned managed plugin entry', () => {
+    const parsed = parseJsonc(render('{"plugin": ["opencode-plugin-litellm"]}'))
+    expect(parsed.plugin).toEqual([PLUGIN_SPEC, OH_MY_OPENAGENT_PLUGIN_SPEC])
+  })
+
+  test.each([
+    'file:///tmp/vendor/opencode-litellm-git/src/index.ts',
+    'file:///tmp/vendor/opencode-litellm-git/83ea2674a8afb578a670188fb3b522fc242a77cb/src/index.ts',
+  ])('replaces the previous managed checkout entry at %s', (managedSpec) => {
+    const parsed = parseJsonc(render(JSON.stringify({ plugin: [managedSpec, 'keep@1.0.0'] })))
+    expect(parsed.plugin).toEqual([PLUGIN_SPEC, OH_MY_OPENAGENT_PLUGIN_SPEC, 'keep@1.0.0'])
+  })
+
+  test('pins the official consumer and retires the legacy plugin without clobbering others', () => {
+    const source = `{
+  "plugin": [
+    ["oh-my-opencode@3.0.0", { "legacy": true }],
+    ["oh-my-openagent", { "preserved": { "enabled": true } }],
+    "keep@1.0.0"
+  ]
+}`
+
+    const once = render(source)
+    const twice = render(once)
+    const parsed = parseJsonc(once)
+
+    expect(parsed.plugin).toEqual([
+      PLUGIN_SPEC,
+      [OH_MY_OPENAGENT_PLUGIN_SPEC, { preserved: { enabled: true } }],
+      'keep@1.0.0',
+    ])
+    expect(twice).toBe(once)
+  })
+
   test('uses the exact package version in the plugin spec', () => {
     // Given: an empty config
     // When: rendered
@@ -123,83 +128,6 @@ describe('opencode JSONC editing', () => {
     expect(String(spec)).not.toContain('latest')
     expect(String(spec)).not.toContain('*')
     expect(String(spec)).not.toContain('^')
-  })
-
-  test('writes only an env reference and never a secret value', () => {
-    // Given: an install with an env-based key
-    // When: rendered
-    const output = render('{}')
-
-    // Then: only the placeholder appears, no resolved secret
-    expect(output).toContain('{env:LITELLM_API_KEY}')
-    expect(output).not.toContain('sk-')
-  })
-
-  test('emits a search tuple when search options are enabled', () => {
-    // Given: an install requesting the default search tool
-    const intent = { ...baseIntent, search: ['agy-search'] } as const
-    // When: rendered
-    const parsed = parseJsonc(render('{}', intent))
-    const entry = (parsed.plugin as unknown[])[0]
-
-    // Then: the plugin entry is a tuple whose options carry searchTools
-    expect(Array.isArray(entry)).toBe(true)
-    if (!Array.isArray(entry)) return
-    expect(entry[0]).toBe(PLUGIN_SPEC)
-    expect(entry[1].searchTools).toEqual([
-      {
-        toolName: 'websearch',
-        searchToolName: 'agy-search',
-        overrideBuiltin: true,
-        defaultMaxResults: 8,
-      },
-    ])
-  })
-
-  test('emits an mcpDiscovery block when mcp options are enabled', () => {
-    // Given: an install selecting mcp servers with a disabled override
-    const intent = {
-      ...baseIntent,
-      mcp: ['zread', 'zai-web-reader'],
-      disableMcp: ['minimax-search'],
-    } as const
-    // When: rendered
-    const parsed = parseJsonc(render('{}', intent))
-    const entry = (parsed.plugin as unknown[])[0]
-
-    // Then: the mcpDiscovery block lists includes and server overrides
-    expect(Array.isArray(entry)).toBe(true)
-    if (!Array.isArray(entry)) return
-    const options = entry[1]
-    expect(options.mcpDiscovery.enabled).toBe(true)
-    expect(options.mcpDiscovery.include).toEqual(['zread', 'zai-web-reader'])
-    expect(options.mcpDiscovery.servers).toEqual([
-      { serverName: 'minimax-search', enabled: false },
-    ])
-  })
-
-  test('does not persist model lists or discovered mcp state', () => {
-    // Given: an install with search and mcp
-    const intent = { ...baseIntent, search: ['agy-search'], mcp: ['zread'] } as const
-    // When: rendered
-    const output = render('{}', intent)
-    const parsed = parseJsonc(output)
-
-    // Then: no discovered models or runtime mcp urls are written
-    expect(parsed.provider.litellm.models).toBeUndefined()
-    expect(parsed.mcp).toBeUndefined()
-    expect(output).not.toContain('/mcp')
-  })
-
-  test('is idempotent across repeated applies', () => {
-    // Given: an intent applied once
-    const intent = { ...baseIntent, search: ['agy-search'], mcp: ['zread'] } as const
-    const once = render('{}', intent)
-    // When: applied a second time to its own output
-    const twice = render(once, intent)
-
-    // Then: the output is byte-identical
-    expect(twice).toBe(once)
   })
 
   test('rejects malformed JSONC with a typed configuration error carrying the path', () => {
@@ -220,13 +148,4 @@ describe('opencode JSONC editing', () => {
     }
   })
 
-  test('normalizes a trailing slash origin to a single /v1 suffix', () => {
-    // Given: a base url that already carries a trailing slash
-    const intent = { ...baseIntent, baseUrl: 'https://litellm.example.com/' } as const
-    // When: rendered
-    const parsed = parseJsonc(render('{}', intent))
-
-    // Then: exactly one /v1 suffix is produced
-    expect(parsed.provider.litellm.options.baseURL).toBe('https://litellm.example.com/v1')
-  })
 })

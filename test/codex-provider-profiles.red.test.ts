@@ -1,6 +1,19 @@
 import { describe, expect, test } from 'bun:test'
+import { readFileSync } from 'node:fs'
 import { parse as parseToml } from 'smol-toml'
 import * as codexConfig from '../src/cli/codex-config'
+import { readBundledCodexCatalog } from '../src/cli/codex-discovery'
+
+const bundledCatalog = readBundledCodexCatalog({
+  spawn: () => ({
+    status: 0,
+    stdout: readFileSync(
+      new URL('./fixtures/codex-bundled-catalog-0.144.1.json', import.meta.url),
+      'utf8',
+    ),
+    stderr: '',
+  }),
+})
 
 const EXPECTED_PROVIDER_ID = {
   GatewaySso: 'litellm-gateway-sso',
@@ -86,7 +99,7 @@ describe('Codex model catalog', () => {
     // Given: a model discovered without capability metadata
     const catalog = codexConfig.buildCodexCatalog([
       { id: 'vendor/unknown-model', object: 'model' },
-    ])
+    ], bundledCatalog.template)
 
     // When: Codex reads the generated JSON catalog
     const payload: unknown = JSON.parse(catalog.json)
@@ -105,9 +118,11 @@ describe('Codex model catalog', () => {
     expect(model.supported_in_api).toBe(true)
     expect(model.supported_reasoning_levels).toEqual([])
     expect(model.supports_reasoning_summaries).toBe(false)
-    expect(model.supports_reasoning_summary_parameter).toBe(false)
+    expect(model.supports_reasoning_summary_parameter).toBeUndefined()
     expect(model.supports_parallel_tool_calls).toBe(false)
     expect(model.input_modalities).toEqual(['text'])
+    expect(model.base_instructions).toBe(bundledCatalog.template.base_instructions)
+    expect(model.model_messages).toEqual(bundledCatalog.template.model_messages)
   })
 })
 

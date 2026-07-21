@@ -1,4 +1,9 @@
 import type { LiteLLMModel } from '../types'
+import { classifyModel, MODEL_TYPE } from './model-modality'
+
+const MODEL_DISPLAY_NAME_OVERRIDES: Readonly<Record<string, string>> = {
+  'alibaba-token/qwen3.8-max-preview': 'Qwen3.8 Max Preview',
+}
 
 /**
  * Extract owner / provider from a LiteLLM model ID.
@@ -75,19 +80,7 @@ function joinTrailingVersionPair(tokens: string[]): string[] {
  * in the OpenCode provider config.
  */
 export function categorizeModel(model: LiteLLMModel): 'chat' | 'embedding' | 'image' | 'audio' | 'unknown' {
-  if (model.mode) {
-    const m = model.mode.toLowerCase()
-    if (m.includes('embedding')) return 'embedding'
-    if (m.includes('image')) return 'image'
-    if (m.includes('audio') || m.includes('speech') || m.includes('transcription')) return 'audio'
-    if (m.includes('chat') || m.includes('completion')) return 'chat'
-  }
-
-  const id = model.id.toLowerCase()
-  if (id.includes('embed') || id.includes('embedding')) return 'embedding'
-  if (id.includes('whisper') || id.includes('tts')) return 'audio'
-  if (id.includes('dall-e') || id.includes('stable-diffusion') || id.includes('flux')) return 'image'
-  return 'chat'
+  return classifyModel(model) ?? MODEL_TYPE.Chat
 }
 
 /**
@@ -113,6 +106,8 @@ export function categorizeModel(model: LiteLLMModel): 'chat' | 'embedding' | 'im
  */
 export function formatModelName(model: LiteLLMModel): string {
   const { id } = model
+  const displayNameOverride = MODEL_DISPLAY_NAME_OVERRIDES[id]
+  if (displayNameOverride !== undefined) return displayNameOverride
 
   // Drop provider prefix when present, but only the FIRST segment, so
   // ids like `bedrock/amazon.nova-pro-v1` still carry the vendor name

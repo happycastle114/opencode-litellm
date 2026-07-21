@@ -109,16 +109,15 @@ describe('OpenCode runtime official LiteLLM credential', () => {
     const config: Config = JSON.parse(source)
     const hooks = await LiteLLMPlugin({}, {
       searchTools: [{
-        toolName: 'websearch',
+        toolName: 'litellm_search',
         searchToolName: 'agy-search',
-        overrideBuiltin: true,
       }],
       mcpDiscovery: { enabled: true, include: ['zread'] },
     })
 
     // When: runtime discovery and a registered search tool use the gateway
     await hooks.config?.(config)
-    await hooks.tool?.websearch?.execute(
+    await hooks.tool?.litellm_search?.execute(
       { query: 'official docs' },
       createContext([]),
     )

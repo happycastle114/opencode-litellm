@@ -10,7 +10,7 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { resolveOpenCodeConfigPath } from '../src/cli/paths'
+import { resolveCodexConfigPath, resolveOpenCodeConfigPath } from '../src/cli/paths'
 import { writeConfigAtomic } from '../src/cli/file-adapter'
 
 describe('opencode config path resolution', () => {
@@ -83,6 +83,17 @@ describe('opencode config path resolution', () => {
     } finally {
       rmSync(configHome, { recursive: true, force: true })
     }
+  })
+})
+
+describe('codex config path resolution', () => {
+  test('accepts only the runtime-visible config.toml basename', () => {
+    expect(resolveCodexConfigPath('/custom/codex/config.toml', {})).toBe(
+      '/custom/codex/config.toml',
+    )
+    expect(() => resolveCodexConfigPath('/custom/codex/alternate.toml', {})).toThrow(
+      "Codex config path must end in 'config.toml'.",
+    )
   })
 })
 

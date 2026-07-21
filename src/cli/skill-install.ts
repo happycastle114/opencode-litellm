@@ -30,7 +30,7 @@ const SHARED_SKILL = {
   ] as const,
 } as const
 
-const FILE_MODE = 0o600
+export const SHARED_LITELLM_SKILL_MODE = 0o600
 const DIRECTORY_MODE = 0o700
 const SKILL_NAME_PATTERN = /^[a-z0-9][a-z0-9._-]*$/
 
@@ -56,30 +56,41 @@ export function installOpenCodeSkill(
     throw new Error('Skill name must contain only lowercase letters, numbers, dots, underscores, or hyphens.')
   }
   const sourcePath = options.sourcePath ?? resolvePackagedSkillSourcePath()
-  const destination = join(
-    options.homeDirectory,
-    '.agents',
-    'skills',
-    skillName,
-    SHARED_SKILL.fileName,
-  )
+  const destination = resolveOpenCodeSkillDestination(options.homeDirectory, skillName)
   const contents = readFileSync(sourcePath)
   mkdirSync(dirname(destination), { recursive: true, mode: DIRECTORY_MODE })
 
   if (existsSync(destination) && readFileSync(destination).equals(contents)) {
+    chmodSync(destination, SHARED_LITELLM_SKILL_MODE)
     return { status: 'unchanged', destination }
   }
 
   const temporary = `${destination}.${process.pid}.tmp`
   try {
-    writeFileSync(temporary, contents, { mode: FILE_MODE })
+    writeFileSync(temporary, contents, { mode: SHARED_LITELLM_SKILL_MODE })
     renameSync(temporary, destination)
   } catch (error) {
     if (existsSync(temporary)) unlinkSync(temporary)
     throw error
   }
-  chmodSync(destination, FILE_MODE)
+  chmodSync(destination, SHARED_LITELLM_SKILL_MODE)
   return { status: 'installed', destination }
+}
+
+export function resolveOpenCodeSkillDestination(
+  homeDirectory: string,
+  skillName: string = SHARED_SKILL.name,
+): string {
+  if (!SKILL_NAME_PATTERN.test(skillName)) {
+    throw new Error('Skill name must contain only lowercase letters, numbers, dots, underscores, or hyphens.')
+  }
+  return join(
+    homeDirectory,
+    '.agents',
+    'skills',
+    skillName,
+    SHARED_SKILL.fileName,
+  )
 }
 
 export function resolvePackagedSkillSourcePath(

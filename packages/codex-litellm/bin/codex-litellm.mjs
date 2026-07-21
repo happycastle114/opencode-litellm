@@ -28,5 +28,9 @@ child.on('error', () => {
   process.exitCode = 1
 })
 child.on('exit', (code, signal) => {
-  process.exitCode = code ?? (signal === null ? 1 : 1)
+  if (signal !== null) {
+    process.kill(process.pid, signal)
+    return
+  }
+  process.exitCode = code ?? 1
 })

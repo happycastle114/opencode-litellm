@@ -8,7 +8,7 @@ import {
 } from 'node:fs'
 import { dirname } from 'node:path'
 
-const CONFIG_MODE = 0o600
+export const CONFIG_FILE_MODE = 0o600
 const DIR_MODE = 0o700
 const IS_WINDOWS = process.platform === 'win32'
 
@@ -25,14 +25,17 @@ export function writeConfigAtomic(
   mkdirSync(dir, { recursive: true, ...(IS_WINDOWS ? {} : { mode: DIR_MODE }) })
 
   if (existsSync(path)) {
-    if (readFileSync(path, 'utf8') === contents) return
+    if (readFileSync(path, 'utf8') === contents) {
+      if (!IS_WINDOWS) chmodSync(path, CONFIG_FILE_MODE)
+      return
+    }
     backupExisting(path, options.now())
   }
 
   const temp = `${path}.${process.pid}.tmp`
-  writeFileSync(temp, contents, IS_WINDOWS ? {} : { mode: CONFIG_MODE })
+  writeFileSync(temp, contents, IS_WINDOWS ? {} : { mode: CONFIG_FILE_MODE })
   renameSync(temp, path)
-  if (!IS_WINDOWS) chmodSync(path, CONFIG_MODE)
+  if (!IS_WINDOWS) chmodSync(path, CONFIG_FILE_MODE)
 }
 
 export function retireConfigFile(
@@ -40,19 +43,19 @@ export function retireConfigFile(
   options: WriteConfigOptions,
 ): string | undefined {
   if (!existsSync(path)) return undefined
-  const backup = nextBackupPath(path, options.now())
+  const backup = resolveConfigBackupPath(path, options.now())
   renameSync(path, backup)
-  if (!IS_WINDOWS) chmodSync(backup, CONFIG_MODE)
+  if (!IS_WINDOWS) chmodSync(backup, CONFIG_FILE_MODE)
   return backup
 }
 
 function backupExisting(path: string, now: Date): void {
   const previous = readFileSync(path)
-  const backup = nextBackupPath(path, now)
-  writeFileSync(backup, previous, IS_WINDOWS ? {} : { mode: CONFIG_MODE })
+  const backup = resolveConfigBackupPath(path, now)
+  writeFileSync(backup, previous, IS_WINDOWS ? {} : { mode: CONFIG_FILE_MODE })
 }
 
-function nextBackupPath(path: string, now: Date): string {
+export function resolveConfigBackupPath(path: string, now: Date): string {
   const base = `${path}.${stamp(now)}.bak`
   let backup = base
   let suffix = 1
