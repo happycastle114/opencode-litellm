@@ -5,7 +5,7 @@ import {
   INSTALL_SELECTION_WARNING_KIND,
   type InstallPreparationBoundary,
 } from '../src/cli/install-preparation'
-import { CodexMode, InstallAuth, InstallTarget, type InstallOptions } from '../src/cli/install-intent'
+import { CodexMode, InstallAuth, InstallTarget, ToolkitDefault, type InstallOptions } from '../src/cli/install-intent'
 import { join } from 'node:path'
 
 export const VALUE = {
@@ -37,6 +37,7 @@ export function installOptions(overrides: Partial<InstallOptions> = {}): Install
     opencodeConfig: undefined,
     codexConfig: undefined,
     codexMode: CodexMode.Both,
+    autoRouter: ToolkitDefault.InteractiveAutoRouter,
     search: [],
     mcp: [],
     toolsets: [],

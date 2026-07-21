@@ -2,6 +2,7 @@ import {
   isValidToolName,
   isValidToolsetName,
 } from '../utils/tool-name-validation'
+import { AutoRouterMode, type AutoRouterMode as AutoRouterModeValue } from './auto-router-contracts'
 export {
   TOOL_NAME_PATTERN,
   isValidToolName,
@@ -99,6 +100,8 @@ export const ToolkitDefault = {
   AuthEnvironment: 'LITELLM_PROXY_API_KEY',
   Target: InstallTarget.OpenCode,
   CodexMode: CodexMode.Both,
+  InteractiveAutoRouter: AutoRouterMode.Prompt,
+  NonInteractiveAutoRouter: AutoRouterMode.Skip,
 } as const
 
 export type InstallOptions = {
@@ -110,6 +113,7 @@ export type InstallOptions = {
   readonly opencodeConfig: string | undefined
   readonly codexConfig: string | undefined
   readonly codexMode: CodexMode
+  readonly autoRouter: AutoRouterModeValue
   readonly search: readonly string[]
   readonly mcp: readonly string[]
   readonly toolsets: readonly string[]

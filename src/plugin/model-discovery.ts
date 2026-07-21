@@ -2,10 +2,8 @@ import {
   discoverLiteLLMModels,
 } from '../utils/litellm-api'
 import {
-  categorizeModel,
-  formatModelName,
-} from '../utils/format-model-name'
-import { MODEL_TYPE } from '../utils/model-modality'
+  toOpenCodeProviderModel,
+} from '../cli/opencode-provider-model'
 import type { LiteLLMModel } from '../types'
 
 export type ModelDiscoveryInput = {
@@ -19,26 +17,7 @@ export type ModelDiscoveryInput = {
 export function toConfigModel(
   model: LiteLLMModel,
 ): Record<string, unknown> | undefined {
-  const type = categorizeModel(model)
-  if (
-    type === MODEL_TYPE.Embedding ||
-    type === MODEL_TYPE.Image ||
-    type === MODEL_TYPE.Audio
-  ) {
-    return undefined
-  }
-  const entry: Record<string, unknown> = {
-    name: formatModelName(model),
-  }
-  if (model.max_input_tokens || model.max_output_tokens) {
-    entry.limit = {
-      context: model.max_input_tokens ?? 0,
-      output: model.max_output_tokens ?? 0,
-    }
-  }
-  if (model.supports_function_calling) entry.tool_call = true
-  if (model.supports_vision) entry.attachment = true
-  return entry
+  return toOpenCodeProviderModel(model)
 }
 
 export async function discoverAndMergeModels(

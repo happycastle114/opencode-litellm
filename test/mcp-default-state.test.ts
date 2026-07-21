@@ -12,6 +12,7 @@ import {
   InstallAuth,
   InstallTarget,
   McpServerId,
+  ToolkitDefault,
   resolveInstallIntent,
   type InstallOptions,
 } from '../src/cli/install-intent'
@@ -176,6 +177,7 @@ function options(overrides: Partial<InstallOptions> = {}): InstallOptions {
     opencodeConfig: undefined,
     codexConfig: undefined,
     codexMode: CodexMode.Both,
+    autoRouter: ToolkitDefault.NonInteractiveAutoRouter,
     search: [],
     mcp: [],
     toolsets: [],

@@ -1,0 +1,26 @@
+export {
+  AUTO_ROUTER_ENVIRONMENT,
+  AUTO_ROUTER_LIFECYCLE_COMMAND,
+  AUTO_ROUTER_PIN,
+  AutoRouterMode,
+  AutoRouterOperation,
+  AutoRouterPlatform,
+  AutoRouterPlanError,
+  AutoRouterStdio,
+  formatAutoRouterPlan,
+  formatShellCommand,
+  planAutoRouter,
+  type AutoRouterPlan,
+  type AutoRouterPlannedCommand,
+} from './auto-router-contracts'
+export {
+  AutoRouterError,
+  AutoRouterErrorCode,
+  applyAutoRouter,
+  createNodeAutoRouterBoundary,
+  preflightAutoRouter,
+  type AutoRouterBoundary,
+  type AutoRouterExecution,
+  type AutoRouterProcessInvocation,
+  type AutoRouterProcessResult,
+} from './auto-router-process'

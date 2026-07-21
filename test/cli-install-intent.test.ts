@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { resolveInstallIntent } from '../src/cli/install-intent'
+import { resolveInstallIntent, ToolkitDefault } from '../src/cli/install-intent'
 
 describe('non-interactive install validation', () => {
   test('accepts sso auth when the non-interactive auth boundary is complete', () => {
@@ -14,6 +14,7 @@ describe('non-interactive install validation', () => {
       opencodeConfig: undefined,
       codexConfig: undefined,
       codexMode: 'both',
+      autoRouter: ToolkitDefault.NonInteractiveAutoRouter,
       search: [],
       mcp: [],
       toolsets: [],
@@ -42,6 +43,7 @@ describe('non-interactive install validation', () => {
       opencodeConfig: undefined,
       codexConfig: undefined,
       codexMode: 'both',
+      autoRouter: ToolkitDefault.NonInteractiveAutoRouter,
       search: [],
       mcp: [],
       toolsets: [],
@@ -70,6 +72,7 @@ describe('non-interactive install validation', () => {
       opencodeConfig: undefined,
       codexConfig: undefined,
       codexMode: 'both',
+      autoRouter: ToolkitDefault.NonInteractiveAutoRouter,
       search: [],
       mcp: [],
       toolsets: [],
@@ -99,6 +102,7 @@ describe('non-interactive install validation', () => {
         opencodeConfig: undefined,
         codexConfig: undefined,
         codexMode: 'both',
+        autoRouter: ToolkitDefault.NonInteractiveAutoRouter,
         search: [],
         mcp: [],
         toolsets: [],
@@ -126,6 +130,7 @@ describe('non-interactive install validation', () => {
       opencodeConfig: undefined,
       codexConfig: undefined,
       codexMode: 'both',
+      autoRouter: ToolkitDefault.NonInteractiveAutoRouter,
       search: [],
       mcp: [],
       toolsets: ['research/core'],

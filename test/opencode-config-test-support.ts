@@ -10,6 +10,7 @@ export const PLUGIN_SPEC = `opencode-plugin-litellm@${PACKAGE_VERSION}`
 export const baseIntent = {
   baseUrl: 'https://litellm.example.com',
   authEnv: 'LITELLM_API_KEY',
+  models: [],
   search: [],
   mcp: [],
   disableMcp: [],

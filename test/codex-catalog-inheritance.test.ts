@@ -4,7 +4,7 @@ import { CLIENT_INSTALL_ASSET_OPERATION } from '../src/cli/client-install-assets
 import { prepareCodexInstall } from '../src/cli/client-installer-codex-plan'
 import { readBundledCodexCatalog } from '../src/cli/codex-discovery'
 import type { PreparedInstall } from '../src/cli/install-preparation'
-import { CodexMode, InstallAuth, InstallTarget } from '../src/cli/install-intent'
+import { CodexMode, InstallAuth, InstallTarget, ToolkitDefault } from '../src/cli/install-intent'
 
 const HOME_DIRECTORY = '/home/codex-catalog-inheritance'
 const bundledCatalog = readBundledCodexCatalog({
@@ -79,6 +79,7 @@ function preparedInstall(codexMode: CodexMode): PreparedInstall {
       opencodeConfig: undefined,
       codexConfig: undefined,
       codexMode,
+      autoRouter: ToolkitDefault.NonInteractiveAutoRouter,
       search: [],
       mcp: [],
       toolsets: [],

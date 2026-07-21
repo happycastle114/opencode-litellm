@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-07-21
+
+### Added
+- Optional Claude Code-only Auto Router onboarding through the pinned official
+  `litellm[proxy]==1.94.0rc1` CLI, with TTY/runtime/version/subcommand
+  preflight, a secret-free dry-run, and identical core/wrapper option routing.
+
+### Fixed
+- OpenCode installs now seed `provider.litellm.models` from authenticated
+  discovery so the static picker registry matches the startup hook. Existing
+  curated rows and blacklists are preserved, while the legacy six-entry
+  Alibaba whitelist fingerprint is retired.
+
+### Security
+- The gateway key reaches Auto Router only through its child environment and
+  never through argv, toolkit output, Keychain, or toolkit-owned files. The
+  documented boundary notes that the official wizard persists the provider key
+  in its own mode-`0600` `~/.litellm/autorouter/config.yaml`.
+
 ## [0.6.0] — 2026-07-21
 
 ### Added

@@ -27,6 +27,15 @@ describe('client-aware install defaults', () => {
     expect(applyBinaryDefaults(argv, CLIENT_BIN.Codex)).toEqual(argv)
   })
 
+  test.each(['--help', '-h'] as const)(
+    'preserves install %s so the built binary reaches command help',
+    (help) => {
+      const argv = ['install', help] as const
+      expect(applyBinaryDefaults(argv, CLIENT_BIN.OpenCode)).toEqual(argv)
+      expect(applyBinaryDefaults(argv, CLIENT_BIN.Codex)).toEqual(argv)
+    },
+  )
+
   test('makes a bare install a complete SSO-backed toolkit intent', () => {
     const parsed = parseCliArgs(['install'])
     expect(parsed.kind).toBe('command')

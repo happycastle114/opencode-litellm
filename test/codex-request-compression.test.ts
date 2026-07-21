@@ -14,7 +14,7 @@ import {
 import { readBundledCodexCatalog } from '../src/cli/codex-discovery'
 import { CODEX_FEATURE_KEY } from '../src/cli/codex-request-compression'
 import type { PreparedInstall } from '../src/cli/install-preparation'
-import { CodexMode, InstallAuth, InstallTarget } from '../src/cli/install-intent'
+import { CodexMode, InstallAuth, InstallTarget, ToolkitDefault } from '../src/cli/install-intent'
 
 const HOME_DIRECTORY = '/tmp/codex-request-compression-home'
 const CONFIG_PATH = join(HOME_DIRECTORY, '.codex', 'config.toml')
@@ -133,6 +133,7 @@ function preparedInstall(mode: CodexMode): PreparedInstall {
       opencodeConfig: undefined,
       codexConfig: CONFIG_PATH,
       codexMode: mode,
+      autoRouter: ToolkitDefault.NonInteractiveAutoRouter,
       search: [],
       mcp: [],
       toolsets: [],

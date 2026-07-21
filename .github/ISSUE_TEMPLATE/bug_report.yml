@@ -71,7 +71,7 @@ body:
     attributes:
       label: Toolkit version or commit
       description: Give the package version or full Git commit SHA you tested.
-      placeholder: 0.6.0 or 40-character commit SHA
+      placeholder: 0.7.0 or 40-character commit SHA
     validations:
       required: true
 

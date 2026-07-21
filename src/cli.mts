@@ -26,6 +26,7 @@ try {
         ? {}
         : {
             onboardingIO,
+            releaseOnboardingTerminal: () => onboardingIO.close(),
             ssoBoundaries: createNodeSsoOnboardingBoundaries(onboardingIO),
           }),
     },

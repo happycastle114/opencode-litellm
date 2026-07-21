@@ -25,7 +25,7 @@ const context = {
   platform: 'linux',
   onboardingIO: {
     isTTY: true,
-    prompt: promptFrom(['', '', '', 'y']),
+    prompt: promptFrom(['', '', '', '', 'y']),
     write: () => undefined,
   },
   ssoBoundaries: {

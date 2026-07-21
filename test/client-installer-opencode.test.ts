@@ -63,6 +63,9 @@ describe('prepared client installer', () => {
       toolsets: ['toolset-visible'],
     })
     expect(config.provider.litellm.options.apiKey).toBe(`{env:${VALUE.AuthEnvironment}}`)
+    expect(config.provider.litellm.models).toEqual({
+      'gateway-model': { name: 'Gateway Model' },
+    })
     expect(readFileSync(configPath, 'utf8')).not.toContain(VALUE.ApiKey)
     const openAgentProfile = parseJsonc(
       readFileSync(resolveOhMyOpenAgentProfilePath(configPath), 'utf8'),

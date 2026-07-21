@@ -19,6 +19,8 @@ import {
 } from './command-contracts'
 import { GLOBAL_HELP, helpForCommand } from './command-help'
 
+const HELP_OPTION = { Long: '--help', Short: '-h' } as const
+
 export type { CliCommand, ParsedInvocation, CliResult } from './command-contracts'
 export {
   BOUNDARY_COMMAND,
@@ -40,7 +42,7 @@ export function parseCliArgs(
   const first = argv[0]
 
   if (first === undefined) return { kind: INVOCATION_KIND.Help }
-  if (first === '--help' || first === '-h') return parseGlobalHelp(argv)
+  if (first === HELP_OPTION.Long || first === HELP_OPTION.Short) return parseGlobalHelp(argv)
 
   switch (first) {
     case CLIENT_COMMAND.Install:
@@ -63,7 +65,12 @@ export function applyBinaryDefaults(
   argv: readonly string[],
   executablePath: string,
 ): readonly string[] {
-  if (argv[0] !== CLIENT_COMMAND.Install || argv.includes('--target')) return argv
+  if (
+    argv[0] !== CLIENT_COMMAND.Install ||
+    argv.includes('--target') ||
+    argv.includes(HELP_OPTION.Long) ||
+    argv.includes(HELP_OPTION.Short)
+  ) return argv
   const target = basename(executablePath) === CLIENT_BINARY.Codex
     ? InstallTarget.Codex
     : InstallTarget.OpenCode
@@ -113,7 +120,7 @@ function parseCommandArgs(
 ): ParsedInvocation {
   const first = argv[0]
 
-  if (first === '--help' || first === '-h') {
+  if (first === HELP_OPTION.Long || first === HELP_OPTION.Short) {
     const extra = argv[1]
     return extra === undefined
       ? { kind: INVOCATION_KIND.Command, command, help: true, options: undefined }

@@ -1,4 +1,5 @@
 import type { AgentLaunchBoundary } from './agent-launch'
+import type { AutoRouterBoundary } from './auto-router-process'
 import type { ClientInstallerBoundary } from './client-installer'
 import type { InstallPreparationBoundary } from './install-preparation'
 import type { ProgramAuthContext } from './program-auth-lifecycle'
@@ -10,4 +11,6 @@ export type ProgramContext = ClientInstallerBoundary & ProgramAuthContext & {
   readonly onboardingIO?: InstallPreparationBoundary['onboardingIO']
   readonly gatewayDiscovery?: InstallPreparationBoundary['discover']
   readonly agentLaunchBoundary?: AgentLaunchBoundary
+  readonly autoRouterBoundary?: AutoRouterBoundary
+  readonly releaseOnboardingTerminal?: () => void
 }

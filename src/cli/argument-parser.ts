@@ -7,6 +7,7 @@ import {
   mcpStateOverrideConflict,
   type InstallOptions,
 } from './install-intent'
+import { AutoRouterMode, type AutoRouterMode as AutoRouterModeValue } from './auto-router-contracts'
 
 const LITELLM_ENVIRONMENT = {
   BaseUrl: 'LITELLM_BASE_URL',
@@ -78,6 +79,16 @@ export function parseInstallOptions(
   if (!auth.ok) return auth
   const codexMode = readCodexMode(values.get('--codex-mode') ?? ToolkitDefault.CodexMode)
   if (!codexMode.ok) return codexMode
+  const autoRouterValue = values.get('--auto-router')
+  const autoRouter: ValueResult<AutoRouterModeValue> = autoRouterValue === undefined
+    ? {
+        ok: true,
+        value: nonInteractive
+          ? ToolkitDefault.NonInteractiveAutoRouter
+          : ToolkitDefault.InteractiveAutoRouter,
+      }
+    : readAutoRouterMode(autoRouterValue)
+  if (!autoRouter.ok) return autoRouter
   return {
     ok: true,
     options: {
@@ -92,6 +103,7 @@ export function parseInstallOptions(
       opencodeConfig: values.get('--opencode-config'),
       codexConfig: values.get('--codex-config'),
       codexMode: codexMode.value,
+      autoRouter: autoRouter.value,
       search,
       mcp,
       toolsets,
@@ -138,7 +150,7 @@ export function parseDoctorOptions(argv: readonly string[]): OptionParseResult<D
 
 const VALUE_OPTIONS = new Set([
   '--target', '--base-url', '--auth', '--auth-env', '--opencode-config', '--codex-config',
-  '--codex-mode', '--search', '--mcp', '--toolset', '--enable-mcp', '--disable-mcp',
+  '--codex-mode', '--auto-router', '--search', '--mcp', '--toolset', '--enable-mcp', '--disable-mcp',
 ])
 const DOCTOR_VALUE_OPTIONS = new Set(['--target', '--opencode-config', '--codex-config'])
 
@@ -163,6 +175,19 @@ function readCodexMode(value: string): ValueResult<CodexMode> {
     return { ok: true, value: value as CodexMode }
   }
   return fail(`Invalid value '${value}' for '--codex-mode'.`)
+}
+
+function readAutoRouterMode(value: string): ValueResult<AutoRouterModeValue> {
+  switch (value) {
+    case AutoRouterMode.Skip:
+      return { ok: true, value: AutoRouterMode.Skip }
+    case AutoRouterMode.Configure:
+      return { ok: true, value: AutoRouterMode.Configure }
+    case AutoRouterMode.DryRun:
+      return { ok: true, value: AutoRouterMode.DryRun }
+    default:
+      return fail(`Invalid value '${value}' for '--auto-router'.`)
+  }
 }
 
 function fail(message: string): { readonly ok: false; readonly message: string } {

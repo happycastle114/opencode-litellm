@@ -150,7 +150,7 @@ function freshSso(origin: string, key: string, confirmation: 'y' | 'n'): FreshSs
     context: {
       env: { HOME: homeDirectory },
       now: () => new Date(0),
-      onboardingIO: { isTTY: true, prompt: promptFrom(['', '', '', confirmation]), write: () => undefined },
+      onboardingIO: { isTTY: true, prompt: promptFrom(['', '', '', '', confirmation]), write: () => undefined },
       ssoBoundaries: { open: async () => undefined, selectTeam: async () => undefined },
       ssoOnboarding: async (input: SsoOnboardingInput) => {
         const path = input.tokenFilePath
