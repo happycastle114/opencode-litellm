@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -55,12 +55,36 @@ test('defaults a bare wrapper install to the Codex target', () => {
   }
 })
 
-test('keeps a bare Codex install interactive while supplying the Codex target', () => {
+test('preserves terminal input for a bare interactive Codex install', () => {
   const fixture = createWrapperFixture()
   try {
-    const result = spawnSync(getNodeRuntime().executable, [fixture.executable, 'install'], { encoding: 'utf8' })
+    const fakeCli = join(
+      fixture.root,
+      'packages',
+      'codex-litellm',
+      'node_modules',
+      '@happycastle114',
+      'opencode-litellm',
+      'fake-cli.mjs',
+    )
+    writeFileSync(fakeCli, `
+const chunks = []
+process.stdin.setEncoding('utf8')
+process.stdin.on('data', (chunk) => chunks.push(chunk))
+process.stdin.on('end', () => {
+  process.stdout.write(JSON.stringify({ args: process.argv.slice(2), stdin: chunks.join('') }))
+})
+`)
+    const result = spawnSync(
+      getNodeRuntime().executable,
+      [fixture.executable, 'install'],
+      { encoding: 'utf8', input: 'interactive-answer\n', timeout: 5_000 },
+    )
     expect(result.status).toBe(0)
-    expect(JSON.parse(result.stdout)).toEqual(['install', '--target', 'codex'])
+    expect(JSON.parse(result.stdout)).toEqual({
+      args: ['install', '--target', 'codex'],
+      stdin: 'interactive-answer\n',
+    })
   } finally {
     cleanupFixture(fixture.root)
   }
