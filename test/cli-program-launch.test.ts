@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { runCliProgram } from '../src/cli/program'
-import { BUNDLED_CATALOG_FIXTURE, DISCOVERY, setupProgramHome } from './cli-program-test-support'
+import { bundledCodexCatalogBoundary, DISCOVERY, setupProgramHome } from './cli-program-test-support'
 
 let dir = ''
 setupProgramHome('opencode-litellm-program-launch-', (path) => { dir = path })
@@ -18,9 +18,7 @@ describe('CLI program', () => {
     ], {
       env: { HOME: dir, CUSTOM_GATEWAY_KEY: 'custom-install-key' }, now: () => new Date(0),
       gatewayDiscovery: async () => DISCOVERY,
-      codexSpawnBoundary: {
-        spawn: () => ({ status: 0, signal: null, stdout: BUNDLED_CATALOG_FIXTURE, stderr: '' }),
-      },
+      codexSpawnBoundary: bundledCodexCatalogBoundary(),
     })
     const launch = await runCliProgram(['codex', 'resume'], {
       env: { HOME: dir, CUSTOM_GATEWAY_KEY: 'custom-runtime-key', LITELLM_PROXY_URL: 'https://ambient.example.com' },
@@ -61,6 +59,7 @@ describe('CLI program', () => {
     ], {
       env: { HOME: dir, CODEX_GATEWAY_KEY: 'codex-install-key' }, now: () => new Date(0),
       gatewayDiscovery: async () => DISCOVERY,
+      codexSpawnBoundary: bundledCodexCatalogBoundary(),
     })
     const launch = await runCliProgram(['opencode'], {
       env: { HOME: dir, CODEX_GATEWAY_KEY: 'codex-runtime-key' }, now: () => new Date(0),
@@ -88,6 +87,7 @@ describe('CLI program', () => {
     ], {
       env: { HOME: dir, CODEX_GATEWAY_KEY: 'codex-install-key' }, now: () => new Date(0),
       gatewayDiscovery: async () => DISCOVERY,
+      codexSpawnBoundary: bundledCodexCatalogBoundary(),
     })
     const openCalls: Array<{ readonly options: { readonly env: Readonly<Record<string, string | undefined>> } }> = []
     const codexCalls: Array<{ readonly options: { readonly env: Readonly<Record<string, string | undefined>> } }> = []
