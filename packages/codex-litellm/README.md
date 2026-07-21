@@ -21,6 +21,13 @@ npx --yes --package @happycastle114/codex-litellm@0.6.0 codex-litellm install --
 npx --yes --package @happycastle114/codex-litellm@0.6.0 codex-litellm whoami
 ```
 
+The bare `install` command starts an interactive Codex onboarding flow. It
+prompts for the LiteLLM gateway, SSO or environment authentication, the Codex
+connection mode (`gateway`, `oauth`, or `both`), discovered search tools, MCP
+servers, MCP toolsets, and final confirmation. Use `--target both` when the
+same flow should configure OpenCode as well. `--non-interactive` is available
+only for scripted installs with explicit options.
+
 GitHub Packages requires authentication for npm reads even when this public
 package is readable. The temporary `NPM_CONFIG_USERCONFIG` file keeps the
 token out of user-level npm configuration; remove it after use with
