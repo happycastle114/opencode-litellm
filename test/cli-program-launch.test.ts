@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { existsSync, readFileSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, join } from 'node:path'
 import { runCliProgram } from '../src/cli/program'
 import { BUNDLED_CATALOG_FIXTURE, DISCOVERY, setupProgramHome } from './cli-program-test-support'
 
@@ -71,38 +71,24 @@ describe('CLI program', () => {
   })
 
   test('merges sequential client installs and keeps per-client launch paths', async () => {
-    const previousCwd = process.cwd()
-    const openCodeRelativePath = join('configs', 'open-code.jsonc')
-    const codexRelativePath = join('configs', 'codex', 'config.toml')
-    let canonicalDir = dir
-    let openInstallExitCode = -1
-    let codexInstallExitCode = -1
-    try {
-      process.chdir(dir)
-      canonicalDir = process.cwd()
-      const openInstall = await runCliProgram([
-        'install', '--target', 'opencode', '--base-url', 'https://open.example.com',
-        '--auth-env', 'OPEN_GATEWAY_KEY', '--no-search', '--opencode-config', openCodeRelativePath,
-        '--non-interactive',
-      ], {
-        env: { HOME: dir, OPEN_GATEWAY_KEY: 'open-install-key' }, now: () => new Date(0),
-        gatewayDiscovery: async () => DISCOVERY,
-      })
-      openInstallExitCode = openInstall.exitCode
-      const codexInstall = await runCliProgram([
-        'install', '--target', 'codex', '--base-url', 'https://codex.example.com',
-        '--auth-env', 'CODEX_GATEWAY_KEY', '--codex-mode', 'gateway', '--codex-config', codexRelativePath,
-        '--non-interactive',
-      ], {
-        env: { HOME: dir, CODEX_GATEWAY_KEY: 'codex-install-key' }, now: () => new Date(0),
-        gatewayDiscovery: async () => DISCOVERY,
-      })
-      codexInstallExitCode = codexInstall.exitCode
-    } finally {
-      process.chdir(previousCwd)
-    }
-    const openCodePath = resolve(canonicalDir, openCodeRelativePath)
-    const codexPath = resolve(canonicalDir, codexRelativePath)
+    const openCodePath = join(dir, 'configs', 'open-code.jsonc')
+    const codexPath = join(dir, 'configs', 'codex', 'config.toml')
+    const openInstall = await runCliProgram([
+      'install', '--target', 'opencode', '--base-url', 'https://open.example.com',
+      '--auth-env', 'OPEN_GATEWAY_KEY', '--no-search', '--opencode-config', openCodePath,
+      '--non-interactive',
+    ], {
+      env: { HOME: dir, OPEN_GATEWAY_KEY: 'open-install-key' }, now: () => new Date(0),
+      gatewayDiscovery: async () => DISCOVERY,
+    })
+    const codexInstall = await runCliProgram([
+      'install', '--target', 'codex', '--base-url', 'https://codex.example.com',
+      '--auth-env', 'CODEX_GATEWAY_KEY', '--codex-mode', 'gateway', '--codex-config', codexPath,
+      '--non-interactive',
+    ], {
+      env: { HOME: dir, CODEX_GATEWAY_KEY: 'codex-install-key' }, now: () => new Date(0),
+      gatewayDiscovery: async () => DISCOVERY,
+    })
     const openCalls: Array<{ readonly options: { readonly env: Readonly<Record<string, string | undefined>> } }> = []
     const codexCalls: Array<{ readonly options: { readonly env: Readonly<Record<string, string | undefined>> } }> = []
     const openRuntimeEnvironment = {
@@ -133,8 +119,8 @@ describe('CLI program', () => {
     })
     const launchStateSource = readFileSync(join(dir, '.config', 'opencode-litellm', 'launch.json'), 'utf8')
     const launchState = JSON.parse(launchStateSource)
-    expect(openInstallExitCode).toBe(0)
-    expect(codexInstallExitCode).toBe(0)
+    expect(openInstall.exitCode).toBe(0)
+    expect(codexInstall.exitCode).toBe(0)
     expect(openLaunch.exitCode).toBe(0)
     expect(codexLaunch.exitCode).toBe(0)
     expect(openCalls[0]?.options.env.OPENCODE_CONFIG).toBe(openCodePath)
