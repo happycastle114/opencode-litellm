@@ -157,6 +157,8 @@ async function installCodex() {
     'codex',
     '--base-url',
     GATEWAY_ORIGIN,
+    '--auth',
+    'sso',
     '--auth-env',
     'LITELLM_PROXY_API_KEY',
     '--codex-config',
