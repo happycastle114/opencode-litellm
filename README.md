@@ -64,9 +64,12 @@ gateway `/v1` is removed before `/claude-code/marketplace.json` is appended.
   the exact `litellm[proxy]==1.94.0rc1` artifact in an isolated `uv tool`
   environment; it does not use an ambient `lite` installation.
 
-A source checkout also needs Bun 1.x for `npm run build`; this is a maintainer
-build prerequisite only. Packed npm artifacts ship prebuilt Node-compatible
-`dist` files and do not invoke Bun at install or runtime.
+A source checkout gets the exact Bun 1.3.14 build runtime from
+`devDependencies` during `npm ci`; no global Bun installation is required.
+The lifecycle build is orchestrated by Node (`scripts/build.mjs`), so Git
+dependency preparation works through npm's Windows `cmd.exe` boundary as well
+as POSIX shells. Packed npm artifacts ship prebuilt Node-compatible `dist`
+files and do not invoke Bun at install or runtime.
 
 The built-in SSO flow stores a source-compatible token at
 `~/.litellm/token.json` with POSIX mode `0600`. Python and LiteLLM's `lite`
@@ -80,6 +83,13 @@ Use a full release commit SHA, never a branch or `latest` selector:
 
 ```bash
 export TOOLKIT_SHA='<full-40-character-release-commit-sha>'
+
+# GitHub's git dependency lifecycle builds the detached revision before npm
+# links its binaries. Both names are provided by the root package.
+npx --yes --package "github:happycastle114/opencode-litellm#${TOOLKIT_SHA}" opencode-litellm install
+npx --yes --package "github:happycastle114/opencode-litellm#${TOOLKIT_SHA}" codex-litellm install
+
+# The equivalent explicit checkout is useful for local source work.
 git clone https://github.com/happycastle114/opencode-litellm.git
 git -C opencode-litellm checkout --detach "$TOOLKIT_SHA"
 cd opencode-litellm
@@ -109,6 +119,23 @@ LITELLM_BASE_URL=https://llm.example.test \
 LITELLM_PROXY_API_KEY='<gateway-key>' \
 npx --yes --package "$CORE_TGZ" opencode-litellm install --non-interactive
 ```
+
+The GitHub-revision form runs the package's `prepare` lifecycle in npm's
+detached checkout so `dist/` is generated before either binary is linked. npm
+installs the pinned Bun 1.3.14 devDependency into that detached checkout, so a
+global Bun installation is not required. Packed tarballs and GitHub Packages
+releases already contain `dist/` and do not run that build at consumer install
+time. Leave npm lifecycle scripts enabled for this Git form; `ignore-scripts`
+would intentionally skip both `prepare` and Bun's platform-binary setup.
+
+The release regression gate invokes both aliases directly with `npx` from a
+new consumer and separate empty npm caches before installing the package into a
+normal consumer. Each invocation checks the exact toolkit usage and command
+signature (`Usage: opencode-litellm <command> [options]`), rather than a loose
+substring that could accept OpenCode's unrelated native help. The harness also
+uses an isolated HOME/npm cache and forwards no client, gateway, cloud, or
+registry credentials into the Git `prepare` lifecycle; it points npm's global
+config at an empty temporary file and verifies the effective path.
 
 ## Install from GitHub Packages
 

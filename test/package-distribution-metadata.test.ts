@@ -29,7 +29,9 @@ test('publishes both client-facing binary aliases from the core package', () => 
     access: 'public',
     registry: 'https://npm.pkg.github.com',
   })
-  expect(manifest.scripts).toMatchObject({ prepack: 'npm run build' })
+  expect(manifest.scripts).toMatchObject({ prepare: 'npm run build' })
+  expect(manifest.scripts.prepack).toBeUndefined()
+  expect(manifest.scripts.prepublishOnly).toBeUndefined()
 })
 
 test('keeps the public plugin declaration boundary local and callable', () => {
