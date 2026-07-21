@@ -20,11 +20,16 @@ describe('codex-litellm package metadata', () => {
   test('packs the declared metadata and publish payload', () => {
     const manifest = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8'))
 
+    expect(manifest.name).toBe('@happycastle114/codex-litellm')
     expect(manifest.repository).toEqual(metadata.repository)
     expect(manifest.bugs).toEqual(metadata.bugs)
     expect(manifest.homepage).toBe(metadata.homepage)
     expect(manifest.files).toEqual(['bin', 'README.md', 'LICENSE'])
     expect(manifest.bin).toEqual({ 'codex-litellm': './bin/codex-litellm.mjs' })
+    expect(manifest.publishConfig).toEqual({
+      access: 'public',
+      registry: 'https://npm.pkg.github.com',
+    })
 
     const cacheRoot = mkdtempSync(join(tmpdir(), 'codex-litellm-package-metadata-'))
     try {

@@ -1,81 +1,92 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  GITHUB_PACKAGES_REGISTRY,
   parsePackageSpec,
   readRegistryMetadata,
   validateMetadata,
-  verifyPackageRecord,
   verifyRegistryMetadata,
 } from '../scripts/verify-npm-release-metadata.mjs'
 
 const GIT_HEAD = 'a'.repeat(40)
 const PACKAGE_SPEC = '@happycastle114/opencode-litellm@0.6.0'
-const PROVENANCE_PREDICATE_TYPE = 'https://slsa.dev/provenance/v1'
-const TRUSTED_PUBLISHER_ID = 'github'
+const PACKAGE_NAME = '@happycastle114/opencode-litellm'
 const EXPECTED_INTEGRITY = 'sha512-package-integrity'
+const EXPECTED_TARBALL = `${GITHUB_PACKAGES_REGISTRY}/download/@happycastle114/opencode-litellm/0.6.0/release.tgz`
 
 function validMetadata(overrides: Record<string, unknown> = {}) {
   return {
+    name: PACKAGE_NAME,
     version: '0.6.0',
-    _npmUser: { trustedPublisher: { id: TRUSTED_PUBLISHER_ID } },
+    gitHead: GIT_HEAD,
     dist: {
-      gitHead: GIT_HEAD,
+      tarball: EXPECTED_TARBALL,
       integrity: EXPECTED_INTEGRITY,
-      attestations: { provenance: { predicateType: PROVENANCE_PREDICATE_TYPE } },
     },
     ...overrides,
   }
 }
 
-describe('npm release metadata verifier', () => {
-  test('parses scoped and unscoped exact package specs', () => {
+describe('GitHub Packages release metadata verifier', () => {
+  test('parses scoped exact package specs', () => {
     expect(parsePackageSpec(PACKAGE_SPEC)).toEqual({
-      name: '@happycastle114/opencode-litellm',
+      name: PACKAGE_NAME,
       version: '0.6.0',
       spec: PACKAGE_SPEC,
     })
-    expect(parsePackageSpec('codex-litellm@0.6.0')).toEqual({
-      name: 'codex-litellm',
+    expect(parsePackageSpec('@happycastle114/codex-litellm@0.6.0')).toEqual({
+      name: '@happycastle114/codex-litellm',
       version: '0.6.0',
-      spec: 'codex-litellm@0.6.0',
+      spec: '@happycastle114/codex-litellm@0.6.0',
     })
-    expect(() => parsePackageSpec('codex-litellm')).toThrow()
+    expect(() => parsePackageSpec('@happycastle114/opencode-litellm')).toThrow()
   })
 
-  test('accepts every required trusted-publishing and provenance field', () => {
-    expect(validateMetadata(validMetadata(), {
+  test('accepts GitHub Packages metadata without npmjs-only provenance fields', () => {
+    const result = validateMetadata(validMetadata(), {
+      name: PACKAGE_NAME,
       version: '0.6.0',
       gitHead: GIT_HEAD,
       integrity: EXPECTED_INTEGRITY,
-    })).toEqual({
-      ok: true,
-      failures: [],
-      gitHead: GIT_HEAD,
+      registry: GITHUB_PACKAGES_REGISTRY,
     })
+    expect(result.ok).toBe(true)
+    expect(result.failures).toEqual([])
+    expect(result.gitHead).toBe(GIT_HEAD)
+    expect(result.tarball).toBe(EXPECTED_TARBALL)
   })
 
-  test('rejects a version, identity, publisher, integrity, or provenance mismatch', () => {
+  test('rejects a package name, version, gitHead, integrity, or tarball mismatch', () => {
+    const base = validMetadata()
     const cases = [
-      ['version', validMetadata({ version: '0.6.1' }), 'version=0.6.1'],
-      ['gitHead', validMetadata({ dist: { ...validMetadata().dist, gitHead: 'b'.repeat(40) } }), `gitHead=${'b'.repeat(40)}`],
-      ['trusted publisher', validMetadata({ _npmUser: { trustedPublisher: { id: 'token' } } }), 'trustedPublisher=token'],
-      ['integrity', validMetadata({ dist: { ...validMetadata().dist, integrity: '' } }), 'dist.integrity'],
-      ['provenance', validMetadata({ dist: { ...validMetadata().dist, attestations: { provenance: { predicateType: 'other' } } } }), 'predicateType=other'],
+      ['name', { ...base, name: '@happycastle114/other' }, 'name=@happycastle114/other'],
+      ['version', { ...base, version: '0.6.1' }, 'version=0.6.1'],
+      ['gitHead', { ...base, gitHead: 'b'.repeat(40) }, `gitHead=${'b'.repeat(40)}`],
+      ['integrity', { ...base, dist: { ...base.dist, integrity: 'sha512-other' } }, 'integrity=sha512-other'],
+      ['tarball', { ...base, dist: { ...base.dist, tarball: 'https://registry.npmjs.org/other.tgz' } }, 'tarball=https://registry.npmjs.org/other.tgz'],
     ] as const
     for (const [name, metadata, failure] of cases) {
-      const result = validateMetadata(metadata, { version: '0.6.0', gitHead: GIT_HEAD })
+      const result = validateMetadata(metadata, {
+        name: PACKAGE_NAME,
+        version: '0.6.0',
+        gitHead: GIT_HEAD,
+        integrity: EXPECTED_INTEGRITY,
+        registry: GITHUB_PACKAGES_REGISTRY,
+      })
       expect(result.ok, name).toBe(false)
       expect(result.failures).toContain(failure)
     }
   })
 
-  test('allows a missing pre-existing package but rejects invalid existing metadata', () => {
+  test('allows a missing exact version during preflight but rejects invalid existing metadata', () => {
     let calls = 0
     const missing = readRegistryMetadata({
       packageSpec: PACKAGE_SPEC,
+      registry: GITHUB_PACKAGES_REGISTRY,
       retryMissing: false,
       delayMs: 0,
-      run: () => {
+      run: (_spec, options) => {
         calls += 1
+        expect(options.registry).toBe(GITHUB_PACKAGES_REGISTRY)
         return { status: 1, stdout: '', stderr: 'npm error code E404' }
       },
     })
@@ -84,41 +95,13 @@ describe('npm release metadata verifier', () => {
 
     expect(() => verifyRegistryMetadata({
       packageSpec: PACKAGE_SPEC,
+      registry: GITHUB_PACKAGES_REGISTRY,
       gitHead: GIT_HEAD,
       integrity: EXPECTED_INTEGRITY,
       allowMissing: true,
       delayMs: 0,
       run: () => ({ status: 0, stdout: JSON.stringify(validMetadata({ version: '0.5.0' })), stderr: '' }),
     })).toThrow(/version=0\.5\.0/)
-  })
-
-  test('accepts npm 12 array-shaped package-name output and rejects a wrong name', () => {
-    const found = verifyPackageRecord({
-      packageName: 'codex-litellm',
-      run: () => ({ status: 0, stdout: JSON.stringify(['codex-litellm']), stderr: '' }),
-    })
-    expect(found).toEqual({ status: 'found', attempts: 1 })
-
-    expect(() => verifyPackageRecord({
-      packageName: 'codex-litellm',
-      run: () => ({ status: 0, stdout: JSON.stringify(['other-package']), stderr: '' }),
-    })).toThrow(/Registry returned other-package/)
-  })
-
-  test('distinguishes an existing package record from a bootstrap-required 404', () => {
-    const found = verifyPackageRecord({
-      packageName: 'codex-litellm',
-      delayMs: 0,
-      run: () => ({ status: 0, stdout: JSON.stringify({ name: 'codex-litellm', version: '0.5.0' }), stderr: '' }),
-    })
-    expect(found).toEqual({ status: 'found', attempts: 1 })
-
-    const missing = verifyPackageRecord({
-      packageName: 'codex-litellm',
-      delayMs: 0,
-      run: () => ({ status: 1, stdout: '', stderr: 'npm error code E404' }),
-    })
-    expect(missing).toEqual({ status: 'missing', attempts: 1 })
   })
 
   test('retries bounded registry visibility failures until valid metadata appears', () => {
@@ -129,6 +112,7 @@ describe('npm release metadata verifier', () => {
     let calls = 0
     const result = verifyRegistryMetadata({
       packageSpec: PACKAGE_SPEC,
+      registry: GITHUB_PACKAGES_REGISTRY,
       gitHead: GIT_HEAD,
       integrity: EXPECTED_INTEGRITY,
       attempts: 2,
@@ -144,6 +128,7 @@ describe('npm release metadata verifier', () => {
     let calls = 0
     expect(() => verifyRegistryMetadata({
       packageSpec: PACKAGE_SPEC,
+      registry: GITHUB_PACKAGES_REGISTRY,
       gitHead: GIT_HEAD,
       integrity: EXPECTED_INTEGRITY,
       attempts: 2,

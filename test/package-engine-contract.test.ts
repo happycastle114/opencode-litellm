@@ -64,7 +64,7 @@ test('installs both packed packages with engine-strict and runs them on a suppor
       join(consumerRoot, 'node_modules', '@happycastle114', 'opencode-litellm', 'package.json'),
     )
     const wrapper = readJsonObject(
-      join(consumerRoot, 'node_modules', 'codex-litellm', 'package.json'),
+      join(consumerRoot, 'node_modules', '@happycastle114', 'codex-litellm', 'package.json'),
     )
     expect(core.engines).toEqual({ node: SUPPORTED_NODE_RANGE })
     expect(wrapper.engines).toEqual({ node: SUPPORTED_NODE_RANGE })
@@ -88,7 +88,7 @@ test('installs both packed packages with engine-strict and runs them on a suppor
 
     const wrapperHelp = spawnSync(
       'node',
-      [join(consumerRoot, 'node_modules', 'codex-litellm', 'bin', 'codex-litellm.mjs'), '--help'],
+      [join(consumerRoot, 'node_modules', '@happycastle114', 'codex-litellm', 'bin', 'codex-litellm.mjs'), '--help'],
       { cwd: consumerRoot, encoding: 'utf8', env: process.env },
     )
     expectCommandSucceeded(wrapperHelp, 'wrapper runtime')

@@ -16,6 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   handling for credentials, HTTP errors, malformed responses, network errors,
   and cancellation, plus Bun test coverage through `npm test`.
 
+### Changed
+- Distribution now publishes scoped `@happycastle114/opencode-litellm` and
+  `@happycastle114/codex-litellm` packages to GitHub Packages with the Actions
+  `GITHUB_TOKEN`; the release workflow verifies exact metadata and tarball
+  identity and keeps the full-SHA/tarball installation path available.
+- GitHub Packages consumer examples use an ephemeral npm config and
+  `NODE_AUTH_TOKEN`; no user-level npm credentials or Keychain state is needed.
+
 ## [0.5.0] — 2026-05-11
 
 ### Changed (BREAKING)

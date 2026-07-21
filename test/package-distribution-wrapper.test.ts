@@ -20,7 +20,7 @@ test('keeps the Codex wrapper pinned to the exact core version', () => {
   const wrapper = readJsonObject(wrapperManifestPath)
   const dependencies = wrapper.dependencies
 
-  expect(wrapper.name).toBe('codex-litellm')
+  expect(wrapper.name).toBe('@happycastle114/codex-litellm')
   expect(wrapper.bin).toEqual({ 'codex-litellm': './bin/codex-litellm.mjs' })
   expect(isRecord(dependencies)).toBe(true)
   if (!isRecord(dependencies) || typeof core.name !== 'string') return

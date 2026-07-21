@@ -283,11 +283,21 @@ atomically activates the revision-addressed directory. Existing active
 revisions are verified in place; failed staging is removed without replacing
 the active checkout.
 
+The release workflow publishes both scoped packages to the GitHub Packages npm
+registry at `https://npm.pkg.github.com` using the Actions `GITHUB_TOKEN`. The
+workflow grants only `contents: read` and `packages: write`, writes an
+ephemeral `NPM_CONFIG_USERCONFIG` file for the `@happycastle114` scope, and
+does not read Keychain credentials or a user-level npm configuration. GitHub's
+[Node.js package publishing guide](https://docs.github.com/en/actions/tutorials/publish-packages/publish-nodejs-packages)
+documents the `NODE_AUTH_TOKEN` and `npm.pkg.github.com` setup used here.
+
 | Package/bin | Manifest | Registry status at documentation time |
 |---|---|---|
-| `@happycastle114/opencode-litellm` / `opencode-litellm` and `codex-litellm` bins | Root `package.json`, version `0.6.0` | Release candidate; do not claim published |
-| `codex-litellm` / `codex-litellm` bin | `packages/codex-litellm/package.json`, exact core dependency `0.6.0` | Release candidate; do not claim published |
+| `@happycastle114/opencode-litellm` / `opencode-litellm` and `codex-litellm` bins | Root `package.json`, version `0.6.0`, GitHub Packages registry | Release path configured; workflow publishes after metadata and tarball readback |
+| `@happycastle114/codex-litellm` / `codex-litellm` bin | `packages/codex-litellm/package.json`, exact core dependency `0.6.0`, GitHub Packages registry | Release path configured; workflow publishes after the scoped core package |
 | Unscoped `opencode-litellm` | Not owned by this project | Blocked by an unrelated existing publisher |
 
-Until ownership and publication are verified, use the immutable GitHub checkout
-and locally packed tarballs shown in the README.
+For a deterministic source fallback, use the immutable GitHub checkout and
+locally packed tarballs shown in the README. For registry installs, use a
+temporary npm config with `NODE_AUTH_TOKEN` and the exact scoped package
+version; npm reads from GitHub Packages even when the package is public.

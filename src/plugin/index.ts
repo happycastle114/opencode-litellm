@@ -34,10 +34,10 @@ const DISCOVERY_TIMEOUT_MS = 5000
  * only reliable way to dynamically populate a provider — the
  * `provider.models` hook is not called by OpenCode for custom providers.
  *
+ * The plugin is installed and managed by the opencode-litellm installer.
  * Configure the provider in your `opencode.json`:
  *
  * {
- *   "plugin": ["opencode-plugin-litellm@latest"],
  *   "provider": {
  *     "litellm": {
  *       "npm": "@ai-sdk/openai-compatible",

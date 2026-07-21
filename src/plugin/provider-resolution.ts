@@ -74,12 +74,12 @@ export function readCustomHeaders(
 export async function resolveProvider(
   config: PublicPluginConfig,
 ): Promise<ProviderResolution> {
-  if (!config.provider) config.provider = {}
+  const providerConfig = isRecord(config.provider) ? config.provider : {}
+  if (config.provider !== providerConfig) config.provider = providerConfig
 
-  const existing = config.provider[CHAT_PROVIDER_ID] as
-    | Record<string, unknown>
-    | undefined
-  const options = (existing?.options ?? {}) as Record<string, unknown>
+  const existingValue = providerConfig[CHAT_PROVIDER_ID]
+  const existing = isRecord(existingValue) ? existingValue : undefined
+  const options = existing && isRecord(existing.options) ? existing.options : {}
   const configuredBase =
     typeof options.baseURL === 'string' ? options.baseURL : undefined
   const configuredCredentialDeclared = Object.prototype.hasOwnProperty.call(
@@ -120,7 +120,7 @@ export async function resolveProvider(
   if (!baseURL) return { kind: PROVIDER_RESOLUTION.Unavailable }
 
   if (!existing) {
-    config.provider[CHAT_PROVIDER_ID] = {
+    providerConfig[CHAT_PROVIDER_ID] = {
       npm: PROVIDER_NPM,
       name: 'LiteLLM (proxy)',
       options: { baseURL: `${baseURL}/v1` },
@@ -128,12 +128,24 @@ export async function resolveProvider(
     }
   }
 
-  const provider = config.provider[CHAT_PROVIDER_ID] as Record<string, unknown>
+  const providerValue = providerConfig[CHAT_PROVIDER_ID]
+  const provider = isRecord(providerValue)
+    ? providerValue
+    : {
+        npm: PROVIDER_NPM,
+        name: 'LiteLLM (proxy)',
+        options: { baseURL: `${baseURL}/v1` },
+        models: {},
+      }
+  if (providerValue !== provider) providerConfig[CHAT_PROVIDER_ID] = provider
   provider.npm = PROVIDER_NPM
-  if (!provider.options) provider.options = { baseURL: `${baseURL}/v1` }
-  const providerOptions = provider.options as Record<string, unknown>
+  const providerOptions = isRecord(provider.options)
+    ? provider.options
+    : { baseURL: `${baseURL}/v1` }
+  provider.options = providerOptions
   if (apiKey !== undefined) providerOptions.apiKey = apiKey
-  if (!provider.models) provider.models = {}
+  const models = isRecord(provider.models) ? provider.models : {}
+  provider.models = models
 
   return {
     kind: PROVIDER_RESOLUTION.Resolved,
@@ -142,7 +154,7 @@ export async function resolveProvider(
     apiKey,
     customHeaders,
     provider,
-    models: provider.models as Record<string, unknown>,
+    models,
   }
 }
 
@@ -154,4 +166,8 @@ export function toSearchEndpoint(
     apiKey: provider.apiKey,
     customHeaders: provider.customHeaders,
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

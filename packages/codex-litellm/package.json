@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
-  "name": "codex-litellm",
+  "name": "@happycastle114/codex-litellm",
   "version": "0.6.0",
   "description": "Codex-compatible command wrapper for the happycastle114 LiteLLM plugin",
   "type": "module",
@@ -12,6 +12,10 @@
     "README.md",
     "LICENSE"
   ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://npm.pkg.github.com"
+  },
   "engines": {
     "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
   },

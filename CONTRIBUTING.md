@@ -14,7 +14,7 @@ plugin:
   OpenCode and Codex, discovers LiteLLM models/search tools/MCP servers/toolsets,
   runs the documented LiteLLM SSO flow, manages the shared research skill, and
   launches OpenCode, Codex, or Claude Code with child-scoped credentials.
-- `codex-litellm` is the thin Codex-focused wrapper around the core CLI. It
+- `@happycastle114/codex-litellm` is the thin Codex-focused wrapper around the core CLI. It
   defaults onboarding to Codex while forwarding the shared command surface.
 
 Changes should preserve the managed-file safety, credential boundaries, and
@@ -77,68 +77,49 @@ versions, operating system, and sanitized logs where applicable.
 
 ## Maintainer release workflow
 
-The tagged-release workflow in
-[`.github/workflows/release.yml`](./.github/workflows/release.yml) validates that
-the tag, core package, Codex wrapper, and wrapper-to-core dependency all carry
-the same version. It runs the repository's `npm test` build/typecheck/test gate
-and then packs and installs both exact tarballs before any registry operation.
+The main-branch workflow in
+[`.github/workflows/release.yml`](./.github/workflows/release.yml) runs when a
+package manifest, wrapper executable, verifier, or the workflow itself changes;
+it also supports `workflow_dispatch`. It validates that the core package,
+scoped Codex wrapper, and exact wrapper-to-core dependency carry the same
+version, runs `npm test`, and packs both artifacts before any registry write.
 
-Registry publication is configured for npm Trusted Publishing with GitHub
-Actions OIDC (`id-token: write`) and provenance. It does not read an
-`NPM_TOKEN` repository secret. The workflow handles the core
-`@happycastle114/opencode-litellm` package and the `codex-litellm` wrapper as
-separate package artifacts, with registry/git-head checks to avoid reprocessing
-an already-associated tag. The preflight also compares each registry record's
-published `dist.integrity` with the exact tarball that is about to be published.
+Publication targets the GitHub Packages npm registry at
+`https://npm.pkg.github.com`. The job grants `contents: read` and
+`packages: write`, and passes the Actions `GITHUB_TOKEN` as `NODE_AUTH_TOKEN`.
+It creates a mode-0600 npm config in `$RUNNER_TEMP` with only the
+`@happycastle114` scope mapping and token reference. No Keychain lookup,
+`NPM_TOKEN`, or user-level npm config is used.
 
-### One-time bootstrap for empty npm records
+The workflow preflights each exact version and publishes only packages whose
+version is missing. Existing versions must match package name, version,
+`gitHead`, GitHub Packages tarball URL, and the SHA-512 integrity of the tested
+tarball; an identity mismatch fails instead of republishing an immutable
+version. The core tarball is published first, followed by the wrapper. The
+readback gate uses `npm view` and `npm pack` against GitHub Packages to verify
+metadata, downloaded tarball bytes, embedded package manifests, and the exact
+wrapper dependency. A clean consumer then installs the scoped wrapper through
+GitHub Packages and runs both shipped binaries.
 
-The public records for both packages are currently absent (npm returns E404),
-so the workflow intentionally stops with `Bootstrap required` before it can
-consume the final `0.6.0` version. npm versions are immutable after publication;
-do not publish `0.6.0` as a bootstrap and do not repoint the `latest` dist-tag.
-See npm's [publish documentation](https://docs.npmjs.com/cli/publish/) and
-[unpublish policy](https://docs.npmjs.com/policies/unpublish/) before starting.
+GitHub Packages requires npm authentication for reads even when a package is
+public. For a local consumer, use an ephemeral config and a classic PAT with
+`read:packages`:
 
-Use a temporary checkout or staging directories so the release checkout is
-restored to the final manifests afterward:
+```sh
+export NODE_AUTH_TOKEN='<GitHub classic PAT with read:packages>'
+export NPM_CONFIG_USERCONFIG="$(mktemp)"
+umask 077
+printf '%s\n' \
+  '@happycastle114:registry=https://npm.pkg.github.com' \
+  '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}' \
+  'always-auth=true' > "$NPM_CONFIG_USERCONFIG"
+npx --yes --package @happycastle114/opencode-litellm@0.6.0 opencode-litellm install
+npx --yes --package @happycastle114/codex-litellm@0.6.0 codex-litellm install
+rm -f "$NPM_CONFIG_USERCONFIG"
+```
 
-1. Set both package versions to `0.6.0-bootstrap.0` and temporarily set the
-   wrapper's exact core dependency to `0.6.0-bootstrap.0`. Build and pack the
-   core tarball first, then the wrapper tarball.
-2. Publish the core tarball first, followed by the wrapper, using a non-latest
-   tag:
-
-   ```sh
-   npm publish ./opencode-litellm-0.6.0-bootstrap.0.tgz --tag bootstrap --access public
-   npm publish ./codex-litellm-0.6.0-bootstrap.0.tgz --tag bootstrap --access public
-   ```
-
-3. Configure GitHub Trusted Publishers for each package from the repository
-   root. Run the exact commands below (once per package):
-
-   ```sh
-   npm trust github '@happycastle114/opencode-litellm' --file release.yml --repo happycastle114/opencode-litellm --allow-publish
-   npm trust github 'codex-litellm' --file release.yml --repo happycastle114/opencode-litellm --allow-publish
-   ```
-
-   These commands must identify the `release.yml` workflow in the
-   `happycastle114/opencode-litellm` repository. Review npm's
-   [Trusted Publishers guide](https://docs.npmjs.com/trusted-publishers/) and
-   [`npm trust` reference](https://docs.npmjs.com/cli/v12/commands/npm-trust/)
-   if the package owner or workflow path differs.
-4. Restore the final manifests to core `0.6.0`, wrapper `0.6.0`, and the exact
-   wrapper dependency `@happycastle114/opencode-litellm: 0.6.0`. Verify the
-   temporary bootstrap version is absent, run the normal tests, and only then
-   push the exact `v0.6.0` tag. The workflow trigger is deliberately limited to
-   that tag; it does not accept a generic `v*` tag.
-
-After the bootstrap and trust configuration, the `v0.6.0` run will find the
-existing package records, publish only missing exact tarballs, verify npm
-metadata and provenance, perform a clean consumer install, and create the GitHub
-release only when all checks succeed. npm's
-[provenance verification guidance](https://docs.npmjs.com/viewing-package-provenance/)
-describes the registry-side attestation that the readback gate checks.
+The direct full-SHA checkout and locally packed tarball path in the README
+remains available when registry access is not desired.
 
 CI and release workflow actions use reviewed, immutable 40-character commit
 pins with the corresponding upstream version in an inline comment. When an

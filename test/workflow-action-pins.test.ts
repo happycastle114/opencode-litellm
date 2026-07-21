@@ -16,7 +16,6 @@ const expectedActions = {
     ['actions/checkout', '3d3c42e5aac5ba805825da76410c181273ba90b1', 'v7.0.1'],
     ['actions/setup-node', '820762786026740c76f36085b0efc47a31fe5020', 'v7.0.0'],
     ['oven-sh/setup-bun', '0c5077e51419868618aeaa5fe8019c62421857d6', 'v2.2.0'],
-    ['softprops/action-gh-release', '3bb12739c298aeb8a4eeaf626c5b8d85266b0e65', 'v2.6.2'],
   ],
 } as const
 

@@ -1,6 +1,6 @@
-# codex-litellm
+# @happycastle114/codex-litellm
 
-`codex-litellm` is the thin Codex-focused wrapper for
+`@happycastle114/codex-litellm` is the thin Codex-focused wrapper for
 [`@happycastle114/opencode-litellm`](https://github.com/happycastle114/opencode-litellm).
 It forwards commands to the core CLI and makes `install` target Codex by
 default.
@@ -8,10 +8,23 @@ default.
 ## Usage
 
 ```bash
-npx codex-litellm install
-npx codex-litellm install --target both
-npx codex-litellm whoami
+export NODE_AUTH_TOKEN='<GitHub classic PAT with read:packages>'
+export NPM_CONFIG_USERCONFIG="$(mktemp)"
+umask 077
+printf '%s\n' \
+  '@happycastle114:registry=https://npm.pkg.github.com' \
+  '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}' \
+  'always-auth=true' > "$NPM_CONFIG_USERCONFIG"
+
+npx --yes --package @happycastle114/codex-litellm@0.6.0 codex-litellm install
+npx --yes --package @happycastle114/codex-litellm@0.6.0 codex-litellm install --target both
+npx --yes --package @happycastle114/codex-litellm@0.6.0 codex-litellm whoami
 ```
+
+GitHub Packages requires authentication for npm reads even when this public
+package is readable. The temporary `NPM_CONFIG_USERCONFIG` file keeps the
+token out of user-level npm configuration; remove it after use with
+`rm -f "$NPM_CONFIG_USERCONFIG"`.
 
 An explicit `--target` is preserved. Other commands and options are forwarded
 unchanged to the core package. Node.js

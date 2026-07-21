@@ -14,13 +14,26 @@ type WorkflowStep = {
 const workflowPath = join(import.meta.dir, '..', '.github', 'workflows', 'release.yml')
 const packagePath = join(import.meta.dir, '..', 'package.json')
 
-test('release workflow has a single guarded tarball publish path', () => {
+test('release workflow is a main-branch GitHub Packages path with manual dispatch', () => {
   const workflow = parse(readFileSync(workflowPath, 'utf8')) as {
-    on?: { push?: { tags?: unknown }; release?: unknown; workflow_dispatch?: unknown }
-    jobs?: { publish?: { steps?: WorkflowStep[] } }
+    on?: {
+      push?: { branches?: unknown; paths?: unknown }
+      workflow_dispatch?: unknown
+    }
+    jobs?: {
+      publish?: {
+        permissions?: Record<string, unknown>
+        env?: Record<string, unknown>
+        steps?: WorkflowStep[]
+      }
+    }
   }
-  const packageManifest = JSON.parse(readFileSync(packagePath, 'utf8')) as { version: string }
-  const steps = workflow.jobs?.publish?.steps ?? []
+  const packageManifest = JSON.parse(readFileSync(packagePath, 'utf8')) as {
+    version: string
+    publishConfig?: { registry?: string }
+  }
+  const job = workflow.jobs?.publish
+  const steps = job?.steps ?? []
   const stepsByName = new Map(
     steps
       .filter((step): step is WorkflowStep & { name: string } => typeof step.name === 'string')
@@ -32,62 +45,79 @@ test('release workflow has a single guarded tarball publish path', () => {
     return found as WorkflowStep
   }
   const indexOf = (name: string) => steps.findIndex((candidate) => candidate.name === name)
+  const workflowText = readFileSync(workflowPath, 'utf8')
 
-  expect(workflow.on?.push?.tags).toEqual([`v${packageManifest.version}`])
-  expect(Object.keys(workflow.on ?? {})).toEqual(['push'])
+  expect(workflow.on?.push?.branches).toEqual(['main'])
+  expect(workflow.on?.push?.paths).toEqual([
+    'package.json',
+    'package-lock.json',
+    'packages/codex-litellm/package.json',
+    'packages/codex-litellm/bin/**',
+    '.github/workflows/release.yml',
+    'scripts/verify-npm-release-metadata.mjs',
+  ])
+  expect(workflow.on?.workflow_dispatch).toBeDefined()
+  expect(job?.permissions).toEqual({ contents: 'read', packages: 'write' })
+  expect(job?.env?.NODE_AUTH_TOKEN).toContain('secrets.GITHUB_TOKEN')
+  expect(job?.env?.GITHUB_PACKAGES_REGISTRY).toBe('https://npm.pkg.github.com')
+  expect(packageManifest.publishConfig?.registry).toBe('https://npm.pkg.github.com')
+  expect(workflowText).not.toContain('id-token: write')
+  expect(workflowText).not.toContain('npm provenance')
+  expect(workflowText).not.toContain('Trusted Publishing')
 
-  const tagStep = step('Verify release tag and ancestry')
-  expect(String(tagStep.run)).toContain('git merge-base --is-ancestor "$GITHUB_SHA" origin/main')
+  const authStep = step('Configure ephemeral GitHub Packages npm auth')
+  expect(String(authStep.run)).toContain('NPM_CONFIG_USERCONFIG')
+  expect(String(authStep.run)).toContain('@happycastle114:registry=https://npm.pkg.github.com')
+  expect(String(authStep.run)).toContain('//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}')
 
-  const recordStep = step('Verify npm package records exist')
-  expect(recordStep.if).toBeUndefined()
-  expect(String(recordStep.run)).toContain('verify-npm-release-metadata.mjs record')
-  expect(String(recordStep.run)).toContain('Bootstrap required')
+  const metadataStep = step('Verify main revision and package metadata')
+  expect(String(metadataStep.run)).toContain('GITHUB_REF_NAME" == main')
+  expect(String(metadataStep.run)).toContain('GITHUB_SHA')
+  expect(String(metadataStep.run)).toContain('@happycastle114/codex-litellm')
 
   const packStep = step('Pack tested tarballs')
   expect(String(packStep.run)).toContain('manifest.gitHead = gitHead')
   step('Verify packed tarballs')
 
-  const preflightStep = step('Check pre-existing npm metadata')
+  const preflightStep = step('Check pre-existing GitHub Packages metadata')
   expect(preflightStep.id).toBe('registry')
   expect(String(preflightStep.run)).toContain('verify-npm-release-metadata.mjs preflight')
-  expect(String(preflightStep.run)).toContain('--integrity "$integrity"')
+  expect(String(preflightStep.run)).toContain('--registry "$GITHUB_PACKAGES_REGISTRY"')
   expect(String(preflightStep.run)).toContain('check_package core "$CORE_PACKAGE" "$CORE_INTEGRITY"')
   expect(String(preflightStep.run)).toContain('check_package wrapper "$WRAPPER_PACKAGE" "$WRAPPER_INTEGRITY"')
 
   const corePublish = step('Publish scoped core tarball')
   expect(corePublish.if).toBe("steps.registry.outputs.publish_core == 'true'")
-  expect(String(corePublish.run)).toContain('npm publish "$CORE_TARBALL" --ignore-scripts --provenance --access public')
+  expect(String(corePublish.run)).toContain('npm publish "$CORE_TARBALL"')
+  expect(String(corePublish.run)).toContain('--access public')
+  expect(String(corePublish.run)).toContain('--registry "$GITHUB_PACKAGES_REGISTRY"')
 
-  const wrapperPublish = step('Publish Codex wrapper tarball')
+  const wrapperPublish = step('Publish scoped Codex wrapper tarball')
   expect(wrapperPublish.if).toBe("steps.registry.outputs.publish_wrapper == 'true'")
-  expect(String(wrapperPublish.run)).toContain('npm publish "$WRAPPER_TARBALL" --ignore-scripts --provenance --access public')
+  expect(String(wrapperPublish.run)).toContain('npm publish "$WRAPPER_TARBALL"')
+  expect(String(wrapperPublish.run)).toContain('--access public')
+  expect(String(wrapperPublish.run)).toContain('--registry "$GITHUB_PACKAGES_REGISTRY"')
 
   const publishSteps = steps.filter((candidate) => typeof candidate.run === 'string' && candidate.run.includes('npm publish'))
   expect(publishSteps).toHaveLength(2)
 
-  const readbackStep = step('Verify published npm metadata')
+  const readbackStep = step('Verify published metadata and tarball identity')
   expect(String(readbackStep.run)).toContain('verify-npm-release-metadata.mjs readback')
-  expect(String(readbackStep.run)).toContain('--integrity "$CORE_INTEGRITY"')
-  expect(String(readbackStep.run)).toContain('--integrity "$WRAPPER_INTEGRITY"')
+  expect(String(readbackStep.run)).toContain('npm pack "$package_spec"')
+  expect(String(readbackStep.run)).toContain('actual_integrity')
+  expect(String(readbackStep.run)).toContain('package/package.json')
 
-  const consumerStep = step('Verify clean Codex consumer install')
-  expect(String(consumerStep.run)).toContain('npm install --ignore-scripts --no-audit --no-fund "$WRAPPER_PACKAGE"')
-  expect(String(consumerStep.run)).toContain('npm audit signatures')
-
-  const releaseStep = step('Create GitHub Release')
-  expect(String(releaseStep.uses)).toMatch(/^softprops\/action-gh-release@/)
-  expect(releaseStep.if).toBe('success()')
-  expect(steps.at(-1)).toBe(releaseStep)
+  const consumerStep = step('Verify clean GitHub Packages consumer install')
+  expect(String(consumerStep.run)).toContain('npm config get @happycastle114:registry')
+  expect(String(consumerStep.run)).toContain('npm install --ignore-scripts --no-audit --no-fund --package-lock=false "$WRAPPER_PACKAGE"')
+  expect(String(consumerStep.run)).toContain('node_modules/@happycastle114/codex-litellm/package.json')
 
   const orderedSteps = [
-    'Verify npm package records exist',
-    'Check pre-existing npm metadata',
+    'Check pre-existing GitHub Packages metadata',
     'Publish scoped core tarball',
-    'Publish Codex wrapper tarball',
-    'Verify published npm metadata',
-    'Verify clean Codex consumer install',
-    'Create GitHub Release',
+    'Publish scoped Codex wrapper tarball',
+    'Verify published metadata and tarball identity',
+    'Verify clean GitHub Packages consumer install',
   ].map(indexOf)
   expect(orderedSteps.every((index) => index >= 0)).toBe(true)
   expect(orderedSteps).toEqual([...orderedSteps].sort((left, right) => left - right))

@@ -8,8 +8,9 @@ implementation, so the installer does not require Python or the `lite` CLI.
 
 > Distribution names: the core package is
 > `@happycastle114/opencode-litellm`, and the convenience wrapper is
-> `codex-litellm`. The unscoped npm name `opencode-litellm` belongs to another
-> publisher and is not a distribution channel for this project.
+> `@happycastle114/codex-litellm` (which installs the `codex-litellm` binary).
+> The unscoped npm name `opencode-litellm` belongs to another publisher and is
+> not a distribution channel for this project.
 
 The source contracts and support boundary are recorded in
 [`docs/official-sources.md`](./docs/official-sources.md).
@@ -84,12 +85,12 @@ npm pack ./packages/codex-litellm --pack-destination "$TOOLKIT_PACK_DIR"
 ```
 
 The core package owns both `opencode-litellm` and `codex-litellm` binaries; the
-small `codex-litellm` package has an exact dependency on that same core
-version. Use the filenames printed by `npm pack`:
+small `@happycastle114/codex-litellm` package has an exact dependency on that
+same core version. Use the filenames printed by `npm pack`:
 
 ```bash
 export CORE_TGZ="$TOOLKIT_PACK_DIR/happycastle114-opencode-litellm-0.6.0.tgz"
-export CODEX_TGZ="$TOOLKIT_PACK_DIR/codex-litellm-0.6.0.tgz"
+export CODEX_TGZ="$TOOLKIT_PACK_DIR/happycastle114-codex-litellm-0.6.0.tgz"
 
 # Binary name defaults to the target; --target both configures both clients.
 npx --yes --package "$CORE_TGZ" opencode-litellm install
@@ -102,19 +103,33 @@ LITELLM_PROXY_API_KEY='<gateway-key>' \
 npx --yes --package "$CORE_TGZ" opencode-litellm install --non-interactive
 ```
 
-After publication is verified, the onboarding entry points are:
+## Install from GitHub Packages
+
+The release packages are published to GitHub Packages, not npmjs.org. GitHub
+Packages requires authentication for npm reads even when a package is public.
+Use an ephemeral npm config and an environment token; this does not touch a
+user-level `.npmrc`, Keychain, or a client config file:
 
 ```bash
-npx @happycastle114/opencode-litellm install
-npx codex-litellm install
+export TOOLKIT_VERSION='0.6.0'
+export NODE_AUTH_TOKEN='<GitHub classic PAT with read:packages>'
+export NPM_CONFIG_USERCONFIG="$(mktemp)"
+umask 077
+printf '%s\n' \
+  '@happycastle114:registry=https://npm.pkg.github.com' \
+  '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}' \
+  'always-auth=true' > "$NPM_CONFIG_USERCONFIG"
+
+# The package installs the opencode-litellm binary.
+npx --yes --package "@happycastle114/opencode-litellm@${TOOLKIT_VERSION}" opencode-litellm install
+
+# The wrapper installs the codex-litellm binary and its exact core dependency.
+npx --yes --package "@happycastle114/codex-litellm@${TOOLKIT_VERSION}" codex-litellm install
 ```
 
-Pin `0.6.0` when repeatability matters:
-
-```bash
-npx @happycastle114/opencode-litellm@0.6.0 install
-npx codex-litellm@0.6.0 install
-```
+Remove the temporary config after use with `rm -f "$NPM_CONFIG_USERCONFIG"`.
+Pin a full version as shown above; do not use an unversioned or `latest`
+selector for a release qualification.
 
 There is intentionally no safe published command for the occupied unscoped
 `opencode-litellm` name. A transfer or a new owned name is required before the

@@ -25,6 +25,10 @@ test('publishes both client-facing binary aliases from the core package', () => 
     if (typeof path !== 'string') return
     expect(existsSync(join(repositoryRoot, path))).toBe(true)
   }
+  expect(manifest.publishConfig).toEqual({
+    access: 'public',
+    registry: 'https://npm.pkg.github.com',
+  })
   expect(manifest.scripts).toMatchObject({ prepack: 'npm run build' })
 })
 
