@@ -113,19 +113,20 @@ function parseSearchResult(value: unknown): LiteLLMSearchResult {
     !isRecord(value) ||
     typeof value.title !== 'string' ||
     typeof value.url !== 'string' ||
-    typeof value.snippet !== 'string' ||
-    !isNullableString(value.date) ||
-    !isNullableString(value.last_updated)
+    typeof value.snippet !== 'string'
   ) {
     throw new LiteLLMSearchError('LiteLLM search returned a malformed response')
   }
+
+  const date = optionalNullableString(value.date)
+  const lastUpdated = optionalNullableString(value.last_updated)
 
   return {
     title: value.title,
     url: value.url,
     snippet: value.snippet,
-    date: value.date,
-    last_updated: value.last_updated,
+    date,
+    last_updated: lastUpdated,
   }
 }
 
@@ -133,6 +134,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function isNullableString(value: unknown): value is string | null {
-  return value === null || typeof value === 'string'
+function optionalNullableString(value: unknown): string | null {
+  if (value === undefined || value === null) return null
+  if (typeof value === 'string') return value
+  throw new LiteLLMSearchError('LiteLLM search returned a malformed response')
 }

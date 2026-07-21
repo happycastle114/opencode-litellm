@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test'
-import { resolveSearchApiKey } from '../src/search/client'
+import { resolveSearchApiKey, searchLiteLLM } from '../src/search/client'
+import { startServer } from './search-test-helpers'
 
 const originalKeys = {
   opencode: process.env.OPENCODE_LITELLM_API_KEY,
@@ -85,6 +86,41 @@ describe('LiteLLM search API key resolution', () => {
 
     // Then: arbitrary template syntax is not accepted as a bearer token
     expect(key).toBeUndefined()
+  })
+})
+
+describe('LiteLLM search response compatibility', () => {
+  test('normalizes omitted optional date fields to null', async () => {
+    const server = await startServer((_request, response) => {
+      response.writeHead(200, { 'content-type': 'application/json' })
+      response.end(JSON.stringify({
+        object: 'search',
+        results: [{
+          title: 'LiteLLM docs',
+          url: 'https://docs.litellm.ai/docs/search',
+          snippet: 'Official Search API documentation',
+        }],
+      }))
+    })
+
+    try {
+      const result = await searchLiteLLM({
+        endpoint: { baseURL: server.baseURL, apiKey: 'fixture-key' },
+        searchToolName: 'search',
+        request: { query: 'LiteLLM', max_results: 1 },
+        signal: new AbortController().signal,
+      })
+
+      expect(result.results).toEqual([{
+        title: 'LiteLLM docs',
+        url: 'https://docs.litellm.ai/docs/search',
+        snippet: 'Official Search API documentation',
+        date: null,
+        last_updated: null,
+      }])
+    } finally {
+      await server.close()
+    }
   })
 })
 
