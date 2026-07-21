@@ -62,14 +62,14 @@ describe('Codex managed configuration', () => {
     // When: Codex reads the managed MCP tables
     // Then: each toolset uses a stable safe ID, an encoded gateway path, and env-backed auth
     expect(servers.litellm_toolset_research_docs.url).toBe(
-      `${intent.baseUrl}/toolset/research%20docs/mcp`,
+      `${intent.baseUrl}/mcp/research%20docs`,
     )
     expect(servers.litellm_toolset_research_docs.bearer_token_env_var).toBe(intent.authEnv)
     expect(servers.litellm_toolset_team_alpha.url).toBe(
-      `${intent.baseUrl}/toolset/team%2Falpha/mcp`,
+      `${intent.baseUrl}/mcp/team%2Falpha`,
     )
     expect(servers.litellm_toolset_team_alpha_2.url).toBe(
-      `${intent.baseUrl}/toolset/team-alpha/mcp`,
+      `${intent.baseUrl}/mcp/team-alpha`,
     )
     expect(output).not.toContain('sk-')
   })
@@ -101,7 +101,7 @@ describe('Codex managed configuration', () => {
     expect(servers.litellm_research_docs.enabled).toBe(false)
     expect(servers.litellm_research_docs.bearer_token_env_var).toBe(intent.authEnv)
     expect(servers.litellm_toolset_research_docs.url).toBe(
-      `${intent.baseUrl}/toolset/research%20docs/mcp`,
+      `${intent.baseUrl}/mcp/research%20docs`,
     )
     expect(servers.litellm_toolset_research_docs.bearer_token_env_var).toBe(intent.authEnv)
     expect(twice).toBe(once)

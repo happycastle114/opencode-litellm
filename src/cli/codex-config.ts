@@ -1,5 +1,6 @@
 import { isAbsolute } from 'node:path'
 import { parse as parseToml } from 'smol-toml'
+import { mcpServerEndpoint, mcpToolsetEndpoint } from '../mcp/endpoints'
 
 const BLOCK_START = '# BEGIN opencode-litellm'
 const BLOCK_END = '# END opencode-litellm'
@@ -9,10 +10,6 @@ const MCP_SERVER_PREFIX = 'litellm_'
 const MCP_TOOLSET_PREFIX = 'litellm_toolset_'
 const LEGACY_PROVIDER_ID = 'litellm'
 const OAUTH_PROVIDER_PATH = '/codex-oauth'
-const MCP_PATH = {
-  Endpoint: 'mcp',
-  Toolset: 'toolset',
-} as const
 const HEADER_NAME = {
   LiteLLMApiKey: 'x-litellm-api-key',
 } as const
@@ -184,14 +181,14 @@ function renderMcpSections(
     .filter((name, index, names) => names.indexOf(name) === index)
     .map((name) => renderMcp(
       `${MCP_SERVER_PREFIX}${name.replaceAll('-', '_')}`,
-      `${origin}/${name}/${MCP_PATH.Endpoint}`,
+      mcpServerEndpoint(origin, name),
       authEnv,
       (intent.disableMcp ?? []).includes(name),
     ))
   const toolsetSections = uniqueToolsetEntries(intent.toolsets ?? [])
     .map(({ name, id }) => renderMcp(
       `${MCP_TOOLSET_PREFIX}${id}`,
-      `${origin}/${MCP_PATH.Toolset}/${encodeURIComponent(name)}/${MCP_PATH.Endpoint}`,
+      mcpToolsetEndpoint(origin, name),
       authEnv,
       false,
     ))

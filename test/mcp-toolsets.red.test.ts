@@ -89,7 +89,7 @@ describe('LiteLLM MCP toolset runtime registration', () => {
       'litellm-toolset-team-alpha-3',
     ])
     expect(config.mcp?.['litellm-toolset-team-alpha-2']?.url).toBe(
-      'https://litellm.example.com/toolset/team%20alpha/mcp',
+      'https://litellm.example.com/mcp/team%20alpha',
     )
     expect(JSON.stringify(config)).toBe(once)
   })
@@ -116,7 +116,7 @@ describe('LiteLLM MCP toolset runtime registration', () => {
     expect(Object.values(config.mcp ?? {})).toEqual(expect.arrayContaining([
       {
         type: 'remote',
-        url: `${baseURL}/toolset/research%2Fcore/mcp`,
+        url: `${baseURL}/mcp/research%2Fcore`,
         enabled: true,
         oauth: false,
         timeout: 15000,

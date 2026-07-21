@@ -1,6 +1,6 @@
 # Official sources and support matrix
 
-Checked on 2026-07-20. Runtime behavior is documented against the public
+Checked on 2026-07-21. Runtime behavior is documented against the public
 LiteLLM, OpenCode, and Codex interfaces below. GitHub source references use
 immutable commits where the implementation contract matters.
 
@@ -31,8 +31,8 @@ The official LiteLLM public references used by the installer are:
   `search_tools` discovery and `POST /v1/search/<name>`.
 - [Model discovery](https://docs.litellm.ai/docs/proxy/model_discovery), using
   authenticated `GET /v1/models`.
-- [MCP overview](https://docs.litellm.ai/docs/mcp), including namespaced
-  `/{server_name}/mcp` routes and key/team permissions.
+- [MCP overview](https://docs.litellm.ai/docs/mcp), including the current
+  fixed `/mcp` route, `x-mcp-servers` filtering, and key/team permissions.
 - [MCP toolsets](https://docs.litellm.ai/docs/mcp_toolsets), including
   `GET /v1/mcp/toolset` and the named toolset runtime route.
 - [MCP Tool Search](https://docs.litellm.ai/docs/mcp_tool_search) and [MCP
@@ -53,8 +53,8 @@ The installer authenticates once and concurrently requests these surfaces:
 |---|---|---|---|
 | Models | `GET /v1/models` (required) | Required; HTTP or schema failure stops install | OpenCode startup picker and Codex gateway catalog |
 | Search tools | `GET /search_tools/list` | Optional; unavailable/unsupported/invalid responses become warnings | OpenCode `searchTools` entries, with the first selected tool mapped to `websearch` |
-| MCP servers | `GET /v1/mcp/server` | Optional; unavailable/unsupported/invalid responses become warnings | Authorized `/<server_name>/mcp` remote entries |
-| MCP toolsets | `GET /v1/mcp/toolset` | Optional; 404/405 and other failures become warnings | Authorized `/toolset/<url-encoded-name>/mcp` remote entries |
+| MCP servers | `GET /v1/mcp/server` | Optional; unavailable/unsupported/invalid responses become warnings | Authorized `/<server_name>/mcp` compatibility entries for the pinned deployment |
+| MCP toolsets | `GET /v1/mcp/toolset` | Optional; 404/405 and other failures become warnings | Authorized official `/mcp/<url-encoded-name>` entries |
 
 The current gateway key is the source of truth for visibility. Empty resource
 filters select all visible rows; explicit `--search`, `--mcp`, `--toolset`, and
@@ -63,7 +63,9 @@ hard-code a search provider or MCP server name.
 
 OpenCode search tools call the documented
 `POST /v1/search/<search_tool_name>` shape with `query`, `max_results`, and
-`search_domain_filter`. MCP and toolset entries carry an environment-backed
+`search_domain_filter`. The discovery-only `GET /search_tools/list` and
+`GET /v1/mcp/server` endpoints are pinned-deployment compatibility contracts,
+not universal public client APIs. MCP and toolset entries carry an environment-backed
 Bearer reference at runtime; literal keys are rejected rather than written to
 JSON or TOML.
 

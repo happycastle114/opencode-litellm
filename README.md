@@ -170,8 +170,8 @@ optional tool surfaces concurrently:
 |---|---|---|
 | Models | `GET /v1/models` (required) | OpenCode picker at startup; Codex JSON catalog |
 | Search tools | `GET /search_tools/list` | OpenCode plugin `searchTools`; first selected tool is exposed as `websearch`, additional tools retain their names |
-| MCP servers | `GET /v1/mcp/server` | `/<server_name>/mcp` remote entries |
-| MCP toolsets | `GET /v1/mcp/toolset` | `/toolset/<url-encoded-toolset-name>/mcp` remote entries |
+| MCP servers | `GET /v1/mcp/server` | Deployed-gateway-compatible `/<server_name>/mcp` remote entries |
+| MCP toolsets | `GET /v1/mcp/toolset` | Official `/mcp/<url-encoded-toolset-name>` remote entries |
 
 Empty `--search`, `--mcp`, or `--toolset` lists select every resource returned
 for the current key. Restrict or disable surfaces with:

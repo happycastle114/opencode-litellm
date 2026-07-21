@@ -1,4 +1,5 @@
 import type { Config } from '@opencode-ai/plugin'
+import { mcpServerEndpoint, mcpToolsetEndpoint } from './endpoints'
 import type { McpDiscoveryOptions } from './options'
 
 const MCP_ENTRY_PREFIX = {
@@ -38,7 +39,7 @@ export function mergeDiscoveredMcpServers(input: McpMergeInput): number {
     if (existing[key] !== undefined) continue
     existing[key] = {
       type: 'remote',
-      url: `${input.baseURL}/${serverName}/mcp`,
+      url: mcpServerEndpoint(input.baseURL, serverName),
       enabled: enabledOverrides.get(serverName) ?? true,
       oauth: false,
       timeout: input.options.requestTimeoutMs,
@@ -50,7 +51,7 @@ export function mergeDiscoveredMcpServers(input: McpMergeInput): number {
     if (existing[key] !== undefined) continue
     existing[key] = {
       type: 'remote',
-      url: `${input.baseURL}/toolset/${encodeURIComponent(toolsetName)}/mcp`,
+      url: mcpToolsetEndpoint(input.baseURL, toolsetName),
       enabled: true,
       oauth: false,
       timeout: input.options.requestTimeoutMs,
