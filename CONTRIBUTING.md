@@ -24,10 +24,9 @@ the affected package or target.
 
 ## Development setup
 
-Use Node.js `^22.22.2 || ^24.15.0 || >=26.0.0`, npm, and git. Source builds and
-tests also require Bun
-`1.3.14`, the pinned version used by CI and the release workflow. Do not rely on
-an unpinned Bun version for a passing report.
+Use Node.js `^22.22.2 || ^24.15.0 || >=26.0.0`, npm, and git. `npm ci`
+installs the pinned Bun `1.3.14` build/test runtime from `devDependencies`, so
+source builds and tests do not rely on a global or unpinned Bun version.
 
 ```bash
 git clone https://github.com/happycastle114/opencode-litellm.git
@@ -48,6 +47,7 @@ npm ci
 npm test                         # builds, then runs the Bun test suite
 npm run build
 npm run typecheck
+npm run test:git-install
 npm pack --dry-run --ignore-scripts
 (cd packages/codex-litellm && npm pack --dry-run --ignore-scripts)
 ```
@@ -57,6 +57,12 @@ CLI must leave both the core package and the Codex wrapper packable. Include the
 commands and any relevant client-target scenario in the pull request when a
 change touches onboarding, SSO, discovery, skills, or launch environment
 handling.
+
+`test:git-install` is a real fixed-SHA consumer test. It runs both `npx`
+aliases from empty consumers and separate empty npm caches before the ordinary
+install path, then checks the linked bins using the exact toolkit help
+signature. CI runs this gate on Ubuntu and Windows; do not replace it with a
+substring check or a global Bun installation.
 
 ## Pull requests
 

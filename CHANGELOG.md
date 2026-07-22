@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- GitHub full-SHA installs now run npm's `prepare` lifecycle to build the
+  ignored `dist/` tree before npm links the `opencode-litellm` and
+  `codex-litellm` binaries. The lifecycle build now uses Node process/file
+  boundaries and the exact local Bun 1.3.14 package, so Windows npm installs
+  are covered without POSIX redirection or shell `chmod`. Added an isolated
+  empty-cache Git-spec consumer check for both direct `npx` aliases and linked
+  bins with an exact toolkit-help signature. The check now uses a minimal
+  credential-free environment, sanitizes credential-bearing proxy URLs, and
+  forces npm's effective global config to an empty temporary file.
+
 ## [0.7.0] — 2026-07-21
 
 ### Added

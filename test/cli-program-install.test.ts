@@ -9,7 +9,7 @@ import {
   AutoRouterPlatform,
   type AutoRouterBoundary,
 } from '../src/cli/auto-router'
-import { DISCOVERY, setupProgramHome } from './cli-program-test-support'
+import { bundledCodexCatalogBoundary, DISCOVERY, setupProgramHome } from './cli-program-test-support'
 
 let dir = ''
 setupProgramHome('opencode-litellm-program-install-', (path) => { dir = path })
@@ -288,13 +288,22 @@ describe('CLI program', () => {
       'install', '--target', 'opencode', '--base-url', originA, '--auth', 'sso',
       '--auth-env', 'SSO_GATEWAY_KEY', '--opencode-config', openCodePath,
       '--no-search', '--no-mcp', '--no-toolsets', '--non-interactive',
-    ], { env: { HOME: dir }, now: () => new Date(0), gatewayDiscovery: async () => DISCOVERY })
+    ], {
+      env: { HOME: dir },
+      now: () => new Date(0),
+      gatewayDiscovery: async () => DISCOVERY,
+    })
     writeFileSync(tokenPath, JSON.stringify({ base_url: originB, key: secretB }))
     const codexInstall = await runCliProgram([
       'install', '--target', 'codex', '--base-url', originB, '--auth', 'sso',
       '--auth-env', 'SSO_GATEWAY_KEY', '--codex-mode', 'gateway', '--codex-config', codexPath,
       '--no-search', '--no-mcp', '--no-toolsets', '--non-interactive',
-    ], { env: { HOME: dir }, now: () => new Date(0), gatewayDiscovery: async () => DISCOVERY })
+    ], {
+      env: { HOME: dir },
+      now: () => new Date(0),
+      gatewayDiscovery: async () => DISCOVERY,
+      codexSpawnBoundary: bundledCodexCatalogBoundary(),
+    })
     const launchState = JSON.parse(readFileSync(join(dir, '.config', 'opencode-litellm', 'launch.json'), 'utf8')) as {
       readonly openCode?: unknown
       readonly codex?: { readonly gatewayOrigin?: string; readonly auth?: string }
