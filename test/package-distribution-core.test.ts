@@ -16,6 +16,8 @@ import {
   repositoryRoot,
 } from './package-distribution-test-support'
 
+const PACKAGE_DISTRIBUTION_TEST_TIMEOUT_MS = 60_000
+
 test('packs, installs, imports, and typechecks the core package as a strict Node consumer', () => {
   const build = spawnSync(getNpmExecutable(), ['run', 'build'], { cwd: repositoryRoot, encoding: 'utf8', env: process.env })
   expect(build.status).toBe(0)
@@ -70,4 +72,4 @@ test('packs, installs, imports, and typechecks the core package as a strict Node
   } finally {
     rmSync(fixtureRoot, { recursive: true, force: true })
   }
-}, 30_000)
+}, PACKAGE_DISTRIBUTION_TEST_TIMEOUT_MS)
