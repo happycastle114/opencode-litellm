@@ -60,7 +60,6 @@ export function buildCodexCatalog(
         supported_in_api: true,
         additional_speed_tiers: [],
         service_tiers: [],
-        default_service_tier: null,
         availability_nux: null,
         upgrade: null,
         input_modalities: isQwenPreview
@@ -68,7 +67,8 @@ export function buildCodexCatalog(
           : [CATALOG_INPUT_MODALITY.Text],
         supports_image_detail_original: false,
         supported_reasoning_levels: [],
-        supports_reasoning_summaries: false,
+        supports_reasoning_summaries: undefined,
+        default_service_tier: undefined,
         supports_parallel_tool_calls: false,
         supports_search_tool: false,
         support_verbosity: false,

@@ -3,6 +3,7 @@ import { dirname, isAbsolute, join } from 'node:path'
 import { parse as parseJsonc, type ParseError } from 'jsonc-parser'
 import { parse as parseToml } from 'smol-toml'
 import { CodexProviderId } from './codex-config'
+import { missingBundledCodexOAuthModels } from './codex-discovery'
 import { isManagedOpenCodePluginSpec } from './managed-plugin'
 import { version as CURRENT_PACKAGE_VERSION } from '../version'
 
@@ -69,7 +70,7 @@ export function inspectCodexConfig(path: string, options: CodexDoctorOptions = {
   const checks: DoctorCheck[] = [
     check(CodexDoctorCheckCode.Syntax, 'ok', 'Codex config is valid TOML', path),
     oauthMain ? checkOAuthAuth(config, path) : checkBaseAuth(config, path),
-    checkCatalog(config, path, CodexDoctorCheckCode.BaseCatalog),
+    checkCatalog(config, path, CodexDoctorCheckCode.BaseCatalog, oauthMain),
   ]
   if (config.model_provider === CodexProviderId.GatewaySso) checks.splice(2, 0, checkHelper(config, path, options))
   const profilePath = options.oauthProfilePath ?? join(dirname(path), CODEX_FILE.OAuthProfile)
@@ -88,7 +89,7 @@ export function inspectCodexConfig(path: string, options: CodexDoctorOptions = {
   checks.push(
     check(CodexDoctorCheckCode.OAuthSyntax, 'ok', 'Codex OAuth profile is valid TOML', profilePath),
     checkOAuthAuth(profile, profilePath),
-    checkCatalog(profile, profilePath, CodexDoctorCheckCode.OAuthCatalog),
+    checkCatalog(profile, profilePath, CodexDoctorCheckCode.OAuthCatalog, true),
     checkSecrets(config, profile, path),
   )
   return report(path, checks)
@@ -142,7 +143,12 @@ function checkOAuthAuth(profile: Record<string, unknown>, path: string): DoctorC
     : check(CodexDoctorCheckCode.OAuthAuth, 'error', 'Codex OAuth config auth sources are invalid or not exclusive', path)
 }
 
-function checkCatalog(config: Record<string, unknown>, ownerPath: string, code: string): DoctorCheck {
+function checkCatalog(
+  config: Record<string, unknown>,
+  ownerPath: string,
+  code: string,
+  requireOAuthModels: boolean,
+): DoctorCheck {
   const path = config.model_catalog_json
   if (typeof path !== 'string') return check(code, 'error', 'Codex model catalog path is missing', ownerPath)
   const source = readSource(path)
@@ -151,6 +157,15 @@ function checkCatalog(config: Record<string, unknown>, ownerPath: string, code: 
   const slugs = models.flatMap((model) => isRecord(model) && typeof model.slug === 'string' ? [model.slug] : [])
   const selected = config.model
   const validSelection = selected === undefined || typeof selected === 'string' && slugs.includes(selected)
+  const missingOAuthModels = requireOAuthModels ? missingBundledCodexOAuthModels(models) : []
+  if (missingOAuthModels.length > 0) {
+    return check(
+      code,
+      'error',
+      `Codex OAuth model catalog is missing required picker models: ${missingOAuthModels.join(', ')}`,
+      path,
+    )
+  }
   return slugs.length > 0 && validSelection
     ? check(code, 'ok', 'Codex model catalog is readable and contains the selected model', path)
     : check(code, 'error', 'Codex model catalog is missing, malformed, or does not contain the selected model', path)

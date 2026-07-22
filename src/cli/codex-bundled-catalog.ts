@@ -8,6 +8,12 @@ const CATALOG_FIELD = {
 const CATALOG_VALUE = { Listed: 'list' } as const
 const CODEX_COMMAND = { File: 'codex', Debug: 'debug', Models: 'models', Bundled: '--bundled' } as const
 
+const REQUIRED_OAUTH_MODEL_SLUGS = [
+  'gpt-5.6-sol',
+  'gpt-5.6-terra',
+  'gpt-5.6-luna',
+] as const
+
 export type CodexSpawnResult = {
   readonly status?: number | null
   readonly exitCode?: number | null
@@ -71,6 +77,37 @@ export function readBundledCodexCatalog(
   const defaultModel = template[CATALOG_FIELD.Slug]
   if (typeof defaultModel !== 'string') throw invalidCatalog()
   return { json: normalized, defaultModel, template }
+}
+
+export function assertBundledCodexOAuthCatalog(catalog: BundledCodexCatalog): void {
+  const missing = missingBundledCodexOAuthModels(readCatalogModels(catalog.json))
+  if (missing.length === 0) return
+  throw new CodexCatalogError(
+    `Codex bundled model catalog is missing required OAuth picker models: ${missing.join(', ')}. ` +
+    'Upgrade Codex CLI to 0.144.0 or newer and retry.',
+  )
+}
+
+function readCatalogModels(source: string): readonly unknown[] {
+  try {
+    const payload: unknown = JSON.parse(source)
+    if (!isRecord(payload)) return []
+    const models = payload[CATALOG_FIELD.Models]
+    return Array.isArray(models) ? models : []
+  } catch {
+    return []
+  }
+}
+
+export function missingBundledCodexOAuthModels(models: readonly unknown[]): readonly string[] {
+  const compatibleSlugs = new Set(models.filter(isRecord).filter((model) =>
+    model[CATALOG_FIELD.Visibility] === CATALOG_VALUE.Listed &&
+    model[CATALOG_FIELD.SupportedInApi] === true &&
+    hasPromptTemplate(model),
+  ).map((model) => model[CATALOG_FIELD.Slug]).filter((slug): slug is string =>
+    typeof slug === 'string',
+  ))
+  return REQUIRED_OAUTH_MODEL_SLUGS.filter((slug) => !compatibleSlugs.has(slug))
 }
 
 function readBundledModels(payload: unknown): readonly Readonly<Record<string, unknown>>[] {

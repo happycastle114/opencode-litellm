@@ -12,8 +12,10 @@ const PROVIDER = {
 
 const MODEL = {
   Gateway: 'coding-fast',
-  OAuth: 'gpt-test',
+  OAuth: 'gpt-5.6-sol',
 } as const
+
+const OAUTH_MODELS = ['gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna'] as const
 
 let root: string
 let configPath: string
@@ -146,6 +148,22 @@ command = ${JSON.stringify(helperPath)}
     expect(findCheck(report, CodexDoctorCheckCode.BaseCatalog).status).toBe('error')
   })
 
+  test('rejects an OAuth catalog that omits a required picker model', () => {
+    const incomplete = JSON.parse(catalog(MODEL.OAuth))
+    incomplete.models = incomplete.models.filter(
+      (model: { readonly slug: string }) => model.slug !== 'gpt-5.6-terra',
+    )
+    writeFileSync(oauthCatalogPath, `${JSON.stringify(incomplete, null, 2)}\n`)
+
+    const report = inspectCodexConfig(configPath)
+
+    expect(report.status).toBe('error')
+    expect(findCheck(report, CodexDoctorCheckCode.OAuthCatalog)).toMatchObject({
+      status: 'error',
+      message: expect.stringContaining('gpt-5.6-terra'),
+    })
+  })
+
   test('rejects malformed profile TOML and catalog JSON without throwing', () => {
     writeFileSync(profilePath, '[model_providers.')
     writeFileSync(baseCatalogPath, '{"models":[')
@@ -217,7 +235,16 @@ env_http_headers = { "x-litellm-api-key" = "LITELLM_PROXY_API_KEY" }
 }
 
 function catalog(model: string): string {
-  return `${JSON.stringify({ models: [{ slug: model, visibility: 'list' }] }, null, 2)}\n`
+  const slugs = model === MODEL.OAuth ? OAUTH_MODELS : [model]
+  return `${JSON.stringify({
+    models: slugs.map((slug) => ({
+      slug,
+      visibility: 'list',
+      supported_in_api: true,
+      base_instructions: `fixture-base-${slug}`,
+      model_messages: { instructions_template: `fixture-template-${slug}` },
+    })),
+  }, null, 2)}\n`
 }
 
 function findCheck(

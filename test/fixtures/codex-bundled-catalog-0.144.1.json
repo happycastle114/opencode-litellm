@@ -1,8 +1,8 @@
 {
   "models": [
     {
-      "slug": "gpt-template-current",
-      "display_name": "Current template",
+      "slug": "gpt-5.6-sol",
+      "display_name": "GPT-5.6-Sol",
       "description": "Synthetic Codex 0.144.1 fixture row.",
       "default_reasoning_level": "low",
       "supported_reasoning_levels": [{ "effort": "low", "description": "Fixture low effort" }],
@@ -49,15 +49,15 @@
       "multi_agent_version": "v2"
     },
     {
-      "slug": "gpt-template-legacy",
-      "display_name": "Legacy template",
+      "slug": "gpt-5.6-terra",
+      "display_name": "GPT-5.6-Terra",
       "description": "Synthetic non-default fixture row.",
       "default_reasoning_level": "medium",
       "supported_reasoning_levels": [],
       "shell_type": "shell_command",
       "visibility": "list",
       "supported_in_api": true,
-      "priority": 29,
+      "priority": 2,
       "additional_speed_tiers": [],
       "service_tiers": [],
       "availability_nux": null,
@@ -85,6 +85,18 @@
       "input_modalities": ["text"],
       "supports_search_tool": false,
       "use_responses_lite": false
+    },
+    {
+      "slug": "gpt-5.6-luna",
+      "display_name": "GPT-5.6-Luna",
+      "description": "Synthetic required OAuth fixture row.",
+      "visibility": "list",
+      "supported_in_api": true,
+      "priority": 3,
+      "base_instructions": "fixture-luna-base-instructions",
+      "model_messages": {
+        "instructions_template": "fixture-luna-instructions-template"
+      }
     },
     {
       "slug": "codex-auto-review",
