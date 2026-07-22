@@ -7,7 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1] — 2026-07-22
+
 ### Fixed
+- Codex OAuth and combined installs now fail before writing when the installed
+  bundled catalog does not expose `gpt-5.6-sol`, `gpt-5.6-terra`, and
+  `gpt-5.6-luna` as listed, API-supported models with complete prompt
+  templates. `doctor` enforces the same contract, and the installed Codex
+  parser now round-trips both generated gateway catalogs and exact OAuth
+  catalogs in isolated regression coverage.
+- Generated gateway catalogs no longer emit the obsolete
+  `default_service_tier` and `supports_reasoning_summaries` fields that Codex
+  0.145.0 discards while parsing.
 - GitHub full-SHA installs now run npm's `prepare` lifecycle to build the
   ignored `dist/` tree before npm links the `opencode-litellm` and
   `codex-litellm` binaries. The lifecycle build now uses Node process/file

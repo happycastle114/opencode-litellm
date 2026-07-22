@@ -19,6 +19,7 @@ import {
   renderCodexOAuthConfig,
 } from './codex-config'
 import {
+  assertBundledCodexOAuthCatalog,
   readBundledCodexCatalog,
   type BundledCodexCatalog,
   type CodexSpawnBoundary,
@@ -93,6 +94,7 @@ export function prepareCodexInstall(
     }
     case CodexMode.OAuth: {
       const bundled = loadBundledCatalog(boundary)
+      assertBundledCodexOAuthCatalog(bundled)
       const configSource = readCodexSource(paths.config)
       const output = renderCodexOAuthConfig(
         configSource.contents,
@@ -111,6 +113,7 @@ export function prepareCodexInstall(
     }
     case CodexMode.Both: {
       const bundled = loadBundledCatalog(boundary)
+      assertBundledCodexOAuthCatalog(bundled)
       const gatewayCatalog = buildCodexCatalog(prepared.discovery.models, bundled.template)
       const configSource = readCodexSource(paths.config)
       const profileSource = readCodexSource(paths.oauthProfile)

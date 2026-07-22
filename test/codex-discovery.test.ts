@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import {
+  assertBundledCodexOAuthCatalog,
   CodexDiscoveryError,
   discoverCodexGatewayResources,
   readBundledCodexCatalog,
@@ -251,6 +252,32 @@ describe('Bundled Codex catalog discovery', () => {
     expect(result.template.base_instructions).toBe(source.models[0].base_instructions)
     expect(result.template.model_messages).toEqual(source.models[0].model_messages)
     expect(result.template.comp_hash).toBe(source.models[0].comp_hash)
+    expect(() => assertBundledCodexOAuthCatalog(result)).not.toThrow()
+  })
+
+  test('rejects OAuth picker catalogs that omit required current models', () => {
+    const boundary: CodexSpawnBoundary = {
+      spawn: () => ({
+        status: 0,
+        stdout: JSON.stringify({
+          models: [{
+            slug: 'gpt-5.5',
+            visibility: 'list',
+            supported_in_api: true,
+            priority: 1,
+            base_instructions: 'fixture-base',
+            model_messages: { instructions_template: 'fixture-template' },
+          }],
+        }),
+        stderr: '',
+      }),
+    }
+
+    const catalog = readBundledCodexCatalog(boundary)
+
+    expect(() => assertBundledCodexOAuthCatalog(catalog)).toThrow(
+      /gpt-5\.6-sol.*gpt-5\.6-terra.*gpt-5\.6-luna.*0\.144\.0/i,
+    )
   })
 
   test('rejects missing Codex and invalid or empty stdout without leaking details', () => {

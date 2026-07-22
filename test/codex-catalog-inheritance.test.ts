@@ -66,6 +66,33 @@ describe('Codex install catalog inheritance', () => {
       expect(asset.contents).toBe(bundledCatalog.json)
     },
   )
+
+  test.each([CodexMode.OAuth, CodexMode.Both])(
+    'fails %s planning before writes when the installed Codex catalog is too old',
+    (codexMode) => {
+      const outdated = readBundledCodexCatalog({
+        spawn: () => ({
+          status: 0,
+          stdout: JSON.stringify({
+            models: [{
+              slug: 'gpt-5.5',
+              visibility: 'list',
+              supported_in_api: true,
+              priority: 1,
+              base_instructions: 'fixture-base',
+              model_messages: { instructions_template: 'fixture-template' },
+            }],
+          }),
+          stderr: '',
+        }),
+      })
+
+      expect(() => prepareCodexInstall(preparedInstall(codexMode), {
+        env: { HOME: HOME_DIRECTORY },
+        bundledCodexCatalog: () => outdated,
+      }, HOME_DIRECTORY)).toThrow(/upgrade codex cli/i)
+    },
+  )
 })
 
 function preparedInstall(codexMode: CodexMode): PreparedInstall {

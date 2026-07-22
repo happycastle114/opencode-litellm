@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "@happycastle114/codex-litellm",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Codex-compatible command wrapper for the happycastle114 LiteLLM plugin",
   "type": "module",
   "bin": {
@@ -29,6 +29,6 @@
   },
   "homepage": "https://github.com/happycastle114/opencode-litellm#readme",
   "dependencies": {
-    "@happycastle114/opencode-litellm": "0.7.0"
+    "@happycastle114/opencode-litellm": "0.7.1"
   }
 }

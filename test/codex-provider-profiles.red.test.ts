@@ -117,7 +117,7 @@ describe('Codex model catalog', () => {
     expect(model.visibility).toBe('list')
     expect(model.supported_in_api).toBe(true)
     expect(model.supported_reasoning_levels).toEqual([])
-    expect(model.supports_reasoning_summaries).toBe(false)
+    expect(model).not.toHaveProperty('supports_reasoning_summaries')
     expect(model.supports_reasoning_summary_parameter).toBeUndefined()
     expect(model.supports_parallel_tool_calls).toBe(false)
     expect(model.input_modalities).toEqual(['text'])

@@ -106,8 +106,8 @@ small `@happycastle114/codex-litellm` package has an exact dependency on that
 same core version. Use the filenames printed by `npm pack`:
 
 ```bash
-export CORE_TGZ="$TOOLKIT_PACK_DIR/happycastle114-opencode-litellm-0.7.0.tgz"
-export CODEX_TGZ="$TOOLKIT_PACK_DIR/happycastle114-codex-litellm-0.7.0.tgz"
+export CORE_TGZ="$TOOLKIT_PACK_DIR/happycastle114-opencode-litellm-0.7.1.tgz"
+export CODEX_TGZ="$TOOLKIT_PACK_DIR/happycastle114-codex-litellm-0.7.1.tgz"
 
 # Binary name defaults to the target; --target both configures both clients.
 npx --yes --package "$CORE_TGZ" opencode-litellm install
@@ -145,7 +145,7 @@ Use an ephemeral npm config and an environment token; this does not touch a
 user-level `.npmrc`, Keychain, or a client config file:
 
 ```bash
-export TOOLKIT_VERSION='0.7.0'
+export TOOLKIT_VERSION='0.7.1'
 export NODE_AUTH_TOKEN='<GitHub classic PAT with read:packages>'
 export NPM_CONFIG_USERCONFIG="$(mktemp)"
 umask 077
@@ -339,6 +339,12 @@ Choose one with `--codex-mode gateway|oauth|both` (the default is `both`):
 | `gateway` | `~/.codex/config.toml` uses `litellm-gateway-sso` and the command auth helper | Retired | `~/.codex/litellm-models.json` from authenticated `GET /v1/models` |
 | `oauth` | `~/.codex/config.toml` uses `litellm-codex-oauth` | Retired | `~/.codex/litellm-codex-oauth-models.json` from `codex debug models --bundled` |
 | `both` | Main config uses gateway SSO | `~/.codex/codex-oauth.config.toml` | Both catalogs are kept |
+
+`oauth` and `both` preflight the installed Codex bundled catalog before any
+write. The catalog must expose `gpt-5.6-sol`, `gpt-5.6-terra`, and
+`gpt-5.6-luna` as listed, API-supported models with complete prompt templates;
+Codex 0.144.0 or newer is required. An older or incomplete catalog stops the
+install instead of producing an OAuth picker with silently missing models.
 
 The OAuth provider uses `base_url = <gateway>/codex-oauth`,
 `wire_api = "responses"`, `requires_openai_auth = true`,

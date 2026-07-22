@@ -16,10 +16,10 @@ printf '%s\n' \
   '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}' \
   'always-auth=true' > "$NPM_CONFIG_USERCONFIG"
 
-npx --yes --package @happycastle114/codex-litellm@0.7.0 codex-litellm install
-npx --yes --package @happycastle114/codex-litellm@0.7.0 codex-litellm install --target both
-npx --yes --package @happycastle114/codex-litellm@0.7.0 codex-litellm install --auto-router configure
-npx --yes --package @happycastle114/codex-litellm@0.7.0 codex-litellm whoami
+npx --yes --package @happycastle114/codex-litellm@0.7.1 codex-litellm install
+npx --yes --package @happycastle114/codex-litellm@0.7.1 codex-litellm install --target both
+npx --yes --package @happycastle114/codex-litellm@0.7.1 codex-litellm install --auto-router configure
+npx --yes --package @happycastle114/codex-litellm@0.7.1 codex-litellm whoami
 ```
 
 The bare `install` command starts an interactive Codex onboarding flow. It

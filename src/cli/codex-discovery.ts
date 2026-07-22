@@ -6,7 +6,9 @@ export {
   type CodexGatewayDiscoveryResult,
 } from './codex-gateway-discovery'
 export {
+  assertBundledCodexOAuthCatalog,
   CodexCatalogError,
+  missingBundledCodexOAuthModels,
   readBundledCodexCatalog,
   type BundledCodexCatalog,
   type CodexModelTemplate,
