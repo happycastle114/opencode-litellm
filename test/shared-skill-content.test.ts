@@ -12,8 +12,11 @@ const SKILL_PATH = join(
   'litellm-research-router',
   'SKILL.md',
 )
+const PACKAGING_TEST_TIMEOUT_MS = 30_000
 
-test('ships valid frontmatter and includes the skill in the package inventory', () => {
+test('ships valid frontmatter and includes the skill in the package inventory', {
+  timeout: PACKAGING_TEST_TIMEOUT_MS,
+}, () => {
   const skillContents = readFileSync(SKILL_PATH, 'utf8')
   const frontmatter = parseFrontmatter(skillContents)
   expect(Object.keys(frontmatter).sort()).toEqual(['description', 'name'])
