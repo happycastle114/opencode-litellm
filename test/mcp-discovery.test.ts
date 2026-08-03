@@ -3,6 +3,7 @@ import type { Config } from '@opencode-ai/plugin'
 import type { ServerResponse } from 'node:http'
 import { LiteLLMPlugin } from '../src/index'
 import { parseMcpServersResponse } from '../src/mcp/client'
+import { discoveryTimeoutMs } from '../src/plugin/index'
 import { restoreEnv, startServer } from './search-test-helpers'
 
 const originalKeys = {
@@ -22,6 +23,11 @@ afterEach(async () => {
 })
 
 describe('LiteLLM MCP response parsing', () => {
+  test('keeps the configured MCP request timeout above the model discovery floor', () => {
+    expect(discoveryTimeoutMs(15_000)).toBe(15_000)
+    expect(discoveryTimeoutMs(2_500)).toBe(5_000)
+  })
+
   test.each([
     ['array', [{ server_name: 'zread' }]],
     ['data wrapper', { data: [{ server_name: 'zread' }] }],

@@ -25,7 +25,12 @@ type PublicPlugin = (
   options?: Record<string, unknown>,
 ) => Promise<PublicPluginHooks>
 
-const DISCOVERY_TIMEOUT_MS = 5000
+const MINIMUM_DISCOVERY_TIMEOUT_MS = 5000
+
+export function discoveryTimeoutMs(mcpRequestTimeoutMs: number): number {
+  return Math.max(MINIMUM_DISCOVERY_TIMEOUT_MS, mcpRequestTimeoutMs)
+}
+
 /**
  * LiteLLM Plugin for OpenCode.
  *
@@ -82,7 +87,7 @@ const liteLLMPluginImplementation: PublicPlugin = (async (
       const discoveryController = new AbortController()
       const timeout = setTimeout(
         () => discoveryController.abort(),
-        DISCOVERY_TIMEOUT_MS,
+        discoveryTimeoutMs(mcpDiscoveryOptions.timeoutMs),
       )
       try {
         await Promise.all([
