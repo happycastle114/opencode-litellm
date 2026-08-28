@@ -88,7 +88,7 @@ describe('native LiteLLM web search tool', () => {
           tools: [{ type: 'web_search' }],
         },
         url: '/v1/responses',
-        userAgent: 'opencode-litellm/0.7.11',
+        userAgent: 'opencode-litellm/0.7.12',
       }])
       expect(metadata).toEqual([{
         title: 'Web search: LiteLLM websearch interception official docs',

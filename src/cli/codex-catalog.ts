@@ -58,7 +58,6 @@ export function buildCodexCatalog(
         slug,
         display_name: isQwenPreview ? QWEN_CATALOG_METADATA.DisplayName : slug,
         description: 'LiteLLM gateway model',
-        shell_type: 'shell_command',
         visibility: CATALOG_VISIBILITY.List,
         supported_in_api: true,
         priority: index,

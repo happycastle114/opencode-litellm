@@ -6,7 +6,6 @@ import { runCliProgram } from '../src/cli/program'
 import {
   AUTO_ROUTER_PIN,
   AutoRouterOperation,
-  AutoRouterPlatform,
   type AutoRouterBoundary,
 } from '../src/cli/auto-router'
 import { bundledCodexCatalogBoundary, DISCOVERY, setupProgramHome } from './cli-program-test-support'
@@ -32,15 +31,11 @@ describe('CLI program', () => {
         switch (invocation.operation) {
           case AutoRouterOperation.RuntimeVersion:
             return { status: 0, signal: null, stdout: 'uv 0.10.9\n', stderr: '' }
-          case AutoRouterOperation.RustCompilerVersion:
-            return { status: 0, signal: null, stdout: 'rustc 1.94.0\n', stderr: '' }
-          case AutoRouterOperation.CargoVersion:
-            return { status: 0, signal: null, stdout: 'cargo 1.94.0\n', stderr: '' }
           case AutoRouterOperation.CliVersion:
             return {
               status: 0,
               signal: null,
-              stdout: 'LiteLLM Proxy CLI Version: 1.94.0rc1\n',
+              stdout: 'LiteLLM Proxy CLI Version: 1.98.0\n',
               stderr: '',
             }
           case AutoRouterOperation.ConfigureHelp:
@@ -67,9 +62,6 @@ describe('CLI program', () => {
     expect(result.exitCode).toBe(0)
     expect(calls.map((call) => call.operation)).toEqual([
       AutoRouterOperation.RuntimeVersion,
-      ...(process.platform !== AutoRouterPlatform.Linux
-        ? [AutoRouterOperation.RustCompilerVersion, AutoRouterOperation.CargoVersion]
-        : []),
       AutoRouterOperation.CliVersion,
       AutoRouterOperation.ConfigureHelp,
       AutoRouterOperation.Configure,
@@ -125,17 +117,11 @@ describe('CLI program', () => {
           if (invocation.operation === AutoRouterOperation.RuntimeVersion) {
             return { status: 0, signal: null, stdout: 'uv 0.10.9\n', stderr: '' }
           }
-          if (invocation.operation === AutoRouterOperation.RustCompilerVersion) {
-            return { status: 0, signal: null, stdout: 'rustc 1.94.0\n', stderr: '' }
-          }
-          if (invocation.operation === AutoRouterOperation.CargoVersion) {
-            return { status: 0, signal: null, stdout: 'cargo 1.94.0\n', stderr: '' }
-          }
           if (invocation.operation === AutoRouterOperation.CliVersion) {
             return {
               status: 0,
               signal: null,
-              stdout: 'LiteLLM Proxy CLI Version: 1.94.0rc1\n',
+              stdout: 'LiteLLM Proxy CLI Version: 1.98.0\n',
               stderr: '',
             }
           }

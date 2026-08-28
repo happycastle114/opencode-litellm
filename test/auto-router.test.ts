@@ -70,12 +70,12 @@ describe('Auto Router plan', () => {
     expect(calls).toBe(0)
     expect(JSON.stringify(plan)).not.toContain(VALUE.ApiKey)
     expect(formatAutoRouterPlan(plan)).not.toContain(VALUE.ApiKey)
-    expect(formatAutoRouterPlan(plan)).toContain("'litellm[proxy]==1.94.0rc1'")
+    expect(formatAutoRouterPlan(plan)).toContain("'litellm[proxy]==1.98.0'")
     expect(AUTO_ROUTER_LIFECYCLE_COMMAND.Up).toContain(
-      "--from 'litellm[proxy]==1.94.0rc1' lite autoroute up",
+      "--from 'litellm[proxy]==1.98.0' lite autoroute up",
     )
     expect(AUTO_ROUTER_LIFECYCLE_COMMAND.Down).toContain(
-      "--from 'litellm[proxy]==1.94.0rc1' lite autoroute down",
+      "--from 'litellm[proxy]==1.98.0' lite autoroute down",
     )
   })
 })
@@ -134,74 +134,17 @@ describe('official Auto Router CLI boundary', () => {
   })
 
   test.each([
-    [AutoRouterOperation.RustCompilerVersion, AutoRouterErrorCode.RustCompilerUnavailable],
-    [AutoRouterOperation.CargoVersion, AutoRouterErrorCode.CargoUnavailable],
-  ] as const)('fails fast on Darwin when %s is unavailable', (
-    failedOperation,
-    expectedCode,
-  ) => {
-    const plan = planAutoRouter(AutoRouterMode.Configure, root, AutoRouterPlatform.Darwin)
-    const calls: AutoRouterOperation[] = []
-    const boundary: AutoRouterBoundary = {
-      isTTY: true,
-      run: (invocation) => {
-        calls.push(invocation.operation)
-        return invocation.operation === failedOperation
-          ? { status: null, signal: null, stdout: '', stderr: VALUE.ApiKey, error: true }
-          : successfulVerification(invocation.operation)
-      },
-    }
-
-    const error = captureError(() => preflightAutoRouter(plan, execution(), boundary))
-
-    expect(error).toBeInstanceOf(AutoRouterError)
-    if (!(error instanceof AutoRouterError)) return
-    expect(error.code).toBe(expectedCode)
-    expect(error.message).toContain('non-Linux')
-    expect(error.message).not.toContain(VALUE.ApiKey)
-    expect(calls).not.toContain(AutoRouterOperation.CliVersion)
-  })
-
-  test('checks both Darwin Rust tools before resolving the official CLI', () => {
-    const plan = planAutoRouter(AutoRouterMode.Configure, root, AutoRouterPlatform.Darwin)
-    const calls: AutoRouterOperation[] = []
-    const boundary: AutoRouterBoundary = {
-      isTTY: true,
-      run: (invocation) => {
-        calls.push(invocation.operation)
-        return successfulVerification(invocation.operation)
-      },
-    }
-
-    preflightAutoRouter(plan, execution(), boundary)
-
-    expect(calls).toEqual([
-      AutoRouterOperation.RuntimeVersion,
-      AutoRouterOperation.RustCompilerVersion,
-      AutoRouterOperation.CargoVersion,
-      AutoRouterOperation.CliVersion,
-      AutoRouterOperation.ConfigureHelp,
-    ])
-  })
-
-  test('does not require Rust tools on the Linux wheel path', () => {
-    const plan = planAutoRouter(AutoRouterMode.Configure, root, AutoRouterPlatform.Linux)
-
+    AutoRouterPlatform.Darwin,
+    AutoRouterPlatform.Linux,
+    AutoRouterPlatform.Windows,
+  ] as const)('uses the published wheel path on %s without a Rust toolchain', (platform) => {
+    const plan = planAutoRouter(AutoRouterMode.Configure, root, platform)
+    expect(plan.platform).toBe(platform)
     expect(plan.commands.map((command) => command.operation)).toEqual([
       AutoRouterOperation.RuntimeVersion,
       AutoRouterOperation.CliVersion,
       AutoRouterOperation.ConfigureHelp,
       AutoRouterOperation.Configure,
-    ])
-  })
-
-  test('requires the source-build Rust preflight on Windows', () => {
-    const plan = planAutoRouter(AutoRouterMode.Configure, root, AutoRouterPlatform.Windows)
-
-    expect(plan.commands.slice(0, 3).map((command) => command.operation)).toEqual([
-      AutoRouterOperation.RuntimeVersion,
-      AutoRouterOperation.RustCompilerVersion,
-      AutoRouterOperation.CargoVersion,
     ])
   })
 
@@ -244,15 +187,11 @@ function successfulVerification(operation: AutoRouterOperation) {
   switch (operation) {
     case AutoRouterOperation.RuntimeVersion:
       return { status: 0, signal: null, stdout: 'uv 0.10.9\n', stderr: '' }
-    case AutoRouterOperation.RustCompilerVersion:
-      return { status: 0, signal: null, stdout: 'rustc 1.94.0\n', stderr: '' }
-    case AutoRouterOperation.CargoVersion:
-      return { status: 0, signal: null, stdout: 'cargo 1.94.0\n', stderr: '' }
     case AutoRouterOperation.CliVersion:
       return {
         status: 0,
         signal: null,
-        stdout: 'LiteLLM Proxy CLI Version: 1.94.0rc1\n',
+        stdout: 'LiteLLM Proxy CLI Version: 1.98.0\n',
         stderr: '',
       }
     case AutoRouterOperation.ConfigureHelp:
@@ -268,7 +207,8 @@ function captureError(operation: () => void): unknown {
     operation()
     return undefined
   } catch (error: unknown) {
-    return error
+    if (error instanceof Error) return error
+    throw error
   }
 }
 
@@ -314,7 +254,7 @@ appendFileSync(process.env.FAKE_LITE_LOG, JSON.stringify({
   home: process.env.HOME,
 }) + '\\n')
 if (args.length === 1 && args[0] === '--version') {
-  process.stdout.write('LiteLLM Proxy CLI Version: 1.94.0rc1\\n')
+  process.stdout.write('LiteLLM Proxy CLI Version: 1.98.0\\n')
   process.exit(0)
 }
 if (args.join(' ') === 'autoroute configure --help') process.exit(0)

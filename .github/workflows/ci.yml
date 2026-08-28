@@ -66,3 +66,8 @@ jobs:
 
       - name: Verify empty-consumer fixed-SHA installs
         run: npm run test:git-install
+
+      - name: Verify Windows setup entrypoint
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: scripts\setup-windows.bat --help

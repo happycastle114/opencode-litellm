@@ -72,6 +72,27 @@ describe('LiteLLM model discovery', () => {
     expect(models.map((model) => model.id)).toEqual(['fallback-model'])
   })
 
+  test('preserves routing-group mode metadata from the v1 models fallback', async () => {
+    const server = await startServer((request, response) => {
+      if (request.url === '/model_group/info') {
+        response.writeHead(403)
+        response.end()
+        return
+      }
+      sendJson(response, {
+        object: 'list',
+        data: [{ id: 'routing-group/research', object: 'model', mode: 'chat' }],
+      })
+    })
+    servers.push(server)
+
+    const models = await discoverLiteLLMModels(server.baseURL)
+
+    expect(models).toEqual([
+      { id: 'routing-group/research', object: 'model', mode: 'chat' },
+    ])
+  })
+
   test.each([
     ['malformed', { data: 'not-an-array' }],
     ['empty', { data: [{ model_group: '' }, { mode: 'chat' }] }],

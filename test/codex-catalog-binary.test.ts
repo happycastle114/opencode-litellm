@@ -13,12 +13,12 @@ const spawnBoundary = RUN_BINARY_TESTS ? createCodexSpawnBoundary() : undefined
 
 describe('Codex model catalog binary compatibility', () => {
   test.skipIf(codexBinary === null)('is accepted by the installed Codex model parser', () => {
-    if (codexBinary === null) return
+    if (codexBinary === null || spawnBoundary === undefined) return
     const root = mkdtempSync(join(tmpdir(), 'opencode-litellm-codex-catalog-'))
     const codexHome = join(root, '.codex')
     const catalogPath = join(codexHome, 'litellm-models.json')
     mkdirSync(codexHome, { recursive: true })
-    const bundled = readBundledCodexCatalog(spawnBoundary!)
+    const bundled = readBundledCodexCatalog(spawnBoundary)
     const catalog = buildCodexCatalog([
       { id: 'coding-fast' },
       { id: QWEN_GATEWAY_MODEL },
@@ -47,7 +47,9 @@ describe('Codex model catalog binary compatibility', () => {
         'coding-fast',
         QWEN_GATEWAY_MODEL,
       ])
-      expect(payload.models).toEqual(expected.models)
+      expect(payload.models.map(normalizeParsedModel)).toEqual(
+        expected.models.map(normalizeParsedModel),
+      )
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
@@ -56,12 +58,12 @@ describe('Codex model catalog binary compatibility', () => {
   test.skipIf(codexBinary === null)(
     'parses the exact OAuth catalog, accepts the named profile, and loads selected MCP resources',
     () => {
-      if (codexBinary === null) return
+      if (codexBinary === null || spawnBoundary === undefined) return
       const root = mkdtempSync(join(tmpdir(), 'opencode-litellm-codex-oauth-profile-'))
       const codexHome = join(root, '.codex')
       const catalogPath = join(codexHome, 'litellm-codex-oauth-models.json')
       mkdirSync(codexHome, { recursive: true })
-      const bundled = readBundledCodexCatalog(spawnBoundary!)
+      const bundled = readBundledCodexCatalog(spawnBoundary)
       writeFileSync(catalogPath, bundled.json)
       writeFileSync(join(codexHome, 'config.toml'), '')
       const oauthConfig = renderCodexOAuthConfig({
@@ -128,3 +130,10 @@ describe('Codex model catalog binary compatibility', () => {
     },
   )
 })
+
+function normalizeParsedModel(model: Readonly<Record<string, unknown>>) {
+  return {
+    ...model,
+    supports_parallel_tool_calls: model.supports_parallel_tool_calls ?? false,
+  }
+}

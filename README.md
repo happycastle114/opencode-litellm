@@ -38,6 +38,9 @@ LITELLM_BASE_URL=https://your-gateway.com LITELLM_PROXY_API_KEY=your-key \
 - OpenCode and/or Codex installed
 - A reachable LiteLLM gateway
 
+Native Windows setup is documented in [docs/windows-setup.md](docs/windows-setup.md),
+including a checked `.bat` entrypoint for configuring both clients.
+
 ## Usage by client
 
 ### OpenCode
@@ -156,11 +159,13 @@ opencode models litellm        # OpenCode model picker
 codex debug models --bundled   # Codex model catalog
 ```
 
+Release qualification covers Codex CLI 0.144.1 and current stable 0.150.1.
+
 ## Discovery endpoints
 
 | Surface | Endpoint | Result |
 |---|---|---|
-| Models | `GET /v1/models` | OpenCode picker + Codex JSON catalog |
+| Models | `GET /v1/models` | OpenCode picker + Codex JSON catalog, including permitted LiteLLM routing groups |
 | Search tools | `GET /search_tools/list` | OpenCode `searchTools` |
 | MCP servers | `GET /v1/mcp/server` | Remote MCP entries |
 | MCP toolsets | `GET /v1/mcp/toolset` | Toolset MCP entries |
@@ -209,8 +214,8 @@ npx @happycastle/opencode-litellm install --auto-router dry-run
 Start/stop the pinned proxy:
 
 ```bash
-uv tool run --isolated --from 'litellm[proxy]==1.94.0rc1' lite autoroute up
-uv tool run --isolated --from 'litellm[proxy]==1.94.0rc1' lite autoroute down
+uv tool run --isolated --from 'litellm[proxy]==1.98.0' lite autoroute up
+uv tool run --isolated --from 'litellm[proxy]==1.98.0' lite autoroute down
 ```
 
 </details>

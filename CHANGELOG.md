@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.12] — 2026-08-29
+
+### Added
+- Native Windows setup guidance and a guarded `setup-windows.bat` entrypoint for
+  configuring OpenCode and Codex together, with a Windows CI smoke check.
+- Regression coverage for LiteLLM v1.98.0 routing groups returned as virtual
+  models from authenticated `/v1/models` discovery.
+
+### Changed
+- The optional official Auto Router CLI is pinned to stable LiteLLM 1.98.0.
+  Published Windows and macOS wheels remove the former non-Linux Rust toolchain
+  preflight, while exact CLI and subcommand verification remain fail-closed.
+- Generated gateway models now inherit the current Codex bundled catalog's
+  shell execution type, preserving both Codex 0.144 and 0.150 behavior.
+- Official-source documentation distinguishes the public LiteLLM Model Catalog
+  metadata API from the gateway's authorization-aware `/v1/models` picker source.
+
 ## [0.7.11] — 2026-08-29
 
 ### Fixed

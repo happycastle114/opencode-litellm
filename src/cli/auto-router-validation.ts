@@ -9,8 +9,6 @@ export const AutoRouterErrorCode = {
   TtyRequired: 'tty-required',
   RuntimeUnavailable: 'runtime-unavailable',
   RuntimeVersion: 'runtime-version',
-  RustCompilerUnavailable: 'rust-compiler-unavailable',
-  CargoUnavailable: 'cargo-unavailable',
   CliVersion: 'cli-version',
   ConfigureUnavailable: 'configure-unavailable',
   ConfigureFailed: 'configure-failed',
@@ -43,12 +41,6 @@ export function validateAutoRouterPreflight(
   switch (command.operation) {
     case AutoRouterOperation.RuntimeVersion:
       assertUvVersion(result.stdout)
-      return
-    case AutoRouterOperation.RustCompilerVersion:
-      assertRustCompilerVersion(result.stdout)
-      return
-    case AutoRouterOperation.CargoVersion:
-      assertCargoVersion(result.stdout)
       return
     case AutoRouterOperation.CliVersion:
       assertCliVersion(result.stdout)
@@ -90,14 +82,6 @@ function assertCliVersion(output: string): void {
   }
 }
 
-function assertRustCompilerVersion(output: string): void {
-  if (!/^rustc\s+\d+\.\d+\.\d+/m.test(output)) throw rustCompilerUnavailable()
-}
-
-function assertCargoVersion(output: string): void {
-  if (!/^cargo\s+\d+\.\d+\.\d+/m.test(output)) throw cargoUnavailable()
-}
-
 function commandFailure(operation: AutoRouterOperationValue): AutoRouterError {
   switch (operation) {
     case AutoRouterOperation.RuntimeVersion:
@@ -105,10 +89,6 @@ function commandFailure(operation: AutoRouterOperationValue): AutoRouterError {
         AutoRouterErrorCode.RuntimeUnavailable,
         `LiteLLM Auto Router requires uv ${AUTO_ROUTER_PIN.MinimumUvVersion} or newer on PATH.`,
       )
-    case AutoRouterOperation.RustCompilerVersion:
-      return rustCompilerUnavailable()
-    case AutoRouterOperation.CargoVersion:
-      return cargoUnavailable()
     case AutoRouterOperation.CliVersion:
       return new AutoRouterError(
         AutoRouterErrorCode.CliVersion,
@@ -127,20 +107,6 @@ function commandFailure(operation: AutoRouterOperationValue): AutoRouterError {
     default:
       return assertNever(operation)
   }
-}
-
-function rustCompilerUnavailable(): AutoRouterError {
-  return new AutoRouterError(
-    AutoRouterErrorCode.RustCompilerUnavailable,
-    'LiteLLM Auto Router requires rustc on PATH on non-Linux platforms because the pinned official package publishes Linux wheels only.',
-  )
-}
-
-function cargoUnavailable(): AutoRouterError {
-  return new AutoRouterError(
-    AutoRouterErrorCode.CargoUnavailable,
-    'LiteLLM Auto Router requires cargo on PATH on non-Linux platforms because the pinned official package publishes Linux wheels only.',
-  )
 }
 
 function succeeded(result: AutoRouterProcessResult): boolean {

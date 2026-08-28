@@ -13,12 +13,12 @@ or copy a user credential into client configuration. Optional Auto Router
 onboarding is the explicit exception: it invokes one pinned official CLI rather
 than reimplementing the upstream wizard and process manager.
 
-The deployed LiteLLM source baseline is
-[`v1.94.0-rc.1`](https://github.com/BerriAI/litellm/releases/tag/v1.94.0-rc.1),
-whose tag resolves to commit
-[`5d4c4d0f`](https://github.com/BerriAI/litellm/tree/5d4c4d0fce45c73c4b56b48e46dfc4e56e8b0aa5).
-Upgrade the baseline only after re-auditing the protocol and running the
-packaging and live-login checks.
+The optional Auto Router source baseline is the current stable
+[`v1.98.0`](https://github.com/BerriAI/litellm/releases/tag/v1.98.0), whose tag
+resolves to commit
+[`d8f71d7b`](https://github.com/BerriAI/litellm/tree/d8f71d7bdbd7c9873d98293f83d64c6db72847e6).
+The normal Node.js installer remains compatible with other gateway releases
+that expose the documented discovery and request surfaces below.
 
 | Contract | Immutable or official source | Toolkit behavior |
 |---|---|---|
@@ -30,23 +30,21 @@ packaging and live-login checks.
 
 ### Optional Auto Router boundary
 
-The toolkit pins PyPI requirement `litellm[proxy]==1.94.0rc1`, corresponding to
-the `v1.94.0-rc.1` source baseline above. It requires `uv >= 0.10.9`, runs the
+The toolkit pins PyPI requirement `litellm[proxy]==1.98.0`, corresponding to
+the `v1.98.0` source baseline above. It requires `uv >= 0.10.9`, runs the
 artifact with `uv tool run --isolated --from`, and verifies the CLI version and
 `autoroute configure` subcommand before committing client files.
-The checked [PyPI 1.94.0rc1 artifact](https://pypi.org/project/litellm/1.94.0rc1/#files)
-reports CLI version `1.94.0rc1`. Its published wheels are Linux-only, so every
-non-Linux platform builds the official sdist. The
-toolkit explicitly checks `rustc --version` and `cargo --version` before
-resolving the official CLI; a missing toolchain remains a mutation-free
-preflight failure and is never installed automatically.
+The checked [PyPI 1.98.0 artifact](https://pypi.org/project/litellm/1.98.0/#files)
+reports CLI version `1.98.0` and publishes CPython 3.10+ wheels for Windows,
+macOS, Linux glibc, and Linux musl on x86-64 and arm64. The toolkit therefore
+does not require or install a Rust toolchain on those supported platforms.
 
 | Contract | Immutable source | Toolkit behavior |
 |---|---|---|
-| Command surface and TTY requirement | [`commands.py`](https://github.com/BerriAI/litellm/blob/5d4c4d0fce45c73c4b56b48e46dfc4e56e8b0aa5/litellm/proxy/client/cli/commands/autoroute/commands.py) | Invoke the official `configure` command only after explicit opt-in and a successful TTY preflight; never emulate its questions |
-| Gateway discovery and secure config write | [`wizard.py`](https://github.com/BerriAI/litellm/blob/5d4c4d0fce45c73c4b56b48e46dfc4e56e8b0aa5/litellm/proxy/client/cli/commands/autoroute/wizard.py) and [`config.py`](https://github.com/BerriAI/litellm/blob/5d4c4d0fce45c73c4b56b48e46dfc4e56e8b0aa5/litellm/proxy/client/cli/commands/autoroute/config.py) | Supply `LITELLM_PROXY_URL` and `LITELLM_PROXY_API_KEY` only in the child environment; upstream reads `/model_group/info` and writes `~/.litellm/autorouter/config.yaml` as `0600` |
-| Local proxy lifecycle | [`process.py`](https://github.com/BerriAI/litellm/blob/5d4c4d0fce45c73c4b56b48e46dfc4e56e8b0aa5/litellm/proxy/client/cli/commands/autoroute/process.py) | Use the pinned proxy extra; let upstream choose the port, run its proxy, and own PID/log lifecycle |
-| Claude settings patch and restore | [`settings.py`](https://github.com/BerriAI/litellm/blob/5d4c4d0fce45c73c4b56b48e46dfc4e56e8b0aa5/litellm/proxy/client/cli/commands/autoroute/settings.py) | Treat `up` as Claude-only configuration and direct operators to `down` for restoration |
+| Command surface and TTY requirement | [`commands.py`](https://github.com/BerriAI/litellm/blob/d8f71d7bdbd7c9873d98293f83d64c6db72847e6/litellm/proxy/client/cli/commands/autoroute/commands.py) | Invoke the official `configure` command only after explicit opt-in and a successful TTY preflight; never emulate its questions |
+| Gateway discovery and secure config write | [`wizard.py`](https://github.com/BerriAI/litellm/blob/d8f71d7bdbd7c9873d98293f83d64c6db72847e6/litellm/proxy/client/cli/commands/autoroute/wizard.py) and [`config.py`](https://github.com/BerriAI/litellm/blob/d8f71d7bdbd7c9873d98293f83d64c6db72847e6/litellm/proxy/client/cli/commands/autoroute/config.py) | Supply `LITELLM_PROXY_URL` and `LITELLM_PROXY_API_KEY` only in the child environment; upstream reads authenticated `/v1/models` and writes `~/.litellm/autorouter/config.yaml` as `0600` |
+| Local proxy lifecycle | [`process.py`](https://github.com/BerriAI/litellm/blob/d8f71d7bdbd7c9873d98293f83d64c6db72847e6/litellm/proxy/client/cli/commands/autoroute/process.py) | Use the pinned proxy extra; let upstream choose the port, run its proxy, and own PID/log lifecycle |
+| Claude settings patch and restore | [`settings.py`](https://github.com/BerriAI/litellm/blob/d8f71d7bdbd7c9873d98293f83d64c6db72847e6/litellm/proxy/client/cli/commands/autoroute/settings.py) | Treat `up` as Claude-only configuration and direct operators to `down` for restoration |
 
 The secret boundary is exact: the toolkit keeps the gateway key out of argv,
 stdout/stderr, Keychain, and toolkit-owned files. The official wizard persists
@@ -73,6 +71,10 @@ The official LiteLLM public references used by the installer are:
   Search invocation still applies the current key's object permissions.
 - [Model discovery](https://docs.litellm.ai/docs/proxy/model_discovery), using
   authenticated `GET /v1/models`.
+- [LiteLLM Model Catalog](https://api.litellm.ai/model_catalog), which is a
+  public paginated reference catalog for provider metadata and capabilities.
+  It is not authorization-aware and is never substituted for a gateway's
+  authenticated model inventory.
 - [MCP overview](https://docs.litellm.ai/docs/mcp), including the current
   fixed `/mcp` route, `x-mcp-servers` filtering, and key/team permissions.
 - [MCP toolsets](https://docs.litellm.ai/docs/mcp_toolsets), including
@@ -108,7 +110,16 @@ The installer authenticates once and concurrently requests these surfaces:
 | Models | `GET /v1/models` (required) | Required; HTTP or schema failure stops install | OpenCode startup picker and Codex gateway catalog |
 | Search tools | Primary `GET /search_tools/list` (permission-filtered); fallback `GET /v1/search/tools` (`{ "object": "list", "data": [...] }`) | Optional; primary names are permission-filtered. A successful router-wide fallback emits a typed warning; unavailable/invalid responses become warnings | Selected OpenCode `searchTools` use `litellm_search` plus deterministic non-reserved `litellm_*` IDs; invocation permission is checked by POST |
 | MCP servers | `GET /v1/mcp/server` | Optional; unavailable/unsupported/invalid responses become warnings | Available `/<server_name>/mcp` compatibility entries for the pinned deployment; invocation enforces gateway permissions |
-| MCP toolsets | `GET /v1/mcp/toolset` | Optional; 404/405 and other failures become warnings | Available `/toolset/<url-encoded-name>/mcp` entries exposed by the pinned `v1.94.0-rc.1` gateway; invocation enforces gateway permissions |
+| MCP toolsets | `GET /v1/mcp/toolset` | Optional; 404/405 and other failures become warnings | Available `/toolset/<url-encoded-name>/mcp` entries exposed by the gateway; invocation enforces gateway permissions |
+
+LiteLLM v1.98.0 changed Auto Router discovery to authenticated `/v1/models`
+([PR #34259](https://github.com/BerriAI/litellm/pull/34259)) and made routing
+group names callable virtual models that are returned by `/v1/models`
+([PR #36519](https://github.com/BerriAI/litellm/pull/36519)). The installer and
+Codex catalog use this endpoint as the access-aware authority, preserving the
+returned model ID and `mode`. The runtime OpenCode plugin may first enrich rows
+from `/model_group/info` when the key has management access, but falls back to
+`/v1/models` on denial or an invalid response.
 
 Authenticated model, MCP, and toolset discovery determine what their respective
 endpoints return to the current identity. Search discovery first uses the
@@ -204,6 +215,13 @@ on every OpenCode install regardless of Qwen or LiteLLM search selection.
 
 ## Codex contract
 
+The latest stable Codex CLI checked for this release is
+[`0.150.1`](https://github.com/openai/codex/releases/tag/rust-v0.150.1). The
+generated gateway catalog is parsed end-to-end by both the local `0.144.1`
+binary and an isolated `0.150.1` binary. Model rows inherit the selected
+bundled template's shell execution type, so `shell_command` and the newer
+`unified_exec` remain version-correct without a toolkit hard-code.
+
 | Surface | Official documentation | Toolkit use |
 |---|---|---|
 | `model_catalog_json`, `model_provider`, `requires_openai_auth`, `env_http_headers`, and `forced_login_method` | [Configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference) | Generate mutually exclusive gateway and ChatGPT OAuth provider auth sources plus startup catalogs |
@@ -211,7 +229,7 @@ on every OpenCode install regardless of Qwen or LiteLLM search selection.
 | ChatGPT login | [Authentication](https://learn.chatgpt.com/docs/auth) | Codex owns the OAuth `Authorization` header and login lifecycle |
 | Bundled model catalog | Codex CLI `codex debug models --bundled` | Copy the exact bundled catalog unchanged for OAuth; inherit its prompt/model template for gateway rows |
 | Native web search | [Configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference) and [developer commands](https://learn.chatgpt.com/docs/developer-commands?surface=cli) | Mark gateway catalog rows `supports_search_tool: true`, set `web_search = "live"`, and send Codex's native Responses `web_search` tool through LiteLLM |
-| Native OAuth request compression | Codex 0.144.1 [`EnableRequestCompression` default](https://github.com/openai/codex/blob/44918ea10c0f99151c6710411b4322c2f5c96bea/codex-rs/features/src/lib.rs#L1013-L1018) and [OAuth/OpenAI zstd selector](https://github.com/openai/codex/blob/44918ea10c0f99151c6710411b4322c2f5c96bea/codex-rs/core/src/client.rs#L1368-L1376); LiteLLM `1.94.0-rc.1` [JSON body parser](https://github.com/BerriAI/litellm/blob/5d4c4d0fce45c73c4b56b48e46dfc4e56e8b0aa5/litellm/proxy/common_utils/http_parsing_utils.py#L85-L141) | Disable zstd only in OAuth-active config layers, preserve other feature keys, and restore a pre-existing user value when the main config returns to gateway mode |
+| Native OAuth request compression | Codex 0.144.1 [`EnableRequestCompression` default](https://github.com/openai/codex/blob/44918ea10c0f99151c6710411b4322c2f5c96bea/codex-rs/features/src/lib.rs#L1013-L1018) and [OAuth/OpenAI zstd selector](https://github.com/openai/codex/blob/44918ea10c0f99151c6710411b4322c2f5c96bea/codex-rs/core/src/client.rs#L1368-L1376); LiteLLM `1.98.0` [JSON body parser](https://github.com/BerriAI/litellm/blob/d8f71d7bdbd7c9873d98293f83d64c6db72847e6/litellm/proxy/common_utils/http_parsing_utils.py#L85-L141) | Disable zstd only in OAuth-active config layers, preserve other feature keys, and restore a pre-existing user value when the main config returns to gateway mode |
 | Shared skills | [Build skills](https://learn.chatgpt.com/docs/build-skills) | Install the same global research skill directory for every selected target |
 
 The OAuth provider is deliberately:
@@ -289,16 +307,15 @@ gateway `/v1` is stripped before `/claude-code/marketplace.json` is appended.
 | Component | Supported boundary | Notes |
 |---|---|---|
 | Node.js | `^22.22.2 || ^24.12.0 || >=26.0.0` | Required by both package manifests. The pinned OpenCode plugin dependency graph (`@opencode-ai/plugin@1.18.4` → `effect@4.0.0-beta.83` → `ini@7.0.0`) requires `^24.15.0` on the 24.x line; Node 24.12–24.14 users will see an npm engine warning but the toolkit itself runs correctly |
-| Python / `lite` | Optional for normal installs | `--auto-router configure` delegates to the pinned official `litellm[proxy]==1.94.0rc1` CLI through an isolated `uv tool` environment |
+| Python / `lite` | Optional for normal installs | `--auto-router configure` delegates to the pinned official `litellm[proxy]==1.98.0` CLI through an isolated `uv tool` environment |
 | `uv` | `>=0.10.9` for Auto Router only | Runtime, exact CLI version, and `autoroute configure` are checked before client mutation |
-| `rustc` / `cargo` | Auto Router on every non-Linux platform | Required by the official LiteLLM sdist build; both `--version` commands are explicit typed preflight operations before the pinned CLI is resolved |
 | LiteLLM gateway | Authenticated `/v1/models`, permission-filtered `/search_tools/list` with `/v1/search/tools` fallback, and optional MCP/toolset endpoints | Model discovery is required; optional surfaces degrade to warnings |
 | Launch state | Schema-versioned, merged per-client state at `$XDG_CONFIG_HOME/opencode-litellm/launch.json` | Atomic `0600`; gateway/auth/config/search/mode metadata only; never a key or OAuth token |
 | OpenCode | Releases supporting TypeScript `file://` plugins and documented provider/MCP/skill schemas | Restart after installation |
-| Codex | Releases exposing the documented config fields and `codex debug models --bundled` | Re-run after Codex upgrades |
+| Codex | Verified with 0.144.1 and current stable 0.150.1 | Generated gateway and exact OAuth catalogs pass `codex debug models`; re-run setup after upgrades |
 | macOS | Full installer path | Uses current-user `launchctl setenv` for OAuth mode; lifecycle logout uses `unsetenv` for the selected auth environment |
 | Linux / WSL | Installer, discovery, and shell-based auth references | Export the selected gateway-key environment variable for OAuth mode |
-| Native Windows | Config rendering paths | POSIX modes and `launchctl` are not applicable; release qualification remains pending |
+| Native Windows | Installer, discovery, launcher, and checked `.bat` bootstrap | CI runs fixed-SHA npm installation and the batch help path on `windows-latest`; LiteLLM 1.98.0 publishes a Windows wheel and no Rust preflight is used |
 
 The credential variable selected by `--auth-env` must be shell-compatible and
 must not collide with launcher, provider-authentication, or process controls.

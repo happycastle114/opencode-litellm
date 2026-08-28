@@ -10,8 +10,6 @@ export type AutoRouterMode = (typeof AutoRouterMode)[keyof typeof AutoRouterMode
 
 export const AutoRouterOperation = {
   RuntimeVersion: 'runtime-version',
-  RustCompilerVersion: 'rust-compiler-version',
-  CargoVersion: 'cargo-version',
   CliVersion: 'cli-version',
   ConfigureHelp: 'configure-help',
   Configure: 'configure',
@@ -27,10 +25,10 @@ export type AutoRouterStdio =
   (typeof AutoRouterStdio)[keyof typeof AutoRouterStdio]
 
 export const AUTO_ROUTER_PIN = {
-  Requirement: 'litellm[proxy]==1.94.0rc1',
-  CliVersion: '1.94.0rc1',
+  Requirement: 'litellm[proxy]==1.98.0',
+  CliVersion: '1.98.0',
   MinimumUvVersion: '0.10.9',
-  Revision: '5d4c4d0fce45c73c4b56b48e46dfc4e56e8b0aa5',
+  Revision: 'd8f71d7bdbd7c9873d98293f83d64c6db72847e6',
 } as const
 
 export const AUTO_ROUTER_ENVIRONMENT = {
@@ -47,8 +45,6 @@ export const AutoRouterPlatform = {
 
 const EXECUTABLE = {
   Uv: 'uv',
-  RustCompiler: 'rustc',
-  Cargo: 'cargo',
   Lite: 'lite',
 } as const
 const COMMAND = {
@@ -112,7 +108,7 @@ export function planAutoRouter(
         mode,
         homeDirectory,
         platform,
-        commands: autoRouterCommands(platform),
+        commands: autoRouterCommands(),
       })
     case AutoRouterMode.Prompt:
       throw new AutoRouterPlanError('Auto Router prompt mode must be resolved before planning.')
@@ -151,7 +147,7 @@ function buildPlan(input: AutoRouterPlanInput): AutoRouterPlan {
   }
 }
 
-function autoRouterCommands(platform: string): readonly AutoRouterPlannedCommand[] {
+function autoRouterCommands(): readonly AutoRouterPlannedCommand[] {
   const litePrefix = [
     COMMAND.Tool,
     COMMAND.Run,
@@ -167,22 +163,6 @@ function autoRouterCommands(platform: string): readonly AutoRouterPlannedCommand
       args: [COMMAND.Version],
       stdio: AutoRouterStdio.Capture,
     },
-    ...(platform !== AutoRouterPlatform.Linux
-      ? [
-          {
-            operation: AutoRouterOperation.RustCompilerVersion,
-            executable: EXECUTABLE.RustCompiler,
-            args: [COMMAND.Version],
-            stdio: AutoRouterStdio.Capture,
-          },
-          {
-            operation: AutoRouterOperation.CargoVersion,
-            executable: EXECUTABLE.Cargo,
-            args: [COMMAND.Version],
-            stdio: AutoRouterStdio.Capture,
-          },
-        ]
-      : []),
     {
       operation: AutoRouterOperation.CliVersion,
       executable: EXECUTABLE.Uv,

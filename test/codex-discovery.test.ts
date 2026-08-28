@@ -117,6 +117,21 @@ describe('Codex gateway discovery', () => {
     ])
   })
 
+  test('preserves a LiteLLM routing group returned as a virtual model', async () => {
+    const fetcher: typeof fetch = async (input) => {
+      const endpoint = new URL(String(input)).pathname
+      return endpoint === ENDPOINT.Models
+        ? Response.json({ data: [{ id: 'routing-group/coding', object: 'model', mode: 'chat' }] })
+        : Response.json([])
+    }
+
+    const result = await discoverCodexGatewayResources({ origin: ORIGIN, apiKey: API_KEY, fetcher })
+
+    expect(result.models).toEqual([
+      { id: 'routing-group/coding', object: 'model', mode: 'chat' },
+    ])
+  })
+
   test('fails when model discovery is unavailable or malformed', async () => {
     // Given: a model endpoint failure and a successful MCP response
     const fetcher: typeof fetch = async (input) => {
