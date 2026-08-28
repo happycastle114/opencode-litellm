@@ -3,11 +3,17 @@ import type { LiteLLMSearchEndpoint } from '../search/client'
 import { parseSearchToolOptions } from '../search/options'
 import { createSearchTools } from '../search/tools'
 import {
+  createNativeWebSearchTool,
+  NATIVE_WEB_SEARCH_TOOL_NAME,
+  type NativeWebSearchModel,
+} from '../search/native-websearch'
+import {
   parseMcpDiscoveryOptions,
   parseMcpToolsetOptions,
 } from '../mcp/options'
 import {
   PROVIDER_RESOLUTION,
+  CHAT_PROVIDER_ID,
   resolveProvider,
   toSearchEndpoint,
   type PublicPluginConfig,
@@ -17,6 +23,17 @@ import { discoverAndMergeMcpServers } from './mcp-discovery'
 
 type PublicPluginHooks = {
   readonly config?: (config: PublicPluginConfig) => Promise<void>
+  readonly 'chat.message'?: (input: {
+    readonly sessionID: string
+    readonly model?: NativeWebSearchModel
+  }) => Promise<void>
+  readonly dispose?: () => Promise<void>
+  readonly event?: (input: {
+    readonly event: {
+      readonly type: string
+      readonly properties: unknown
+    }
+  }) => Promise<void>
   readonly [key: string]: unknown
 }
 
@@ -26,6 +43,9 @@ type PublicPlugin = (
 ) => Promise<PublicPluginHooks>
 
 const MINIMUM_DISCOVERY_TIMEOUT_MS = 5000
+const OPENCODE_EVENT = {
+  SessionDeleted: 'session.deleted',
+} as const
 
 export function discoveryTimeoutMs(mcpRequestTimeoutMs: number): number {
   return Math.max(MINIMUM_DISCOVERY_TIMEOUT_MS, mcpRequestTimeoutMs)
@@ -63,11 +83,23 @@ const liteLLMPluginImplementation: PublicPlugin = (async (
   const mcpDiscoveryOptions = parseMcpDiscoveryOptions(pluginOptions)
   const mcpToolsets = parseMcpToolsetOptions(pluginOptions)
   let searchEndpoint: LiteLLMSearchEndpoint | undefined
+  const activeModels = new Map<string, NativeWebSearchModel>()
   const searchTools = createSearchTools(
     searchToolOptions,
     () => searchEndpoint,
   )
+  const nativeWebSearchTool = createNativeWebSearchTool((sessionID) => ({
+    endpoint: searchEndpoint,
+    model: activeModels.get(sessionID),
+  }))
   return {
+    'chat.message': async (input) => {
+      if (input.model?.providerID === CHAT_PROVIDER_ID) {
+        activeModels.set(input.sessionID, input.model)
+      } else if (input.model !== undefined) {
+        activeModels.delete(input.sessionID)
+      }
+    },
     config: async (config: PublicPluginConfig) => {
       searchEndpoint = undefined
       const resolution = await resolveProvider(config)
@@ -112,7 +144,17 @@ const liteLLMPluginImplementation: PublicPlugin = (async (
         clearTimeout(timeout)
       }
     },
-    ...(searchToolOptions.length === 0 ? {} : { tool: searchTools }),
+    dispose: async () => {
+      activeModels.clear()
+    },
+    event: async ({ event }) => {
+      const sessionID = deletedSessionID(event)
+      if (sessionID !== undefined) activeModels.delete(sessionID)
+    },
+    tool: {
+      [NATIVE_WEB_SEARCH_TOOL_NAME]: nativeWebSearchTool,
+      ...searchTools,
+    },
   }
 }) satisfies Plugin
 
@@ -124,3 +166,19 @@ const liteLLMResponsesPluginImplementation: PublicPlugin = (async (_input: objec
 
 export const LiteLLMPlugin = liteLLMPluginImplementation
 export const LiteLLMResponsesPlugin = liteLLMResponsesPluginImplementation
+
+function deletedSessionID(event: {
+  readonly type: string
+  readonly properties: unknown
+}): string | undefined {
+  if (event.type !== OPENCODE_EVENT.SessionDeleted || !isRecord(event.properties)) {
+    return undefined
+  }
+  const info = event.properties.info
+  if (!isRecord(info) || typeof info.id !== 'string') return undefined
+  return info.id
+}
+
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}

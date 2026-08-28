@@ -2,7 +2,6 @@ import { describe, expect, test } from 'bun:test'
 import { parse as parseJsonc } from 'jsonc-parser'
 import {
   OH_MY_OPENAGENT_PLUGIN_SPEC,
-  OPENCODE_WEBSEARCH_PLUGIN_SPEC,
   PLUGIN_SPEC,
   baseIntent,
   render,
@@ -11,7 +10,7 @@ import { planOpenCodeEdits } from '../src/cli/opencode-config'
 import { ConfigurationError } from '../src/cli/errors'
 
 describe('opencode JSONC editing', () => {
-  test('pins the upstream native web-search plugin and replaces stale pins', () => {
+  test('removes the superseded upstream plugin because the managed plugin owns web-search', () => {
     const source = `{
   "plugin": ["opencode-websearch@0.5.0", "keep@1.0.0"]
 }`
@@ -21,7 +20,7 @@ describe('opencode JSONC editing', () => {
       (entry) => typeof entry === 'string' && entry.startsWith('opencode-websearch@'),
     )
 
-    expect(webSearchEntries).toEqual([OPENCODE_WEBSEARCH_PLUGIN_SPEC])
+    expect(webSearchEntries).toEqual([])
     expect(parsed.plugin).toContain('keep@1.0.0')
   })
 
@@ -102,7 +101,6 @@ describe('opencode JSONC editing', () => {
     const parsed = parseJsonc(render('{"plugin": ["opencode-plugin-litellm"]}'))
     expect(parsed.plugin).toEqual([
       PLUGIN_SPEC,
-      OPENCODE_WEBSEARCH_PLUGIN_SPEC,
       OH_MY_OPENAGENT_PLUGIN_SPEC,
     ])
   })
@@ -114,7 +112,6 @@ describe('opencode JSONC editing', () => {
     const parsed = parseJsonc(render(JSON.stringify({ plugin: [managedSpec, 'keep@1.0.0'] })))
     expect(parsed.plugin).toEqual([
       PLUGIN_SPEC,
-      OPENCODE_WEBSEARCH_PLUGIN_SPEC,
       OH_MY_OPENAGENT_PLUGIN_SPEC,
       'keep@1.0.0',
     ])
@@ -135,7 +132,6 @@ describe('opencode JSONC editing', () => {
 
     expect(parsed.plugin).toEqual([
       PLUGIN_SPEC,
-      OPENCODE_WEBSEARCH_PLUGIN_SPEC,
       [OH_MY_OPENAGENT_PLUGIN_SPEC, { preserved: { enabled: true } }],
       'keep@1.0.0',
     ])

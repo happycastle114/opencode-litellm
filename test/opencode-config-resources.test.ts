@@ -73,7 +73,11 @@ describe('opencode resource editing', () => {
 
     const hooks = await LiteLLMPlugin({}, options)
 
-    expect(Object.keys(hooks.tool ?? {})).toEqual(['litellm_search', 'litellm_websearch'])
+    expect(Object.keys(hooks.tool ?? {})).toEqual([
+      'web-search',
+      'litellm_search',
+      'litellm_websearch',
+    ])
   })
 
   test('emits an mcpDiscovery block when mcp options are enabled', () => {

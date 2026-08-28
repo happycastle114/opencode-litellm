@@ -8,7 +8,7 @@ export type LiteLLMSearchToolOption = {
   readonly defaultMaxResults?: number
 }
 
-const RESERVED_TOOL_NAME = 'websearch'
+const RESERVED_TOOL_NAMES = new Set(['web-search', 'websearch'])
 const SEARCH_TOOL_FIELDS = new Set([
   'toolName',
   'searchToolName',
@@ -45,10 +45,10 @@ export function parseSearchToolOptions(
     rejectUnknownFields(raw, field)
 
     const toolName = readName(raw.toolName, `${field}.toolName`)
-    if (toolName === RESERVED_TOOL_NAME) {
+    if (RESERVED_TOOL_NAMES.has(toolName)) {
       throw new SearchToolConfigurationError(
         `${field}.toolName`,
-        `name "${RESERVED_TOOL_NAME}" is reserved by OpenCode`,
+        `name "${toolName}" is reserved by OpenCode or opencode-litellm`,
       )
     }
     const searchToolName = readName(

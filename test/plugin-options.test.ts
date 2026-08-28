@@ -2,13 +2,13 @@ import { describe, expect, test } from 'bun:test'
 import { LiteLLMPlugin } from '../src/index'
 
 describe('LiteLLMPlugin search tool options', () => {
-  test('registers zero search tools when options are omitted', async () => {
+  test('registers only native web-search when named options are omitted', async () => {
     // Given: the plugin is loaded without tuple options
     // When: OpenCode initializes the plugin
     const hooks = await LiteLLMPlugin({})
 
-    // Then: no custom tools are registered
-    expect(hooks.tool).toBeUndefined()
+    // Then: native search remains available without named search routes
+    expect(Object.keys(hooks.tool ?? {})).toEqual(['web-search'])
   })
 
   test('registers every configured named search tool', async () => {
@@ -32,10 +32,15 @@ describe('LiteLLMPlugin search tool options', () => {
     const hooks = await LiteLLMPlugin({}, options)
 
     // Then: both configured names are exposed through Hooks.tool
-    expect(Object.keys(hooks.tool ?? {})).toEqual(['litellm_search', 'litellm_exa_search'])
+    expect(Object.keys(hooks.tool ?? {})).toEqual([
+      'web-search',
+      'litellm_search',
+      'litellm_exa_search',
+    ])
   })
 
   test.each([
+    ['reserved native web-search tool ID', { toolName: 'web-search', searchToolName: 'agy-search' }],
     ['reserved websearch tool ID', { toolName: 'websearch', searchToolName: 'agy-search' }],
     ['obsolete overrideBuiltin field', { toolName: 'litellm_search', searchToolName: 'agy-search', overrideBuiltin: true }],
     ['invalid toolName', { toolName: 'Web Search', searchToolName: 'agy-search' }],

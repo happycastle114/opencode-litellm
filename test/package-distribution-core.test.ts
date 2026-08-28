@@ -59,7 +59,7 @@ test('packs, installs, imports, and typechecks the core package as a strict Node
     if (!isRecord(diagnostic)) return
     expect(diagnostic.runtime).toEqual({ release: 'node', version: nodeRuntime.version })
     expect(diagnostic.exports).toEqual(['LiteLLMPlugin', 'LiteLLMResponsesPlugin'])
-    expect(diagnostic.hookKeys).toEqual(['config'])
+    expect(diagnostic.hookKeys).toEqual(['chat.message', 'config', 'dispose', 'event', 'tool'])
 
     const tsc = installTypeScriptTooling(consumerRoot)
     expect(existsSync(tsc)).toBe(true)

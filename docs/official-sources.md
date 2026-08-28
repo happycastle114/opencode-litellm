@@ -154,7 +154,7 @@ rather than written to JSON or TOML.
 | Local and npm plugins | [Plugins](https://opencode.ai/docs/plugins/) | Load a detached Git checkout through a `file://` entry; verify origin and full SHA before install |
 | Config files | [Config](https://opencode.ai/docs/config/) | Prefer an existing `opencode.jsonc` over `opencode.json`; a custom path is preserved exactly in direct launch state |
 | Providers and model picker | [Providers](https://opencode.ai/docs/providers) | Use `@ai-sdk/openai`, write a typed static discovered-model snapshot for immediate picker visibility, refresh live chat metadata during startup, and exclude known embedding/image-generation/audio-only rows while preserving multimodal chat rows |
-| Search tools | [Tools](https://opencode.ai/docs/tools/) and [server tool inspection](https://opencode.ai/docs/server/) | Pin upstream `opencode-websearch@0.6.0` as `web-search` for the active `@ai-sdk/openai` LiteLLM model; keep named LiteLLM routes as `litellm_search`/`litellm_*`; never override the unrelated built-in `websearch`; scrub inherited `OPENCODE_ENABLE_EXA` at direct launch |
+| Search tools | [Tools](https://opencode.ai/docs/tools/) and [server tool inspection](https://opencode.ai/docs/server/) | Register `web-search` in the managed plugin for the active LiteLLM model; send a native Responses `web_search` request; keep named LiteLLM routes as `litellm_search`/`litellm_*`; never override the unrelated built-in `websearch`; scrub inherited `OPENCODE_ENABLE_EXA` at direct launch |
 | Remote MCP | [MCP servers](https://opencode.ai/docs/mcp-servers/) | Register only gateway-discovered or explicitly selected server/toolset routes and preserve existing entries |
 | Shared skills | [Agent skills](https://opencode.ai/docs/skills/) | Install one global `~/.agents/skills/litellm-research-router` skill |
 
@@ -168,13 +168,18 @@ legacy toolkit whitelist of six `alibaba-token/*` IDs is removed so all
 discovered chat IDs can appear. Any other whitelist and every blacklist are
 treated as user-owned and preserved.
 
-The native search integration reuses the published
+The native search tool follows the published
 [`opencode-websearch@0.6.0`](https://www.npmjs.com/package/opencode-websearch)
-artifact rather than duplicating its provider dispatch. Its immutable package
-source at commit [`a87f729b`](https://github.com/emilsvennesson/opencode-websearch/tree/a87f729bc4ae83147d78078571e4275908627079)
-detects `@ai-sdk/openai` models and sends the configured provider base URL a
-Responses request containing `{ "type": "web_search" }`. The installer owns
-the exact pin and replaces stale versions while preserving unrelated plugins.
+contract. Its immutable package source at commit
+[`a87f729b`](https://github.com/emilsvennesson/opencode-websearch/tree/a87f729bc4ae83147d78078571e4275908627079)
+selects the active OpenAI-compatible model and sends the configured provider a
+Responses request containing `{ "type": "web_search" }`. The managed plugin
+implements that LiteLLM-specific path directly so it can use its resolved
+gateway credential and a stable API-client user agent. It preserves the
+structured `{ query, results }` response, including deduplicated
+`url_citation` title/URL pairs, and the mandatory Sources guidance from the
+upstream tool description. The installer removes standalone
+`opencode-websearch` pins to prevent duplicate `web-search` tools.
 
 ## Oh My OpenAgent consumer contract
 

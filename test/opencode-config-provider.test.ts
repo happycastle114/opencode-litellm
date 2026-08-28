@@ -2,7 +2,6 @@ import { describe, expect, test } from 'bun:test'
 import { parse as parseJsonc } from 'jsonc-parser'
 import {
   OH_MY_OPENAGENT_PLUGIN_SPEC,
-  OPENCODE_WEBSEARCH_PLUGIN_SPEC,
   PLUGIN_SPEC,
   baseIntent,
   render,
@@ -23,7 +22,6 @@ describe('opencode provider editing', () => {
     })
     expect(parsed.plugin).toEqual([
       PLUGIN_SPEC,
-      OPENCODE_WEBSEARCH_PLUGIN_SPEC,
       OH_MY_OPENAGENT_PLUGIN_SPEC,
     ])
   })

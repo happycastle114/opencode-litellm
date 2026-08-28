@@ -5,7 +5,6 @@ import { pathToFileURL } from 'node:url'
 import { parse as parseJsonc } from 'jsonc-parser'
 import {
   OH_MY_OPENAGENT_PLUGIN_SPEC,
-  OPENCODE_WEBSEARCH_PLUGIN_SPEC,
   applyOpenCodeEdits,
   planOpenCodeEdits,
 } from '../src/cli/opencode-config'
@@ -56,7 +55,6 @@ describe('managed OpenCode plugin install plan', () => {
     // Then: the durable config references the managed checkout, not a registry selector
     expect(parseJsonc(output).plugin).toEqual([
       plan.pluginSpec,
-      OPENCODE_WEBSEARCH_PLUGIN_SPEC,
       OH_MY_OPENAGENT_PLUGIN_SPEC,
     ])
   })

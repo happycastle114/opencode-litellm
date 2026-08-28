@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.11] — 2026-08-29
+
+### Fixed
+- The managed OpenCode plugin now owns the `web-search` tool and sends native
+  Responses `web_search` requests with the active LiteLLM model. This preserves
+  the upstream plugin's mandatory Sources guidance and deduplicated citation
+  results while avoiding SDK user agents that API-edge bot policies can reject
+  before a request reaches LiteLLM.
+- Existing standalone `opencode-websearch` pins are removed during install so
+  OpenCode never loads two plugins that register the same tool ID.
+
 ## [0.7.10] — 2026-08-29
 
 ### Added

@@ -54,8 +54,8 @@ What it configures:
 
 - LiteLLM plugin (git-pinned checkout) + `@ai-sdk/openai` provider
 - Model picker snapshot from `GET /v1/models`
-- Native `web-search` via the exact `opencode-websearch@0.6.0` package and
-  LiteLLM's Responses `web_search` interception
+- Native `web-search` from the managed plugin, backed by LiteLLM's Responses
+  `web_search` interception and the active OpenCode model
 - Named LiteLLM search tools, MCP servers, and MCP toolsets
 - Shared research skill at `~/.agents/skills/litellm-research-router/`
 

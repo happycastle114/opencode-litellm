@@ -60,9 +60,11 @@ export async function configuredPlugin(
 export function createContext(
   metadata: MetadataUpdate[],
   abort = new AbortController().signal,
+  sessionID = 'session-1',
 ) {
   return {
     abort,
+    sessionID,
     metadata(update: MetadataUpdate) {
       metadata.push(update)
     },

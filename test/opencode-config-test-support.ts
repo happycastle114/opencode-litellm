@@ -1,6 +1,5 @@
 import {
   OH_MY_OPENAGENT_PLUGIN_SPEC,
-  OPENCODE_WEBSEARCH_PLUGIN_SPEC,
   planOpenCodeEdits,
   applyOpenCodeEdits,
 } from '../src/cli/opencode-config'
@@ -18,7 +17,6 @@ export const baseIntent = {
 } as const
 
 export { OH_MY_OPENAGENT_PLUGIN_SPEC }
-export { OPENCODE_WEBSEARCH_PLUGIN_SPEC }
 
 export function render(
   source: string,
