@@ -19,6 +19,7 @@ describe('Windows setup assets', () => {
     expect(source).toContain('where node')
     expect(source).toContain('where npx')
     expect(source).not.toContain('%*')
+    expect(source).not.toMatch(/%~?[0-9]/)
   })
 
   test('documents native Windows verification and official Codex references', () => {

@@ -218,6 +218,8 @@ uv tool run --isolated --from 'litellm[proxy]==1.98.0' lite autoroute up
 uv tool run --isolated --from 'litellm[proxy]==1.98.0' lite autoroute down
 ```
 
+This isolated local pin never changes the remote LiteLLM gateway version.
+
 </details>
 
 <details>

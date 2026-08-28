@@ -19,6 +19,9 @@ resolves to commit
 [`d8f71d7b`](https://github.com/BerriAI/litellm/tree/d8f71d7bdbd7c9873d98293f83d64c6db72847e6).
 The normal Node.js installer remains compatible with other gateway releases
 that expose the documented discovery and request surfaces below.
+This pin applies only to the optional local Auto Router process. The package
+contains no Helm, Kubernetes, Argo CD, or remote gateway version mutation and
+does not upgrade or downgrade the operator's LiteLLM server.
 
 | Contract | Immutable or official source | Toolkit behavior |
 |---|---|---|
@@ -120,6 +123,9 @@ Codex catalog use this endpoint as the access-aware authority, preserving the
 returned model ID and `mode`. The runtime OpenCode plugin may first enrich rows
 from `/model_group/info` when the key has management access, but falls back to
 `/v1/models` on denial or an invalid response.
+Routing-group picker rows therefore depend on the remote gateway exposing that
+v1.98-or-newer behavior; older compatible gateways continue to expose their
+ordinary `/v1/models` inventory without being modified by this toolkit.
 
 Authenticated model, MCP, and toolset discovery determine what their respective
 endpoints return to the current identity. Search discovery first uses the
@@ -218,7 +224,7 @@ on every OpenCode install regardless of Qwen or LiteLLM search selection.
 The latest stable Codex CLI checked for this release is
 [`0.150.1`](https://github.com/openai/codex/releases/tag/rust-v0.150.1). The
 generated gateway catalog is parsed end-to-end by both the local `0.144.1`
-binary and an isolated `0.150.1` binary. Model rows inherit the selected
+binary and a CI-pinned isolated `0.150.1` binary. Model rows inherit the selected
 bundled template's shell execution type, so `shell_command` and the newer
 `unified_exec` remain version-correct without a toolkit hard-code.
 

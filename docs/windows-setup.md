@@ -14,7 +14,7 @@ From a clone of this repository, run in Command Prompt or PowerShell:
 ```
 
 The batch file checks `node` and `npx`, then starts the published installer for
-both clients. It does not forward arbitrary arguments or read macOS Keychain.
+both clients. It does not inspect or forward arguments and does not read macOS Keychain.
 The installer prompts for the LiteLLM gateway URL, authentication method, model,
 web search, and MCP choices.
 
@@ -52,7 +52,8 @@ codex debug models --bundled
 
 The model picker is populated from the authenticated gateway `/v1/models`
 response. LiteLLM 1.98.0 also exposes callable routing groups there, so permitted
-routing groups can appear alongside concrete models. The public LiteLLM Model
+routing groups can appear alongside concrete models when the remote gateway is
+v1.98 or newer. The public LiteLLM Model
 Catalog is reference metadata only; it is not used as the gateway access list.
 
 ## Optional LiteLLM Auto Router
@@ -60,6 +61,8 @@ Catalog is reference metadata only; it is not used as the gateway access list.
 Install `uv`, then rerun the installer with `--auto-router configure`. The
 toolkit pins `litellm[proxy]==1.98.0`. That release publishes a Windows wheel, so
 a Rust compiler is not required for this path.
+This pin is only for the optional local Auto Router environment. Setup does not
+change, upgrade, or downgrade the remote LiteLLM server.
 
 ## Official references
 

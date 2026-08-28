@@ -42,6 +42,10 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Verify Codex 0.150.1 model catalog compatibility
+        if: matrix.node == '24.15.0'
+        run: npm exec --yes --package=@openai/codex@0.150.1 -- env CODEX_BINARY_TESTS=1 bun test test/codex-catalog-binary.test.ts
+
       - name: Pack core (dry run)
         run: npm pack --dry-run --ignore-scripts
 
@@ -70,4 +74,7 @@ jobs:
       - name: Verify Windows setup entrypoint
         if: runner.os == 'Windows'
         shell: cmd
-        run: scripts\setup-windows.bat --help
+        run: |
+          set OPENCODE_LITELLM_SETUP_HELP=1
+          call scripts\setup-windows.bat "x & echo injected>batch-injected.txt"
+          if exist batch-injected.txt exit /b 1
