@@ -18,6 +18,9 @@ const PLUGIN_NAME = 'opencode-plugin-litellm'
 const OPENAGENT_PLUGIN_NAME = 'oh-my-openagent'
 const OPENAGENT_PLUGIN_VERSION = '4.19.0'
 export const OH_MY_OPENAGENT_PLUGIN_SPEC = `${OPENAGENT_PLUGIN_NAME}@${OPENAGENT_PLUGIN_VERSION}`
+const WEBSEARCH_PLUGIN_NAME = 'opencode-websearch'
+const WEBSEARCH_PLUGIN_VERSION = '0.6.0'
+export const OPENCODE_WEBSEARCH_PLUGIN_SPEC = `${WEBSEARCH_PLUGIN_NAME}@${WEBSEARCH_PLUGIN_VERSION}`
 const LEGACY_OPENAGENT_PLUGIN_NAME = 'oh-my-opencode'
 const DEFAULT_SEARCH_MAX_RESULTS = 8
 const PRIMARY_SEARCH_TOOL_NAME = 'litellm_search'
@@ -99,14 +102,16 @@ function mergePluginList(
   const existing = readPluginList(config)
   const spec = buildPluginSpec(intent, readTupleOptions(existing, isLiteLLMEntry))
   const openAgentSpec = buildOpenAgentSpec(existing)
+  const webSearchSpec = OPENCODE_WEBSEARCH_PLUGIN_SPEC
   const specName = pluginSpecName(spec)
   const preserved = existing.filter(
     (entry) =>
       !isLiteLLMEntry(entry) &&
       !isOpenAgentEntry(entry) &&
+      !isWebSearchEntry(entry) &&
       pluginSpecName(entry) !== specName,
   )
-  return [spec, openAgentSpec, ...preserved]
+  return [spec, webSearchSpec, openAgentSpec, ...preserved]
 }
 
 function readPluginList(config: unknown): readonly PluginSpec[] {
@@ -130,6 +135,10 @@ function isLiteLLMEntry(entry: PluginSpec): boolean {
 function isOpenAgentEntry(entry: PluginSpec): boolean {
   const packageName = pluginPackageName(typeof entry === 'string' ? entry : entry[0])
   return packageName === LEGACY_OPENAGENT_PLUGIN_NAME || packageName === OPENAGENT_PLUGIN_NAME
+}
+
+function isWebSearchEntry(entry: PluginSpec): boolean {
+  return pluginPackageName(pluginSpecName(entry)) === WEBSEARCH_PLUGIN_NAME
 }
 
 function isCurrentOpenAgentEntry(entry: PluginSpec): boolean {

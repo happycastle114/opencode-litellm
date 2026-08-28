@@ -128,13 +128,13 @@ describe('install argument parsing', () => {
     expect(parsed.options.codexConfig).toBe('/tmp/codex/config.toml')
   })
 
-  test('uses production gateway, auth environment, discovery, and Codex mode defaults', () => {
-    const parsed = parseCliArgs(['install'])
+  test('uses auth environment, discovery, and Codex mode defaults (no hardcoded gateway)', () => {
+    const parsed = parseCliArgs(['install'], {})
 
     expect(parsed.kind).toBe('command')
     if (parsed.kind !== 'command') return
     expect(parsed.options).toMatchObject({
-      baseUrl: 'https://llm.soungmin.kr',
+      baseUrl: undefined,
       auth: 'sso',
       authEnv: 'LITELLM_PROXY_API_KEY',
       codexMode: 'both',

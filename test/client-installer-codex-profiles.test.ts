@@ -39,6 +39,9 @@ describe('prepared client installer', () => {
     writeFileSync(configPath, 'approval_policy = "on-request"\n')
     writeFileSync(profilePath, 'managed = true\n')
     writeFileSync(oauthCatalogPath, '{"models":[]}\n')
+    const modelsCachePath = join(homeDirectory, '.codex', 'models_cache.json')
+    const userModelsCache = '{"user_owned":true}\n'
+    writeFileSync(modelsCachePath, userModelsCache)
     let bundledCatalogReads = 0
 
     // When: the prepared gateway-only installation is applied
@@ -72,6 +75,7 @@ describe('prepared client installer', () => {
     expect(bundledCatalogReads).toBe(2)
     expect(existsSync(oauthCatalogPath)).toBe(false)
     expect(existsSync(profilePath)).toBe(false)
+    expect(readFileSync(modelsCachePath, 'utf8')).toBe(userModelsCache)
     const managedBackups = readdirSync(join(homeDirectory, '.codex'))
     expect(managedBackups.filter(
       (name) => name.startsWith('codex-oauth.config.toml.') && name.endsWith('.bak'),
@@ -91,6 +95,9 @@ describe('prepared client installer', () => {
     writeFileSync(configPath, 'approval_policy = "never"\n')
     writeFileSync(profilePath, 'stale = true\n')
     writeFileSync(gatewayCatalogPath, '{"models":[]}\n')
+    const modelsCachePath = join(homeDirectory, '.codex', 'models_cache.json')
+    const userModelsCache = '{"user_owned":true}\n'
+    writeFileSync(modelsCachePath, userModelsCache)
     const bundled = bundledCatalog()
 
     // When: the prepared OAuth-only installation is applied
@@ -125,6 +132,7 @@ describe('prepared client installer', () => {
     expect(config.model_catalog_json).toBe(oauthCatalogPath)
     expect(existsSync(gatewayCatalogPath)).toBe(false)
     expect(existsSync(profilePath)).toBe(false)
+    expect(readFileSync(modelsCachePath, 'utf8')).toBe(userModelsCache)
     const managedBackups = readdirSync(join(homeDirectory, '.codex'))
     expect(managedBackups.filter(
       (name) => name.startsWith('litellm-models.json.') && name.endsWith('.bak'),
@@ -137,6 +145,10 @@ describe('prepared client installer', () => {
     const opencodePath = join(homeDirectory, '.config', 'opencode', 'opencode.jsonc')
     const codexPath = join(homeDirectory, '.codex', 'config.toml')
     const oauthProfilePath = join(homeDirectory, '.codex', 'codex-oauth.config.toml')
+    const modelsCachePath = join(homeDirectory, '.codex', 'models_cache.json')
+    const userModelsCache = '{"user_owned":true}\n'
+    mkdirSync(join(homeDirectory, '.codex'), { recursive: true })
+    writeFileSync(modelsCachePath, userModelsCache)
     const bundled = bundledCatalog()
 
     // When: the combined prepared installation is applied
@@ -170,5 +182,6 @@ describe('prepared client installer', () => {
     expect(readFileSync(oauth.model_catalog_json, 'utf8')).toBe(bundled.json)
     expect(oauth.mcp_servers).toHaveProperty('litellm_mcp_visible')
     expect(oauth.mcp_servers).toHaveProperty('litellm_toolset_toolset_visible')
+    expect(readFileSync(modelsCachePath, 'utf8')).toBe(userModelsCache)
   })
 })

@@ -326,7 +326,7 @@ try {
     env,
   })
 
-  const coreRoot = join(consumerRoot, 'node_modules', '@happycastle114', 'opencode-litellm')
+  const coreRoot = join(consumerRoot, 'node_modules', '@happycastle', 'opencode-litellm')
   const distCli = join(coreRoot, 'dist', 'opencode-litellm.mjs')
   if (!existsSync(distCli)) throw new Error(`Git install did not run prepare/build: ${distCli}`)
   assertInstalledBin(consumerRoot, 'opencode-litellm', state)

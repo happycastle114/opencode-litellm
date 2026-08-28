@@ -7,7 +7,6 @@ const CLIENT_BIN = {
 } as const
 
 const DEFAULTS = {
-  GatewayOrigin: 'https://llm.soungmin.kr',
   Auth: 'sso',
   AuthEnv: 'LITELLM_PROXY_API_KEY',
 } as const
@@ -37,12 +36,12 @@ describe('client-aware install defaults', () => {
   )
 
   test('makes a bare install a complete SSO-backed toolkit intent', () => {
-    const parsed = parseCliArgs(['install'])
+    const parsed = parseCliArgs(['install'], {})
     expect(parsed.kind).toBe('command')
     if (parsed.kind !== 'command') return
     expect(parsed.options).toMatchObject({
       target: 'opencode',
-      baseUrl: DEFAULTS.GatewayOrigin,
+      baseUrl: undefined,
       auth: DEFAULTS.Auth,
       authEnv: DEFAULTS.AuthEnv,
       codexMode: 'both',

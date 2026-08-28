@@ -36,16 +36,19 @@ export type CodexCatalog = {
 export function buildCodexCatalog(
   models: readonly LiteLLMModel[],
   template: CodexModelTemplate,
+  preferredDefaultModel?: string,
 ): CodexCatalog {
   const modelIds = [...new Set(
     models.filter((model) => !isKnownNonChatModel(model))
       .map((model) => model.id.trim()).filter((id) => id !== ''),
   )].sort()
   if (modelIds.length === 0) throw new Error('LiteLLM returned no usable models for the Codex catalog.')
-  const defaultModel = chooseDefaultModel(modelIds)
+  const defaultModel = preferredDefaultModel !== undefined && modelIds.includes(preferredDefaultModel)
+    ? preferredDefaultModel
+    : chooseDefaultModel(modelIds)
   const orderedModelIds = [defaultModel, ...modelIds.filter((slug) => slug !== defaultModel)]
   const catalog = {
-    models: orderedModelIds.map((slug) => {
+    models: orderedModelIds.map((slug, index) => {
       const isQwenPreview = slug === QWEN_GATEWAY_MODEL
       const contextWindow = isQwenPreview
         ? QWEN_CATALOG_METADATA.ContextWindow
@@ -55,28 +58,26 @@ export function buildCodexCatalog(
         slug,
         display_name: isQwenPreview ? QWEN_CATALOG_METADATA.DisplayName : slug,
         description: 'LiteLLM gateway model',
-        default_reasoning_level: CATALOG_DEFAULT_METADATA.DefaultReasoningLevel,
+        shell_type: 'shell_command',
         visibility: CATALOG_VISIBILITY.List,
         supported_in_api: true,
+        priority: index,
+        context_window: contextWindow,
+        max_context_window: contextWindow,
+        auto_compact_token_limit: Math.floor(contextWindow * 0.9),
+        effective_context_window_percent: 95,
+        input_modalities: isQwenPreview
+          ? [CATALOG_INPUT_MODALITY.Text, CATALOG_INPUT_MODALITY.Image]
+          : [CATALOG_INPUT_MODALITY.Text],
+        supported_reasoning_levels: [],
+        supports_parallel_tool_calls: false,
+        supports_search_tool: true,
+        supports_image_detail_original: false,
+        use_responses_lite: false,
         additional_speed_tiers: [],
         service_tiers: [],
         availability_nux: null,
         upgrade: null,
-        input_modalities: isQwenPreview
-          ? [CATALOG_INPUT_MODALITY.Text, CATALOG_INPUT_MODALITY.Image]
-          : [CATALOG_INPUT_MODALITY.Text],
-        supports_image_detail_original: false,
-        supported_reasoning_levels: [],
-        supports_reasoning_summaries: undefined,
-        default_service_tier: undefined,
-        supports_parallel_tool_calls: false,
-        supports_search_tool: false,
-        support_verbosity: false,
-        context_window: contextWindow,
-        max_context_window: contextWindow,
-        experimental_supported_tools: [],
-        use_responses_lite: false,
-        priority: slug === defaultModel ? 1 : 100,
       }
     }),
   }

@@ -95,7 +95,6 @@ export const CodexMode = {
 export type CodexMode = (typeof CodexMode)[keyof typeof CodexMode]
 
 export const ToolkitDefault = {
-  GatewayOrigin: 'https://llm.soungmin.kr',
   Auth: InstallAuth.Sso,
   AuthEnvironment: 'LITELLM_PROXY_API_KEY',
   Target: InstallTarget.OpenCode,

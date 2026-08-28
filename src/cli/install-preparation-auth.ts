@@ -12,7 +12,7 @@ import {
   type SsoOnboardingResult,
 } from './onboarding-sso'
 import type { OnboardingConnection, OnboardingIO } from './onboarding'
-import { loadOfficialLiteLLMApiKey } from './official-token'
+import { loadOfficialLiteLLMApiKey, loadEnvKey } from './official-token'
 import { isHeaderSafeApiKey } from '../utils/api-key'
 
 const TOKEN_PATH = ['.litellm', 'token.json'] as const
@@ -105,7 +105,7 @@ export async function resolveCredential(
 ): Promise<ResolvedCredential> {
   switch (request.connection.auth) {
     case InstallAuth.Environment:
-      return environmentCredential(request.authEnv, request.boundary.env)
+      return environmentCredential(request, origin)
     case InstallAuth.Sso:
       return ssoCredential(request, origin)
     default:
@@ -113,17 +113,42 @@ export async function resolveCredential(
   }
 }
 
-function environmentCredential(
-  authEnv: string,
-  env: Readonly<Record<string, string | undefined>>,
-): ResolvedCredential {
-  const apiKey = env[authEnv]
-  if (isHeaderSafeApiKey(apiKey)) {
-    return { kind: InstallCredentialKind.Environment, apiKey }
+async function environmentCredential(
+  request: ConnectionLoadRequest,
+  origin: string,
+): Promise<ResolvedCredential> {
+  const envKey = request.boundary.env[request.authEnv]
+  if (isHeaderSafeApiKey(envKey)) {
+    return { kind: InstallCredentialKind.Environment, apiKey: envKey }
+  }
+  const tokenFilePath = resolveTokenFilePath(request.boundary)
+  const stored = loadEnvKey(tokenFilePath, origin)
+  if (stored !== undefined) {
+    return { kind: InstallCredentialKind.Environment, apiKey: stored }
+  }
+  if (request.interactive && request.boundary.onboardingIO !== undefined) {
+    const io = request.boundary.onboardingIO
+    const entered = (await io.prompt(
+      `Enter your LiteLLM API key (stored in ~/.litellm/token.json for reuse): `,
+    )).trim()
+    if (isHeaderSafeApiKey(entered)) {
+      const token = {
+        base_url: origin,
+        key: entered,
+        user_id: 'local',
+        user_role: 'cli',
+        timestamp: request.boundary.now(),
+      }
+      return {
+        kind: InstallCredentialKind.Environment,
+        apiKey: entered,
+        deferredSsoToken: { contents: `${JSON.stringify(token, null, 2)}\n` },
+      }
+    }
   }
   throw preparationError(
     InstallPreparationErrorCode.MissingEnvironmentCredential,
-    `Environment variable '${authEnv}' is required for authenticated LiteLLM discovery.`,
+    `Environment variable '${request.authEnv}' is required for authenticated LiteLLM discovery.`,
   )
 }
 

@@ -13,7 +13,7 @@ const VALUE = {
 } as const
 const MANAGED_PLUGIN = {
   repository: 'https://github.com/happycastle114/opencode-litellm.git',
-  revision: 'f97a800d7ce1dd204a2cfe0c51b7149428ecdff4',
+  revision: 'd96c16e4a42f5f15bda7ec45f6d0ba9a1e0a937b',
 } as const
 const BUNDLED_CATALOG_SOURCE = readFileSync(
   new URL('./fixtures/codex-bundled-catalog-0.144.1.json', import.meta.url),

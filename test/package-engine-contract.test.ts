@@ -9,7 +9,7 @@ import {
   NPM_REGISTRY,
 } from './package-distribution-test-support'
 
-const SUPPORTED_NODE_RANGE = '^22.22.2 || ^24.15.0 || >=26.0.0'
+const SUPPORTED_NODE_RANGE = '^22.22.2 || ^24.12.0 || >=26.0.0'
 const repositoryRoot = dirname(fileURLToPath(new URL('../package.json', import.meta.url)))
 const wrapperRoot = join(repositoryRoot, 'packages', 'codex-litellm')
 
@@ -66,10 +66,10 @@ test('installs both packed packages with engine-strict and runs them on a suppor
     // Then: npm accepts the dependency graph and Node executes both entrypoints
     expectCommandSucceeded(installed, 'engine-strict install')
     const core = readJsonObject(
-      join(consumerRoot, 'node_modules', '@happycastle114', 'opencode-litellm', 'package.json'),
+      join(consumerRoot, 'node_modules', '@happycastle', 'opencode-litellm', 'package.json'),
     )
     const wrapper = readJsonObject(
-      join(consumerRoot, 'node_modules', '@happycastle114', 'codex-litellm', 'package.json'),
+      join(consumerRoot, 'node_modules', '@happycastle', 'codex-litellm', 'package.json'),
     )
     expect(core.engines).toEqual({ node: SUPPORTED_NODE_RANGE })
     expect(wrapper.engines).toEqual({ node: SUPPORTED_NODE_RANGE })
@@ -80,7 +80,7 @@ test('installs both packed packages with engine-strict and runs them on a suppor
         join(
           consumerRoot,
           'node_modules',
-          '@happycastle114',
+          '@happycastle',
           'opencode-litellm',
           'dist',
           'opencode-litellm.mjs',
@@ -93,7 +93,7 @@ test('installs both packed packages with engine-strict and runs them on a suppor
 
     const wrapperHelp = spawnSync(
       'node',
-      [join(consumerRoot, 'node_modules', '@happycastle114', 'codex-litellm', 'bin', 'codex-litellm.mjs'), '--help'],
+      [join(consumerRoot, 'node_modules', '@happycastle', 'codex-litellm', 'bin', 'codex-litellm.mjs'), '--help'],
       { cwd: consumerRoot, encoding: 'utf8', env: process.env },
     )
     expectCommandSucceeded(wrapperHelp, 'wrapper runtime')

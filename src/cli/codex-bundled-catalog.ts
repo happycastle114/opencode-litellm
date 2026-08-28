@@ -44,19 +44,32 @@ export class CodexCatalogError extends Error {
 }
 
 export function readBundledCodexCatalog(
-  boundary: CodexSpawnBoundary = defaultCodexSpawnBoundary(),
+  boundary: CodexSpawnBoundary,
 ): BundledCodexCatalog {
   const args = [CODEX_COMMAND.Debug, CODEX_COMMAND.Models, CODEX_COMMAND.Bundled] as const
   let result: CodexSpawnResult
   try {
     result = boundary.spawn(CODEX_COMMAND.File, args, {
       encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+      shell: process.platform === 'win32',
     })
   } catch {
-    throw new CodexCatalogError("The Codex CLI executable 'codex' was not found on PATH.")
+    throw new CodexCatalogError(
+      "The Codex CLI executable 'codex' was not found on PATH.\n" +
+      (process.platform === 'win32'
+        ? "  On Windows, make sure 'codex.exe' or 'codex.cmd' is in your PATH.\n" +
+          '  Check with: where codex'
+        : '  Check with: which codex'),
+    )
   }
   if (result.error !== undefined) {
-    throw new CodexCatalogError("The Codex CLI executable 'codex' was not found on PATH.")
+    throw new CodexCatalogError(
+      "The Codex CLI executable 'codex' was not found on PATH.\n" +
+      (process.platform === 'win32'
+        ? "  On Windows, make sure 'codex.exe' or 'codex.cmd' is in your PATH.\n" +
+          '  Check with: where codex'
+        : '  Check with: which codex'),
+    )
   }
   const status = result.status ?? result.exitCode
   if ((status !== undefined && status !== 0) || (result.signal !== undefined && result.signal !== null)) {
@@ -156,11 +169,12 @@ function invalidCatalog(): CodexCatalogError {
   return new CodexCatalogError('Codex bundled model catalog output was invalid or empty.')
 }
 
-function defaultCodexSpawnBoundary(): CodexSpawnBoundary {
+export function createCodexSpawnBoundary(): CodexSpawnBoundary {
   return {
     spawn(file, args) {
       const result = spawnSync(file, [...args], {
         encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+        shell: process.platform === 'win32',
       })
       return {
         status: result.status,

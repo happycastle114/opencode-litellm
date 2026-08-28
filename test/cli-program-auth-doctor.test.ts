@@ -120,7 +120,7 @@ describe('CLI program', () => {
     const tokenPath = join(tokenDirectory, 'token.json')
     mkdirSync(tokenDirectory, { recursive: true })
     writeFileSync(tokenPath, JSON.stringify({ base_url: 'https://litellm.example.com', key: 'sk-partial-logout-secret' }))
-    const result = await runCliProgram(['logout', '--auth-env', 'CUSTOM_PROXY_KEY'], {
+    const result = await runCliProgram(['logout', '--base-url', 'https://litellm.example.com', '--auth-env', 'CUSTOM_PROXY_KEY'], {
       env: { HOME: dir }, now: () => new Date(0), externalSetup: true, platform: 'darwin',
       codexSpawnBoundary: { spawn: () => ({ status: 1, signal: null, stdout: '', stderr: '' }) },
     })

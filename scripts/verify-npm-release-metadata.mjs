@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process'
 
-export const GITHUB_PACKAGES_REGISTRY = 'https://npm.pkg.github.com'
+export const NPM_REGISTRY = 'https://registry.npmjs.org'
 export const DEFAULT_ATTEMPTS = 6
 export const DEFAULT_DELAY_MS = 5000
 export const DEFAULT_TIMEOUT_MS = 15000
@@ -63,7 +63,7 @@ export function validateMetadata(metadata, expected) {
 
 export function readRegistryMetadata({
   packageSpec,
-  registry = GITHUB_PACKAGES_REGISTRY,
+  registry = NPM_REGISTRY,
   attempts = DEFAULT_ATTEMPTS,
   delayMs = DEFAULT_DELAY_MS,
   timeoutMs = DEFAULT_TIMEOUT_MS,
@@ -100,14 +100,14 @@ export function readRegistryMetadata({
   throw new Error(`Unable to read ${exact.spec} after ${boundedAttempts} attempts: ${errors.join('; ')}`)
 }
 
-export function verifyRegistryMetadata({ packageSpec, gitHead, registry = GITHUB_PACKAGES_REGISTRY, ...options } = {}) {
+export function verifyRegistryMetadata({ packageSpec, gitHead, registry = NPM_REGISTRY, ...options } = {}) {
   const exact = parsePackageSpec(packageSpec)
   if (typeof gitHead !== 'string' || gitHead.length === 0) throw new Error('A release gitHead is required.')
   const expected = { ...exact, gitHead, integrity: options.integrity, registry }
   const result = readRegistryMetadata({ packageSpec, registry, ...options })
   if (result.status === 'missing') {
     if (options.allowMissing === true) return result
-    throw new Error(`${packageSpec} is not present in the GitHub Packages registry.`)
+    throw new Error(`${packageSpec} is not present in the npm registry.`)
   }
   const validation = validateMetadata(result.metadata, expected)
   if (!validation.ok) {
@@ -121,7 +121,7 @@ export function isNotFound(result) {
   return /(?:npm\s+error\s+code\s+E404|\bE404\b)/i.test(text)
 }
 
-function runNpmView(packageSpec, { npmExecutable = 'npm', timeoutMs, registry = GITHUB_PACKAGES_REGISTRY }) {
+function runNpmView(packageSpec, { npmExecutable = 'npm', timeoutMs, registry = NPM_REGISTRY }) {
   const result = spawnSync(npmExecutable, ['view', packageSpec, '--json', '--registry', registry], {
     encoding: 'utf8',
     timeout: timeoutMs,
@@ -188,7 +188,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const result = verifyRegistryMetadata({
       packageSpec: args.package,
       gitHead: args.git_head,
-      registry: args.registry ?? GITHUB_PACKAGES_REGISTRY,
+      registry: args.registry ?? NPM_REGISTRY,
       allowMissing: args.mode === 'preflight',
       attempts: args.mode === 'preflight' ? 1 : Number(args.attempts ?? DEFAULT_ATTEMPTS),
       delayMs: args.mode === 'preflight' ? 0 : Number(args.delay_ms ?? DEFAULT_DELAY_MS),

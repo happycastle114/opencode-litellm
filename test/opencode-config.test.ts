@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { parse as parseJsonc } from 'jsonc-parser'
 import {
   OH_MY_OPENAGENT_PLUGIN_SPEC,
+  OPENCODE_WEBSEARCH_PLUGIN_SPEC,
   PLUGIN_SPEC,
   baseIntent,
   render,
@@ -10,6 +11,20 @@ import { planOpenCodeEdits } from '../src/cli/opencode-config'
 import { ConfigurationError } from '../src/cli/errors'
 
 describe('opencode JSONC editing', () => {
+  test('pins the upstream native web-search plugin and replaces stale pins', () => {
+    const source = `{
+  "plugin": ["opencode-websearch@0.5.0", "keep@1.0.0"]
+}`
+
+    const parsed = parseJsonc(render(source))
+    const webSearchEntries = (parsed.plugin as unknown[]).filter(
+      (entry) => typeof entry === 'string' && entry.startsWith('opencode-websearch@'),
+    )
+
+    expect(webSearchEntries).toEqual([OPENCODE_WEBSEARCH_PLUGIN_SPEC])
+    expect(parsed.plugin).toContain('keep@1.0.0')
+  })
+
   test('preserves comments and unrelated keys', () => {
     // Given: a config with comments and unrelated content
     const source = `{
@@ -85,7 +100,11 @@ describe('opencode JSONC editing', () => {
 
   test('replaces an unversioned managed plugin entry', () => {
     const parsed = parseJsonc(render('{"plugin": ["opencode-plugin-litellm"]}'))
-    expect(parsed.plugin).toEqual([PLUGIN_SPEC, OH_MY_OPENAGENT_PLUGIN_SPEC])
+    expect(parsed.plugin).toEqual([
+      PLUGIN_SPEC,
+      OPENCODE_WEBSEARCH_PLUGIN_SPEC,
+      OH_MY_OPENAGENT_PLUGIN_SPEC,
+    ])
   })
 
   test.each([
@@ -93,7 +112,12 @@ describe('opencode JSONC editing', () => {
     'file:///tmp/vendor/opencode-litellm-git/83ea2674a8afb578a670188fb3b522fc242a77cb/src/index.ts',
   ])('replaces the previous managed checkout entry at %s', (managedSpec) => {
     const parsed = parseJsonc(render(JSON.stringify({ plugin: [managedSpec, 'keep@1.0.0'] })))
-    expect(parsed.plugin).toEqual([PLUGIN_SPEC, OH_MY_OPENAGENT_PLUGIN_SPEC, 'keep@1.0.0'])
+    expect(parsed.plugin).toEqual([
+      PLUGIN_SPEC,
+      OPENCODE_WEBSEARCH_PLUGIN_SPEC,
+      OH_MY_OPENAGENT_PLUGIN_SPEC,
+      'keep@1.0.0',
+    ])
   })
 
   test('pins the official consumer and retires the legacy plugin without clobbering others', () => {
@@ -111,6 +135,7 @@ describe('opencode JSONC editing', () => {
 
     expect(parsed.plugin).toEqual([
       PLUGIN_SPEC,
+      OPENCODE_WEBSEARCH_PLUGIN_SPEC,
       [OH_MY_OPENAGENT_PLUGIN_SPEC, { preserved: { enabled: true } }],
       'keep@1.0.0',
     ])

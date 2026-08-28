@@ -8,6 +8,7 @@ export {
 export {
   assertBundledCodexOAuthCatalog,
   CodexCatalogError,
+  createCodexSpawnBoundary,
   missingBundledCodexOAuthModels,
   readBundledCodexCatalog,
   type BundledCodexCatalog,

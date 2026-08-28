@@ -112,17 +112,18 @@ describe('Codex model catalog', () => {
     expect(isRecord(model)).toBe(true)
     if (!isRecord(model)) return
 
-    // Then: it is picker-visible while unsupported capabilities remain conservative
+    // Then: it is picker-visible with conservative capabilities for unknown routes
     expect(model.slug).toBe('vendor/unknown-model')
     expect(model.visibility).toBe('list')
     expect(model.supported_in_api).toBe(true)
     expect(model.supported_reasoning_levels).toEqual([])
-    expect(model).not.toHaveProperty('supports_reasoning_summaries')
-    expect(model.supports_reasoning_summary_parameter).toBeUndefined()
     expect(model.supports_parallel_tool_calls).toBe(false)
     expect(model.input_modalities).toEqual(['text'])
     expect(model.base_instructions).toBe(bundledCatalog.template.base_instructions)
     expect(model.model_messages).toEqual(bundledCatalog.template.model_messages)
+    expect(model.shell_type).toBe('shell_command')
+    expect(model.auto_compact_token_limit).toBe(Math.floor(200_000 * 0.9))
+    expect(model.effective_context_window_percent).toBe(95)
   })
 })
 

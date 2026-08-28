@@ -96,7 +96,7 @@ export function parseInstallOptions(
       baseUrl: values.get('--base-url') ??
         environment[LITELLM_ENVIRONMENT.BaseUrl] ??
         environment[LITELLM_ENVIRONMENT.ProxyUrl] ??
-        ToolkitDefault.GatewayOrigin,
+        undefined,
       auth: auth.value,
       authEnv: authEnvironment,
       nonInteractive,

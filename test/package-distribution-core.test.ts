@@ -19,7 +19,7 @@ import {
 const PACKAGE_DISTRIBUTION_TEST_TIMEOUT_MS = 60_000
 
 test('packs, installs, imports, and typechecks the core package as a strict Node consumer', () => {
-  const build = spawnSync(getNpmExecutable(), ['run', 'build'], { cwd: repositoryRoot, encoding: 'utf8', env: process.env })
+  const build = spawnSync(getNpmExecutable(), ['run', 'build'], { cwd: repositoryRoot, encoding: 'utf8' })
   expect(build.status).toBe(0)
 
   const fixtureRoot = mkdtempSync(join(tmpdir(), 'opencode-litellm-pack-test-'))
@@ -38,7 +38,7 @@ test('packs, installs, imports, and typechecks the core package as a strict Node
 
     const consumerRoot = createConsumer(fixtureRoot, 'opencode-litellm-package-consumer')
     installPackage(packed.filename, consumerRoot)
-    const installedRoot = join(consumerRoot, 'node_modules', '@happycastle114', 'opencode-litellm')
+    const installedRoot = join(consumerRoot, 'node_modules', '@happycastle', 'opencode-litellm')
     expect(existsSync(installedRoot)).toBe(true)
     expect(lstatSync(installedRoot).isSymbolicLink()).toBe(false)
     const manifest = readJsonObject(join(installedRoot, 'package.json'))
@@ -50,8 +50,8 @@ test('packs, installs, imports, and typechecks the core package as a strict Node
 
     const nodeRuntime = getNodeRuntime()
     const importProbe = join(consumerRoot, 'import-plugin.mjs')
-    writeFileSync(importProbe, "const runtime = { release: process.release.name, version: process.version };\nconst plugin = await import('@happycastle114/opencode-litellm');\nconst hooks = await plugin.LiteLLMPlugin({});\nconst responses = await plugin.LiteLLMResponsesPlugin({});\nif (runtime.release !== 'node' || typeof plugin.LiteLLMPlugin !== 'function' || typeof plugin.LiteLLMResponsesPlugin !== 'function' || typeof hooks.config !== 'function' || typeof responses !== 'object') process.exit(1);\nprocess.stdout.write(JSON.stringify({ runtime, exports: Object.keys(plugin).sort(), hookKeys: Object.keys(hooks).sort() }));\n")
-    const imported = spawnSync(nodeRuntime.executable, [importProbe], { cwd: consumerRoot, encoding: 'utf8', env: process.env })
+    writeFileSync(importProbe, "const runtime = { release: process.release.name, version: process.version };\nconst plugin = await import('@happycastle/opencode-litellm');\nconst hooks = await plugin.LiteLLMPlugin({});\nconst responses = await plugin.LiteLLMResponsesPlugin({});\nif (runtime.release !== 'node' || typeof plugin.LiteLLMPlugin !== 'function' || typeof plugin.LiteLLMResponsesPlugin !== 'function' || typeof hooks.config !== 'function' || typeof responses !== 'object') process.exit(1);\nprocess.stdout.write(JSON.stringify({ runtime, exports: Object.keys(plugin).sort(), hookKeys: Object.keys(hooks).sort() }));\n")
+    const imported = spawnSync(nodeRuntime.executable, [importProbe], { cwd: consumerRoot, encoding: 'utf8' })
     expect(imported.status).toBe(0)
     expect(imported.stderr).toBe('')
     const diagnostic: unknown = JSON.parse(imported.stdout)
@@ -65,8 +65,8 @@ test('packs, installs, imports, and typechecks the core package as a strict Node
     expect(existsSync(tsc)).toBe(true)
     expect(lstatSync(tsc).isSymbolicLink()).toBe(false)
     const typeProbe = join(consumerRoot, 'typecheck.mts')
-    writeFileSync(typeProbe, "import { LiteLLMPlugin, LiteLLMResponsesPlugin } from '@happycastle114/opencode-litellm';\nimport type { LiteLLMModel } from '@happycastle114/opencode-litellm';\nconst model: LiteLLMModel = { id: 'packed-model', object: 'model' };\nvoid model; void LiteLLMPlugin({}); void LiteLLMResponsesPlugin({});\n")
-    const typecheck = spawnSync(nodeRuntime.executable, [tsc, '--module', 'NodeNext', '--moduleResolution', 'NodeNext', '--strict', '--noEmit', typeProbe], { cwd: consumerRoot, encoding: 'utf8', env: process.env })
+    writeFileSync(typeProbe, "import { LiteLLMPlugin, LiteLLMResponsesPlugin } from '@happycastle/opencode-litellm';\nimport type { LiteLLMModel } from '@happycastle/opencode-litellm';\nconst model: LiteLLMModel = { id: 'packed-model', object: 'model' };\nvoid model; void LiteLLMPlugin({}); void LiteLLMResponsesPlugin({});\n")
+    const typecheck = spawnSync(nodeRuntime.executable, [tsc, '--module', 'NodeNext', '--moduleResolution', 'NodeNext', '--strict', '--noEmit', typeProbe], { cwd: consumerRoot, encoding: 'utf8' })
     if (typecheck.status !== 0) throw new Error(`Strict consumer typecheck failed (${typecheck.status}): ${typecheck.stdout}${typecheck.stderr}`)
     expect(typecheck.stderr).toBe('')
   } finally {

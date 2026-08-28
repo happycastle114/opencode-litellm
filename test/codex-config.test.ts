@@ -45,6 +45,7 @@ describe('Codex managed configuration', () => {
     expect(parsed.model).toBe('coding-fast')
     expect(parsed.model_provider).toBe('litellm')
     expect(parsed.model_catalog_json).toBe(intent.catalogPath)
+    expect(parsed.web_search).toBe('live')
     expect(parsed.model_providers.litellm.wire_api).toBe('responses')
     expect(parsed.model_providers.litellm.env_key).toBe('LITELLM_API_KEY')
     expect(output).not.toContain('sk-')
@@ -186,8 +187,8 @@ describe('Codex model catalog', () => {
     const codingFast = payload.models.find((model: { slug: string }) => model.slug === 'coding-fast')
 
     expect(catalog.defaultModel).toBe('coding-fast')
-    expect(qwen.priority).toBe(100)
-    expect(codingFast.priority).toBe(1)
+    expect(codingFast.priority).toBe(0)
+    expect(qwen.priority).toBe(1)
   })
 
   test('enriches the verified Qwen preview with Codex capability metadata', () => {
@@ -201,19 +202,19 @@ describe('Codex model catalog', () => {
     const payload = JSON.parse(catalog.json)
     const qwen = payload.models[0]
 
-    // Then: the row exposes only capabilities verified for this route and supported by Codex
+    // Then: the row exposes template capabilities with Qwen-specific overrides
     expect(qwen).toMatchObject({
       slug: QWEN_GATEWAY_MODEL,
       display_name: 'Qwen3.8 Max Preview',
-      default_reasoning_level: 'medium',
-      supported_reasoning_levels: [],
-      supports_parallel_tool_calls: false,
-      supports_search_tool: false,
-      supports_image_detail_original: false,
       context_window: 1_000_000,
       max_context_window: 1_000_000,
+      auto_compact_token_limit: Math.floor(1_000_000 * 0.9),
+      effective_context_window_percent: 95,
       input_modalities: ['text', 'image'],
-      priority: 1,
+      priority: 0,
+      shell_type: 'shell_command',
+      visibility: 'list',
+      supported_in_api: true,
     })
   })
 
@@ -228,7 +229,7 @@ describe('Codex model catalog', () => {
     const payload = JSON.parse(catalog.json)
     const model = payload.models[0]
 
-    // Then: prompt/tool behavior comes from Codex while gateway-only claims remain conservative
+    // Then: prompt/tool behavior comes from Codex template, capabilities stay conservative
     expect(model).toMatchObject({
       slug: 'ordinary-model',
       display_name: 'ordinary-model',
@@ -237,30 +238,30 @@ describe('Codex model catalog', () => {
       model_messages: bundledCatalog.template.model_messages,
       include_skills_usage_instructions:
         bundledCatalog.template.include_skills_usage_instructions,
-      shell_type: bundledCatalog.template.shell_type,
+      shell_type: 'shell_command',
       apply_patch_tool_type: bundledCatalog.template.apply_patch_tool_type,
       web_search_tool_type: bundledCatalog.template.web_search_tool_type,
       comp_hash: bundledCatalog.template.comp_hash,
       tool_mode: bundledCatalog.template.tool_mode,
       multi_agent_version: bundledCatalog.template.multi_agent_version,
       supported_reasoning_levels: [],
-      visibility: 'list',
-      supported_in_api: true,
+      supports_parallel_tool_calls: false,
+      supports_search_tool: true,
+      supports_image_detail_original: false,
+      use_responses_lite: false,
       additional_speed_tiers: [],
       service_tiers: [],
+      visibility: 'list',
+      supported_in_api: true,
       availability_nux: null,
       upgrade: null,
       input_modalities: ['text'],
-      supports_image_detail_original: false,
-      supports_parallel_tool_calls: false,
-      supports_search_tool: false,
       context_window: 200_000,
       max_context_window: 200_000,
-      use_responses_lite: false,
-      priority: 1,
+      auto_compact_token_limit: Math.floor(200_000 * 0.9),
+      effective_context_window_percent: 95,
+      priority: 0,
     })
-    expect(model.supports_reasoning_summary_parameter).toBeUndefined()
-    expect(model.prefer_websockets).toBeUndefined()
   })
 
   test('does not elevate Qwen when it is the only discovered model', () => {
@@ -271,7 +272,7 @@ describe('Codex model catalog', () => {
     const payload = JSON.parse(catalog.json)
 
     expect(catalog.defaultModel).toBe(QWEN_GATEWAY_MODEL)
-    expect(payload.models[0].priority).toBe(1)
+    expect(payload.models[0].priority).toBe(0)
   })
 
   test('filters explicit and metadata-free non-chat routes with the shared classifier', () => {

@@ -15,7 +15,8 @@ const OAUTH_PROVIDER_PATH = '/codex-oauth'
 const HEADER_NAME = { LiteLLMApiKey: 'x-litellm-api-key' } as const
 const WIRE_API = { Responses: 'responses' } as const
 const LOGIN_METHOD = { Chatgpt: 'chatgpt' } as const
-const BASE_ROOT_KEYS = ['model', 'model_provider', 'model_catalog_json'] as const
+const WEB_SEARCH_MODE = { Live: 'live' } as const
+const BASE_ROOT_KEYS = ['model', 'model_provider', 'model_catalog_json', 'web_search'] as const
 const OAUTH_ONLY_ROOT_KEYS = ['forced_login_method'] as const
 const OAUTH_ROOT_KEYS = [...BASE_ROOT_KEYS, ...OAUTH_ONLY_ROOT_KEYS] as const
 
@@ -93,6 +94,7 @@ function renderBaseRoot(intent: CodexConfigIntent): string {
     `model = ${tomlString(intent.defaultModel)}`,
     `model_provider = ${tomlString(provider)}`,
     `model_catalog_json = ${tomlString(intent.catalogPath)}`,
+    `web_search = ${tomlString(WEB_SEARCH_MODE.Live)}`,
   ].join('\n')
 }
 
@@ -101,6 +103,7 @@ function renderOAuthRoot(intent: CodexOAuthConfigIntent): string {
     `forced_login_method = ${tomlString(LOGIN_METHOD.Chatgpt)}`,
     `model_provider = ${tomlString(CodexProviderId.CodexOAuth)}`,
     `model_catalog_json = ${tomlString(intent.catalogPath)}`,
+    `web_search = ${tomlString(WEB_SEARCH_MODE.Live)}`,
   ]
   if (intent.defaultModel !== undefined) lines.unshift(`model = ${tomlString(intent.defaultModel)}`)
   return lines.join('\n')

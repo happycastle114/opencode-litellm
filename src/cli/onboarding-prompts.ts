@@ -46,12 +46,52 @@ const InputToken = {
   NoLong: 'no',
 } as const
 
+const ESC = '\x1b['
+
+const C = {
+  bold: (s: string) => `${ESC}1m${s}${ESC}22m`,
+  dim: (s: string) => `${ESC}2m${s}${ESC}22m`,
+  cyan: (s: string) => `${ESC}36m${s}${ESC}39m`,
+  green: (s: string) => `${ESC}32m${s}${ESC}39m`,
+  yellow: (s: string) => `${ESC}33m${s}${ESC}39m`,
+  white: (s: string) => `${ESC}97m${s}${ESC}39m`,
+  bgCyan: (s: string) => `${ESC}46m${ESC}30m${s}${ESC}49m${ESC}39m`,
+} as const
+
+export function renderBanner(): string {
+  const title = 'LiteLLM Toolkit'
+  const subtitle = 'Connect OpenCode, Codex, and Claude Code to your gateway'
+  return [
+    '',
+    C.bgCyan(`  ${title}  `),
+    C.dim(`  ${subtitle}`),
+    '',
+  ].join('\n')
+}
+
+export function renderStep(title: string): string {
+  return `\n${C.bold(C.cyan(`  ${title}`))}\n${C.dim('  ─────────────────────────────────────────')}`
+}
+
+export function renderSummary(lines: readonly (readonly [string, string])[]): string {
+  const maxLabel = Math.max(...lines.map(([label]) => label.length))
+  const body = lines.map(([label, value]) =>
+    `  ${C.dim(label.padEnd(maxLabel, ' '))}  ${C.white(value)}`,
+  )
+  return body.join('\n')
+}
+
+export function renderWarning(message: string): string {
+  return `${C.yellow('  ⚠ ')}${message}`
+}
+
 const PromptText = {
-  MultiPrompt: 'Choose comma-separated numbers, 0 for none, or Enter for all',
-  DefaultMarker: ' (default)',
-  InvalidNumber: 'Enter one of the listed numbers.',
-  InvalidMulti: 'Enter unique listed numbers separated by commas, 0, or Enter.',
-  InvalidConfirmation: 'Enter y or n.',
+  MultiPrompt: `${C.dim('comma-separated numbers, 0=none, Enter=all')}`,
+  DefaultMarker: ` ${C.green('← default')}`,
+  InvalidNumber: `${C.yellow('  ⚠ Please enter one of the listed numbers.')}`,
+  InvalidMulti: `${C.yellow('  ⚠ Enter unique numbers separated by commas, 0, or Enter.')}`,
+  InvalidConfirmation: `${C.yellow('  ⚠ Please enter y or n.')}`,
+  Arrow: `${C.cyan('▸')}`,
 } as const
 
 const DECIMAL_PATTERN = /^[1-9]\d*$/
@@ -67,12 +107,14 @@ const CONFIRMATION_VALUES: ReadonlyMap<string, boolean> = new Map([
 export async function selectSingle<Value extends string>(
   request: SingleSelectionRequest<Value>,
 ): Promise<Value> {
+  request.io.write(renderStep(request.title))
   const lines = request.choices.map(
-    (choice, index) => `${index + 1}. ${choice.label}${choice.value === request.defaultValue ? PromptText.DefaultMarker : InputToken.Default}`,
+    (choice, index) =>
+      `  ${C.cyan(`${index + 1}.`)} ${choice.label}${choice.value === request.defaultValue ? PromptText.DefaultMarker : ''}`,
   )
-  request.io.write([request.title, ...lines].join('\n'))
+  request.io.write(lines.join('\n'))
   while (true) {
-    const raw = (await request.io.prompt(request.prompt)).trim()
+    const raw = (await request.io.prompt(`${PromptText.Arrow} ${C.dim(request.prompt)} `)).trim()
     if (raw === InputToken.Default) return request.defaultValue
     const index = parseChoiceNumber(raw, request.choices.length)
     const choice = index === undefined ? undefined : request.choices[index - 1]
@@ -89,10 +131,11 @@ export async function selectResources(
   )
   if (available.length === 0) return []
 
-  const lines = available.map((resource, index) => `${index + 1}. ${resource.name}`)
-  request.io.write([request.title, ...lines].join('\n'))
+  request.io.write(renderStep(request.title))
+  const lines = available.map((resource, index) => `  ${C.cyan(`${index + 1}.`)} ${resource.name}`)
+  request.io.write(lines.join('\n'))
   while (true) {
-    const raw = (await request.io.prompt(PromptText.MultiPrompt)).trim()
+    const raw = (await request.io.prompt(`${PromptText.Arrow} ${PromptText.MultiPrompt} `)).trim()
     if (raw === InputToken.Default) return available.map((resource) => resource.name)
     if (raw === InputToken.None) return []
     const indexes = parseMultipleChoiceNumbers(raw, available.length)
@@ -108,7 +151,7 @@ export async function selectResources(
 
 export async function confirm(io: OnboardingIO, prompt: string): Promise<boolean> {
   while (true) {
-    const raw = (await io.prompt(prompt)).trim().toLowerCase()
+    const raw = (await io.prompt(`${PromptText.Arrow} ${C.bold(prompt)} ${C.dim('[y/N]')} `)).trim().toLowerCase()
     const confirmed = CONFIRMATION_VALUES.get(raw)
     if (confirmed !== undefined) return confirmed
     io.write(PromptText.InvalidConfirmation)

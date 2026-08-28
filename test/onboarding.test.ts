@@ -101,6 +101,32 @@ describe('install onboarding', () => {
     })
   })
 
+  test('reprompts an invalid Codex model selection and keeps the chosen default', async () => {
+    const io = scriptedIO(['', '', '', '', 'not-a-model', '2', 'y'])
+
+    const result = await runInstallOnboarding(input({
+      defaultTarget: InstallTarget.Codex,
+      defaultCodexMode: CodexOnboardingMode.Gateway,
+      autoRouterMode: AutoRouterMode.Skip,
+      models: [
+        { name: 'coding-fast', access: OnboardingResourceAccess.Available },
+        { name: 'coding-smart', access: OnboardingResourceAccess.Available },
+        { name: 'restricted-model', access: OnboardingResourceAccess.Unavailable },
+      ],
+      searchTools: [],
+      mcpServers: [],
+      mcpToolsets: [],
+    }), io)
+
+    expect(result).toMatchObject({
+      ok: true,
+      plan: { defaultModel: 'coding-smart' },
+    })
+    expect(io.promptCount()).toBe(7)
+    expect(io.writes.join('\n')).toContain('Choose a model number from 1 to 2')
+    expect(io.writes.join('\n')).not.toContain('restricted-model')
+  })
+
   test('reprompts invalid input and returns a typed cancellation', async () => {
     // Given: every prompt receives an invalid value before a valid value
     const io = scriptedIO([

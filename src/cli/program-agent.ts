@@ -13,7 +13,7 @@ import {
   type LaunchClientState,
   type LaunchConfig,
 } from './launch-config'
-import { loadOfficialLiteLLMApiKey } from './official-token'
+import { loadOfficialLiteLLMApiKey, loadEnvKey } from './official-token'
 import {
   PathResolutionError,
   type PathEnv,
@@ -59,6 +59,11 @@ function resolveLaunchApiKey(
     case InstallAuth.Environment: {
       const key = environment[config.authEnv]
       if (isHeaderSafeApiKey(key)) return key
+      const storedKey = loadEnvKey(
+        resolveTokenPath(environment),
+        config.gatewayOrigin,
+      )
+      if (storedKey !== undefined) return storedKey
       throw new Error(
         `Environment variable '${config.authEnv}' is required by the installed LiteLLM launch configuration.`,
       )

@@ -35,12 +35,13 @@ export type PreparedInstall = {
   readonly discovery: GatewayToolDiscoveryResult
   readonly selectionWarnings: readonly InstallSelectionWarning[]
   readonly deferredSsoToken?: DeferredSsoToken
+  readonly defaultModel?: string
 }
 
 type PreparationInput = {
   readonly options: InstallOptions
   readonly boundary: InstallPreparationBoundary
-  readonly origin: string
+  readonly origin: string | undefined
   readonly authEnv: string
 }
 
@@ -54,7 +55,15 @@ export async function prepareInstall(
   options: InstallOptions,
   boundary: InstallPreparationBoundary,
 ): Promise<PreparedInstall> {
-  const origin = resolveGatewayOrigin(options.baseUrl ?? ToolkitDefault.GatewayOrigin)
+  if (options.baseUrl === undefined && options.nonInteractive) {
+    throw preparationError(
+      InstallPreparationErrorCode.InvalidGatewayOrigin,
+      'A LiteLLM gateway origin is required. Use --base-url https://your-gateway.com or set LITELLM_BASE_URL.',
+    )
+  }
+  const origin = options.baseUrl !== undefined
+    ? resolveGatewayOrigin(options.baseUrl)
+    : undefined
   const input = {
     options,
     boundary,
@@ -62,11 +71,17 @@ export async function prepareInstall(
     authEnv: options.authEnv ?? ToolkitDefault.AuthEnvironment,
   }
   return options.nonInteractive
-    ? prepareNonInteractive(input)
+    ? prepareNonInteractive(input as PreparationInput & { origin: string })
     : prepareInteractive(input)
 }
 
 async function prepareNonInteractive(input: PreparationInput): Promise<PreparedInstall> {
+  if (input.origin === undefined) {
+    throw preparationError(
+      InstallPreparationErrorCode.InvalidGatewayOrigin,
+      'A LiteLLM gateway origin is required. Use --base-url https://your-gateway.com or set LITELLM_BASE_URL.',
+    )
+  }
   const connection = await loadAuthenticatedConnection({
     connection: connectionForOptions(input.options, input.origin),
     authEnv: input.authEnv,
@@ -177,6 +192,7 @@ function interactiveResult(input: InteractiveResultInput): PreparedInstall {
     apiKey: connection.apiKey,
     discovery: connection.discovery,
     selectionWarnings: disabledMcp.warnings,
+    ...(plan.defaultModel === undefined ? {} : { defaultModel: plan.defaultModel }),
     ...(connection.deferredSsoToken === undefined
       ? {}
       : { deferredSsoToken: connection.deferredSsoToken }),

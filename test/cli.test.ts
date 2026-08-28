@@ -75,7 +75,7 @@ Options:
 
 describe('CLI argument parsing', () => {
   test('parses install into a typed invocation with production defaults', () => {
-    const parsed = parseCliArgs(['install'])
+    const parsed = parseCliArgs(['install'], {})
 
     expect(parsed).toEqual({
       kind: 'command',
@@ -83,7 +83,7 @@ describe('CLI argument parsing', () => {
       help: false,
       options: {
         target: 'opencode',
-        baseUrl: 'https://llm.soungmin.kr',
+        baseUrl: undefined,
         auth: 'sso',
         authEnv: 'LITELLM_PROXY_API_KEY',
         nonInteractive: false,

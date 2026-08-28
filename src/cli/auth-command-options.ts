@@ -35,9 +35,11 @@ export function parseAuthCommandOptions(
     if (values.has(option)) return failure(`Option '${option}' may be specified only once.`)
     values.set(option, value)
   }
-  const baseUrl = normalizeOrigin(
-    values.get(OPTION.BaseUrl) ?? ToolkitDefault.GatewayOrigin,
-  )
+  const rawBaseUrl = values.get(OPTION.BaseUrl)
+  if (rawBaseUrl === undefined) {
+    return failure(`Option '${OPTION.BaseUrl}' is required. Example: --base-url https://your-gateway.com`)
+  }
+  const baseUrl = normalizeOrigin(rawBaseUrl)
   if (baseUrl === undefined) {
     return failure(`Option '${OPTION.BaseUrl}' must be an absolute http(s) origin.`)
   }

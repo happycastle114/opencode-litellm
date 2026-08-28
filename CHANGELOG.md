@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.10] — 2026-08-29
+
+### Added
+- OpenCode installs now pin `opencode-websearch@0.6.0`, exposing the upstream
+  `web-search` tool through the active LiteLLM `@ai-sdk/openai` provider and
+  LiteLLM's native Responses web-search interception.
+
+### Fixed
+- Generated Codex gateway catalogs now advertise the native search capability,
+  and managed gateway/OAuth configs set `web_search = "live"`.
+- Codex model catalogs remain rooted at the documented `model_catalog_json`
+  setting so discovered LiteLLM models appear in `/model` and desktop pickers.
+
+## [0.7.5] — 2026-07-23
+
+### Fixed
+- Interactive API key entry now defers the token write to the managed install
+  transaction instead of writing `~/.litellm/token.json` directly before
+  confirmation. Cancelled or failed installs no longer leave a persisted key.
+- The launcher falls back to `~/.litellm/token.json` when the configured
+  auth environment variable is absent, so interactively entered keys work
+  for direct `opencode`/`codex`/`claude` launches without re-exporting.
+- Codex gateway installs with an interactively entered key now use the
+  command-backed auth helper (`~/.codex/libexec/litellm-auth-token.mjs`)
+  so the Codex desktop app can resolve the key from `token.json`.
+- Generated Codex catalogs restore conservative capability declarations
+  (`supported_reasoning_levels: []`, `supports_parallel_tool_calls: false`,
+  etc.) for gateway routes without verified metadata, while keeping required
+  Codex 0.144+ fields (`shell_type`, `auto_compact_token_limit`,
+  `effective_context_window_percent`).
+- The default model selection prompt now appears only for Codex `gateway`
+  and `both` modes where the choice is actually consumed.
+- Node.js engine range widened to `^24.12.0` on the 24.x line (was `^24.15.0`).
+- Documentation corrected: npmjs.org registry references, `LITELLM_PROXY_API_KEY`
+  as the default env var, and accurate Codex desktop OAuth profile behavior.
+
 ## [0.7.1] — 2026-07-22
 
 ### Fixed
@@ -60,8 +96,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and cancellation, plus Bun test coverage through `npm test`.
 
 ### Changed
-- Distribution now publishes scoped `@happycastle114/opencode-litellm` and
-  `@happycastle114/codex-litellm` packages to GitHub Packages with the Actions
+- Distribution now publishes scoped `@happycastle/opencode-litellm` and
+  `@happycastle/codex-litellm` packages to GitHub Packages with the Actions
   `GITHUB_TOKEN`; the release workflow verifies exact metadata and tarball
   identity and keeps the full-SHA/tarball installation path available.
 - GitHub Packages consumer examples use an ephemeral npm config and

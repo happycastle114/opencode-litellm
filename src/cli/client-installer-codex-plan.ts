@@ -20,6 +20,7 @@ import {
 } from './codex-config'
 import {
   assertBundledCodexOAuthCatalog,
+  createCodexSpawnBoundary,
   readBundledCodexCatalog,
   type BundledCodexCatalog,
   type CodexSpawnBoundary,
@@ -72,7 +73,7 @@ export function prepareCodexInstall(
   switch (prepared.options.codexMode) {
     case CodexMode.Gateway: {
       const bundled = loadBundledCatalog(boundary)
-      const catalog = buildCodexCatalog(prepared.discovery.models, bundled.template)
+      const catalog = buildCodexCatalog(prepared.discovery.models, bundled.template, prepared.defaultModel)
       const configSource = readCodexSource(paths.config)
       const output = renderGatewayConfig(
         configSource.contents,
@@ -114,7 +115,7 @@ export function prepareCodexInstall(
     case CodexMode.Both: {
       const bundled = loadBundledCatalog(boundary)
       assertBundledCodexOAuthCatalog(bundled)
-      const gatewayCatalog = buildCodexCatalog(prepared.discovery.models, bundled.template)
+      const gatewayCatalog = buildCodexCatalog(prepared.discovery.models, bundled.template, prepared.defaultModel)
       const configSource = readCodexSource(paths.config)
       const profileSource = readCodexSource(paths.oauthProfile)
       const mainOutput = renderGatewayConfig(
@@ -154,7 +155,7 @@ function renderGatewayConfig(
   return renderCodexConfig(source, {
     baseUrl: prepared.options.baseUrl,
     authEnv: prepared.options.authEnv,
-    ...gatewayAuth(prepared.options.auth, helperPath),
+    ...gatewayAuth(prepared.options.auth, helperPath, prepared.deferredSsoToken !== undefined),
     catalogPath,
     defaultModel,
     ...selectedResources(prepared),
@@ -207,23 +208,18 @@ function loadBundledCatalog(
   boundary: CodexInstallPlanningBoundary,
 ): BundledCodexCatalog {
   if (boundary.bundledCodexCatalog !== undefined) return boundary.bundledCodexCatalog()
-  return boundary.codexSpawnBoundary === undefined
-    ? readBundledCodexCatalog()
-    : readBundledCodexCatalog(boundary.codexSpawnBoundary)
+  return readBundledCodexCatalog(boundary.codexSpawnBoundary ?? createCodexSpawnBoundary())
 }
 
 function gatewayAuth(
   auth: PreparedInstall['options']['auth'],
   helperPath: string,
+  hasDeferredToken: boolean,
 ): { readonly authCommand?: string } {
-  switch (auth) {
-    case InstallAuth.Environment:
-      return {}
-    case InstallAuth.Sso:
-      return { authCommand: helperPath }
-    default:
-      return assertNever(auth)
+  if (auth === InstallAuth.Sso || hasDeferredToken) {
+    return { authCommand: helperPath }
   }
+  return {}
 }
 
 function assertNever(value: never): never {

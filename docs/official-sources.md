@@ -1,6 +1,6 @@
 # Official sources and support matrix
 
-Checked on 2026-07-21. Runtime behavior is documented against the public
+Checked on 2026-08-29. Runtime behavior is documented against the public
 LiteLLM, OpenCode, Codex, Claude Code, and Oh My OpenAgent interfaces below.
 GitHub source references use immutable commits where the implementation
 contract matters.
@@ -57,6 +57,11 @@ rerun `install --auto-router configure`.
 
 The official LiteLLM public references used by the installer are:
 
+- [Web Search interception](https://docs.litellm.ai/docs/integrations/websearch_interception),
+  including `callbacks: ["websearch_interception"]`, configured `search_tools`,
+  and conversion of native model search tools into LiteLLM's agentic search
+  loop. Production validation also checks the running LiteLLM source for both
+  Responses and Chat Completions interception handlers.
 - [Search API](https://docs.litellm.ai/docs/search), including configured
   `search_tools` and `POST /v1/search/<name>`. The permission-filtered
   `GET /search_tools/list` route is implemented in the pinned gateway's
@@ -149,7 +154,7 @@ rather than written to JSON or TOML.
 | Local and npm plugins | [Plugins](https://opencode.ai/docs/plugins/) | Load a detached Git checkout through a `file://` entry; verify origin and full SHA before install |
 | Config files | [Config](https://opencode.ai/docs/config/) | Prefer an existing `opencode.jsonc` over `opencode.json`; a custom path is preserved exactly in direct launch state |
 | Providers and model picker | [Providers](https://opencode.ai/docs/providers) | Use `@ai-sdk/openai`, write a typed static discovered-model snapshot for immediate picker visibility, refresh live chat metadata during startup, and exclude known embedding/image-generation/audio-only rows while preserving multimodal chat rows |
-| Search tools | [Tools](https://opencode.ai/docs/tools/) | Register selected LiteLLM search routes as `litellm_search` plus deterministic non-reserved `litellm_*` IDs; never override the built-in `websearch`; scrub inherited `OPENCODE_ENABLE_EXA` at direct launch |
+| Search tools | [Tools](https://opencode.ai/docs/tools/) and [server tool inspection](https://opencode.ai/docs/server/) | Pin upstream `opencode-websearch@0.6.0` as `web-search` for the active `@ai-sdk/openai` LiteLLM model; keep named LiteLLM routes as `litellm_search`/`litellm_*`; never override the unrelated built-in `websearch`; scrub inherited `OPENCODE_ENABLE_EXA` at direct launch |
 | Remote MCP | [MCP servers](https://opencode.ai/docs/mcp-servers/) | Register only gateway-discovered or explicitly selected server/toolset routes and preserve existing entries |
 | Shared skills | [Agent skills](https://opencode.ai/docs/skills/) | Install one global `~/.agents/skills/litellm-research-router` skill |
 
@@ -162,6 +167,14 @@ collisions and stale existing rows are not automatically deleted. The exact
 legacy toolkit whitelist of six `alibaba-token/*` IDs is removed so all
 discovered chat IDs can appear. Any other whitelist and every blacklist are
 treated as user-owned and preserved.
+
+The native search integration reuses the published
+[`opencode-websearch@0.6.0`](https://www.npmjs.com/package/opencode-websearch)
+artifact rather than duplicating its provider dispatch. Its immutable package
+source at commit [`a87f729b`](https://github.com/emilsvennesson/opencode-websearch/tree/a87f729bc4ae83147d78078571e4275908627079)
+detects `@ai-sdk/openai` models and sends the configured provider base URL a
+Responses request containing `{ "type": "web_search" }`. The installer owns
+the exact pin and replaces stale versions while preserving unrelated plugins.
 
 ## Oh My OpenAgent consumer contract
 
@@ -192,6 +205,7 @@ on every OpenCode install regardless of Qwen or LiteLLM search selection.
 | Custom providers and profiles | [Advanced configuration](https://learn.chatgpt.com/docs/config-file/config-advanced) | Keep the gateway in `~/.codex/config.toml`; keep `codex-oauth` as a secondary profile in `both` mode |
 | ChatGPT login | [Authentication](https://learn.chatgpt.com/docs/auth) | Codex owns the OAuth `Authorization` header and login lifecycle |
 | Bundled model catalog | Codex CLI `codex debug models --bundled` | Copy the exact bundled catalog unchanged for OAuth; inherit its prompt/model template for gateway rows |
+| Native web search | [Configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference) and [developer commands](https://learn.chatgpt.com/docs/developer-commands?surface=cli) | Mark gateway catalog rows `supports_search_tool: true`, set `web_search = "live"`, and send Codex's native Responses `web_search` tool through LiteLLM |
 | Native OAuth request compression | Codex 0.144.1 [`EnableRequestCompression` default](https://github.com/openai/codex/blob/44918ea10c0f99151c6710411b4322c2f5c96bea/codex-rs/features/src/lib.rs#L1013-L1018) and [OAuth/OpenAI zstd selector](https://github.com/openai/codex/blob/44918ea10c0f99151c6710411b4322c2f5c96bea/codex-rs/core/src/client.rs#L1368-L1376); LiteLLM `1.94.0-rc.1` [JSON body parser](https://github.com/BerriAI/litellm/blob/5d4c4d0fce45c73c4b56b48e46dfc4e56e8b0aa5/litellm/proxy/common_utils/http_parsing_utils.py#L85-L141) | Disable zstd only in OAuth-active config layers, preserve other feature keys, and restore a pre-existing user value when the main config returns to gateway mode |
 | Shared skills | [Build skills](https://learn.chatgpt.com/docs/build-skills) | Install the same global research skill directory for every selected target |
 
@@ -269,7 +283,7 @@ gateway `/v1` is stripped before `/claude-code/marketplace.json` is appended.
 
 | Component | Supported boundary | Notes |
 |---|---|---|
-| Node.js | `^22.22.2 || ^24.15.0 || >=26.0.0` | Required by both package manifests and the pinned OpenCode plugin dependency graph (`@opencode-ai/plugin@1.18.4` → `effect@4.0.0-beta.83` → `ini@7.0.0`) |
+| Node.js | `^22.22.2 || ^24.12.0 || >=26.0.0` | Required by both package manifests. The pinned OpenCode plugin dependency graph (`@opencode-ai/plugin@1.18.4` → `effect@4.0.0-beta.83` → `ini@7.0.0`) requires `^24.15.0` on the 24.x line; Node 24.12–24.14 users will see an npm engine warning but the toolkit itself runs correctly |
 | Python / `lite` | Optional for normal installs | `--auto-router configure` delegates to the pinned official `litellm[proxy]==1.94.0rc1` CLI through an isolated `uv tool` environment |
 | `uv` | `>=0.10.9` for Auto Router only | Runtime, exact CLI version, and `autoroute configure` are checked before client mutation |
 | `rustc` / `cargo` | Auto Router on every non-Linux platform | Required by the official LiteLLM sdist build; both `--version` commands are explicit typed preflight operations before the pinned CLI is resolved |
@@ -319,21 +333,21 @@ atomically activates the revision-addressed directory. Existing active
 revisions are verified in place; failed staging is removed without replacing
 the active checkout.
 
-The release workflow publishes both scoped packages to the GitHub Packages npm
-registry at `https://npm.pkg.github.com` using the Actions `GITHUB_TOKEN`. The
-workflow grants only `contents: read` and `packages: write`, writes an
-ephemeral `NPM_CONFIG_USERCONFIG` file for the `@happycastle114` scope, and
-does not read Keychain credentials or a user-level npm configuration. GitHub's
-[Node.js package publishing guide](https://docs.github.com/en/actions/tutorials/publish-packages/publish-nodejs-packages)
-documents the `NODE_AUTH_TOKEN` and `npm.pkg.github.com` setup used here.
+The release workflow publishes both scoped packages to the public npm
+registry at `https://registry.npmjs.org` using an automation-granular
+`NPM_TOKEN` repository secret. The workflow uses `setup-node` with
+`registry-url` and passes the token as `NODE_AUTH_TOKEN`. No user-level
+npm config or Keychain is used.
 
 | Package/bin | Manifest | Registry status at documentation time |
 |---|---|---|
-| `@happycastle114/opencode-litellm` / `opencode-litellm` and `codex-litellm` bins | Root `package.json`, version `0.7.0`, GitHub Packages registry | Release path configured; workflow publishes after metadata and tarball readback |
-| `@happycastle114/codex-litellm` / `codex-litellm` bin | `packages/codex-litellm/package.json`, exact core dependency `0.7.0`, GitHub Packages registry | Release path configured; workflow publishes after the scoped core package |
+| `@happycastle/opencode-litellm` / `opencode-litellm` and `codex-litellm` bins | Root `package.json`, public npmjs.org | Published; workflow verifies metadata and tarball identity before and after publish |
+| `@happycastle/codex-litellm` / `codex-litellm` bin | `packages/codex-litellm/package.json`, exact core dependency | Published after the scoped core package |
 | Unscoped `opencode-litellm` | Not owned by this project | Blocked by an unrelated existing publisher |
 
-For a deterministic source fallback, use the immutable GitHub checkout and
-locally packed tarballs shown in the README. For registry installs, use a
-temporary npm config with `NODE_AUTH_TOKEN` and the exact scoped package
-version; npm reads from GitHub Packages even when the package is public.
+Packages are public on npmjs.org, so consumers need no authentication:
+
+```sh
+npx @happycastle/opencode-litellm install
+npx @happycastle/codex-litellm install
+```

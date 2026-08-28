@@ -6,6 +6,10 @@ import { isHeaderSafeApiKey } from '../utils/api-key'
 const TOKEN_FIELD = {
   baseURL: 'base_url',
   key: 'key',
+  userRole: 'user_role',
+} as const
+const TOKEN_USER_ROLE = {
+  Cli: 'cli',
 } as const
 const TOKEN_FILE_RELATIVE_PATH = ['.litellm', 'token.json'] as const
 
@@ -59,9 +63,50 @@ export function loadOfficialLiteLLMApiKey(
   ) {
     return undefined
   }
+
   return key
 }
 
+/**
+ * Load only CLI-entered keys (user_role === 'cli'), not SSO keys.
+ * This prevents SSO credentials from being used in env auth mode.
+ */
+export function loadEnvKey(
+  tokenFilePath: string,
+  expectedBaseURL: string,
+): string | undefined {
+  let raw: string
+  try {
+    raw = readFileSync(tokenFilePath, 'utf8')
+  } catch {
+    return undefined
+  }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return undefined
+  }
+  if (!isRecord(parsed)) return undefined
+
+  const storedBaseURL = parsed[TOKEN_FIELD.baseURL]
+  const key = parsed[TOKEN_FIELD.key]
+  const userRole = parsed[TOKEN_FIELD.userRole]
+  if (
+    typeof storedBaseURL !== 'string' ||
+    !isHeaderSafeApiKey(key) ||
+    userRole !== TOKEN_USER_ROLE.Cli
+  ) {
+    return undefined
+  }
+
+  if (storedBaseURL !== expectedBaseURL.replace(/\/+$/, '')) {
+    return undefined
+  }
+
+  return key
+}
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

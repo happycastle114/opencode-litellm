@@ -172,11 +172,11 @@ export function installTypeScriptTooling(consumerRoot: string): string {
 export function createWrapperFixture(): { readonly root: string; readonly executable: string } {
   const root = mkdtempSync(join(tmpdir(), 'codex-litellm-wrapper-test-'))
   const executable = join(root, 'packages', 'codex-litellm', 'bin', 'codex-litellm.mjs')
-  const coreRoot = join(root, 'packages', 'codex-litellm', 'node_modules', '@happycastle114', 'opencode-litellm')
+  const coreRoot = join(root, 'packages', 'codex-litellm', 'node_modules', '@happycastle', 'opencode-litellm')
   mkdirSync(dirname(executable), { recursive: true })
   mkdirSync(coreRoot, { recursive: true })
   copyFileSync(wrapperEntrypoint, executable)
-  writeFileSync(join(coreRoot, 'package.json'), `${JSON.stringify({ name: '@happycastle114/opencode-litellm', version: '0.7.0', type: 'module', exports: { './cli': './fake-cli.mjs' } })}\n`)
+  writeFileSync(join(coreRoot, 'package.json'), `${JSON.stringify({ name: '@happycastle/opencode-litellm', version: '0.7.0', type: 'module', exports: { './cli': './fake-cli.mjs' } })}\n`)
   writeFileSync(join(coreRoot, 'fake-cli.mjs'), "process.stdout.write(JSON.stringify(process.argv.slice(2)))\n")
   return { root, executable }
 }

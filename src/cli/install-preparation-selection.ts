@@ -146,6 +146,10 @@ export function resourcesForOnboarding(
     mcpToolsets: options.noToolsets
       ? []
       : available(discovery.toolsets.map((toolset) => toolset.toolsetName)),
+    models: discovery.models
+      .map((model) => model.id)
+      .filter((id) => id !== '')
+      .map((name) => ({ name, access: OnboardingResourceAccess.Available })),
   }
 }
 

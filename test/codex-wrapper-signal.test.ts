@@ -42,7 +42,7 @@ function createSignalFixture(): SignalFixture {
     'packages',
     'codex-litellm',
     'node_modules',
-    '@happycastle114',
+    '@happycastle',
     'opencode-litellm',
   )
 
@@ -52,7 +52,7 @@ function createSignalFixture(): SignalFixture {
   writeFileSync(
     join(coreRoot, 'package.json'),
     `${JSON.stringify({
-      name: '@happycastle114/opencode-litellm',
+      name: '@happycastle/opencode-litellm',
       type: 'module',
       exports: { './cli': './fake-cli.mjs' },
     })}\n`,

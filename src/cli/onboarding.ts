@@ -14,6 +14,10 @@ import {
   OnboardingResourceAccess,
   selectResources,
   selectSingle,
+  renderBanner,
+  renderStep,
+  renderSummary,
+  renderWarning,
   type NumberedChoice,
   type OnboardingIO,
   type OnboardingResource,
@@ -29,17 +33,19 @@ export const CodexOnboardingMode = CodexMode
 export type CodexOnboardingMode = CodexModeValue
 
 export type OnboardingInput = {
-  readonly defaultTarget: InstallTargetValue; readonly defaultGatewayOrigin: string
+  readonly defaultTarget: InstallTargetValue; readonly defaultGatewayOrigin: string | undefined
   readonly defaultAuth: InstallAuthValue; readonly defaultCodexMode: CodexOnboardingMode
   readonly autoRouterMode: AutoRouterModeValue
   readonly searchTools: readonly OnboardingResource[]
   readonly mcpServers: readonly OnboardingResource[]; readonly mcpToolsets: readonly OnboardingResource[]
+  readonly models?: readonly OnboardingResource[]
   readonly loadResources?: OnboardingResourceLoader
 }
 
 type CommonOnboardingPlan = {
   readonly gatewayOrigin: string; readonly auth: InstallAuthValue
   readonly autoRouter: Exclude<AutoRouterModeValue, typeof AutoRouterMode.Prompt>
+  readonly defaultModel: string | undefined
   readonly searchTools: readonly string[]; readonly mcpServers: readonly string[]
   readonly mcpToolsets: readonly string[]
 }
@@ -76,7 +82,9 @@ export type OnboardingConnection = OnboardingShape & {
 export type OnboardingResources = Pick<
   OnboardingInput,
   'searchTools' | 'mcpServers' | 'mcpToolsets'
->
+> & {
+  readonly models?: readonly OnboardingResource[]
+}
 
 export type OnboardingResourceLoader = (
   connection: OnboardingConnection,
@@ -84,23 +92,27 @@ export type OnboardingResourceLoader = (
 
 const UiText = {
   TargetTitle: 'Install target',
-  TargetPrompt: 'Choose a target number',
-  GatewayPrompt: 'LiteLLM gateway origin',
-  AuthTitle: 'Gateway authentication',
-  AuthPrompt: 'Choose an authentication number',
+  TargetPrompt: 'Choose a number',
+  GatewayPrompt: 'Gateway URL',
+  AuthTitle: 'Authentication method',
+  AuthPrompt: 'Choose a number',
   CodexTitle: 'Codex connection mode',
-  CodexPrompt: 'Choose a Codex mode number',
+  CodexPrompt: 'Choose a number',
+  ModelTitle: 'Default model',
+  ModelPrompt: 'Choose a number (Enter for auto)',
   SearchTitle: 'Search tools',
   McpTitle: 'MCP servers',
   ToolsetTitle: 'MCP toolsets',
-  AutoRouterTitle: 'Optional LiteLLM Auto Router (Claude Code only)',
-  AutoRouterPrompt: 'Choose whether to configure Auto Router; OpenCode and Codex stay unchanged',
-  ConfirmPrompt: 'Apply this plan? [y/N]',
-  InvalidOrigin: 'Enter an absolute http(s) origin without credentials, query, or fragment.',
+  AutoRouterTitle: 'Auto Router (Claude Code only, optional)',
+  AutoRouterPrompt: 'Choose a number',
+  ConfirmPrompt: 'Apply this plan?',
+  InvalidOrigin: 'Please enter a valid URL like https://your-gateway.com',
   Cancelled: 'Installation cancelled.',
   TtyRequired:
-    'Interactive onboarding requires a TTY. Re-run with --non-interactive and explicit install options.',
+    'This terminal does not support interactive mode. Re-run with --non-interactive and provide install options as flags.',
 } as const
+
+const MODEL_INDEX_PATTERN = /^[1-9]\d*$/
 
 const TARGET_CHOICES: readonly NumberedChoice<InstallTargetValue>[] = [
   { label: 'OpenCode', value: InstallTarget.OpenCode }, { label: 'Codex', value: InstallTarget.Codex },
@@ -108,7 +120,7 @@ const TARGET_CHOICES: readonly NumberedChoice<InstallTargetValue>[] = [
 ]
 
 const AUTH_CHOICES: readonly NumberedChoice<InstallAuthValue>[] = [
-  { label: 'LiteLLM SSO', value: InstallAuth.Sso }, { label: 'Environment variable', value: InstallAuth.Environment },
+  { label: 'LiteLLM SSO', value: InstallAuth.Sso }, { label: 'API key (stored locally)', value: InstallAuth.Environment },
 ]
 
 const CODEX_CHOICES: readonly NumberedChoice<CodexOnboardingMode>[] = [
@@ -119,8 +131,8 @@ const CODEX_CHOICES: readonly NumberedChoice<CodexOnboardingMode>[] = [
 type ResolvedAutoRouterMode = Exclude<AutoRouterModeValue, typeof AutoRouterMode.Prompt>
 
 const AUTO_ROUTER_CHOICES: readonly NumberedChoice<ResolvedAutoRouterMode>[] = [
-  { label: 'Skip (default)', value: AutoRouterMode.Skip },
-  { label: 'Configure official LiteLLM Auto Router for Claude Code', value: AutoRouterMode.Configure },
+  { label: 'Skip (recommended)', value: AutoRouterMode.Skip },
+  { label: 'Configure Auto Router for Claude Code', value: AutoRouterMode.Configure },
 ]
 
 export async function runInstallOnboarding(
@@ -130,6 +142,8 @@ export async function runInstallOnboarding(
   if (!io.isTTY) {
     return failure(OnboardingFailureCode.TtyRequired, UiText.TtyRequired)
   }
+
+  io.write(renderBanner())
 
   const target = await selectSingle({
     io, title: UiText.TargetTitle, prompt: UiText.TargetPrompt, choices: TARGET_CHOICES,
@@ -145,6 +159,9 @@ export async function runInstallOnboarding(
   const resources = input.loadResources === undefined
     ? input
     : await input.loadResources(connection)
+  const defaultModel = consumesDefaultModel(shape)
+    ? await selectDefaultModel(resources.models ?? [], io)
+    : undefined
   const searchTools = await selectResources({
     io, title: UiText.SearchTitle, resources: resources.searchTools,
   })
@@ -156,13 +173,26 @@ export async function runInstallOnboarding(
     gatewayOrigin,
     auth,
     autoRouter,
+    defaultModel,
     searchTools,
     mcpServers,
     mcpToolsets,
   }
 
-  io.write(JSON.stringify(plan, undefined, 2))
+  io.write(renderStep('Summary'))
+  io.write(renderSummary([
+    ['Target', targetLabel(target)],
+    ['Gateway', gatewayOrigin],
+    ['Auth', authLabel(auth)],
+    ...('codexMode' in shape ? [['Codex mode', codexModeLabel(shape.codexMode)] as const] : []),
+    ...('codexMode' in shape && defaultModel !== undefined ? [['Default model', defaultModel] as const] : []),
+    ['Search tools', searchTools.length > 0 ? `${searchTools.length} selected` : 'none'],
+    ['MCP servers', mcpServers.length > 0 ? `${mcpServers.length} selected` : 'none'],
+    ['MCP toolsets', mcpToolsets.length > 0 ? `${mcpToolsets.length} selected` : 'none'],
+  ]))
+
   if (!(await confirm(io, UiText.ConfirmPrompt))) {
+    io.write(renderWarning(UiText.Cancelled))
     return failure(OnboardingFailureCode.Cancelled, UiText.Cancelled)
   }
   return { ok: true, plan }
@@ -190,13 +220,47 @@ async function resolveAutoRouterMode(
   }
 }
 
-async function selectGatewayOrigin(defaultOrigin: string, io: OnboardingIO): Promise<string> {
+async function selectGatewayOrigin(defaultOrigin: string | undefined, io: OnboardingIO): Promise<string> {
+  io.write(renderStep('Gateway URL'))
   while (true) {
-    const raw = (await io.prompt(`${UiText.GatewayPrompt} [${defaultOrigin}]`)).trim()
-    const origin = normalizeOrigin(raw === OnboardingInputToken.Default ? defaultOrigin : raw)
+    const suffix = defaultOrigin !== undefined ? ` \x1b[2m[${defaultOrigin}]\x1b[22m` : ''
+    const raw = (await io.prompt(`\x1b[36m▸\x1b[39m ${UiText.GatewayPrompt}${suffix}: `)).trim()
+    const resolved = raw === OnboardingInputToken.Default ? defaultOrigin : raw
+    if (resolved === undefined || resolved === '') {
+      io.write(renderWarning('A gateway URL is required. Example: https://your-gateway.com'))
+      continue
+    }
+    const origin = normalizeOrigin(resolved)
     if (origin !== undefined) return origin
-    io.write(UiText.InvalidOrigin)
+    io.write(renderWarning(UiText.InvalidOrigin))
   }
+}
+
+async function selectDefaultModel(
+  models: readonly OnboardingResource[],
+  io: OnboardingIO,
+): Promise<string | undefined> {
+  const names = models
+    .filter((model) => model.access === OnboardingResourceAccess.Available)
+    .map((model) => model.name)
+  if (names.length === 0) return undefined
+  io.write(renderStep(UiText.ModelTitle))
+  names.forEach((name, index) => io.write(`  \x1b[36m${index + 1}.\x1b[39m ${name}`))
+  while (true) {
+    const raw = (await io.prompt(`\x1b[36m▸\x1b[39m \x1b[2m${UiText.ModelPrompt} [1-${names.length}]\x1b[22m `)).trim()
+    if (raw === OnboardingInputToken.Default) return undefined
+    if (names.includes(raw)) return raw
+    if (MODEL_INDEX_PATTERN.test(raw)) {
+      const selected = names[Number.parseInt(raw, 10) - 1]
+      if (selected !== undefined) return selected
+    }
+    io.write(renderWarning(`Choose a model number from 1 to ${names.length}, or press Enter for auto.`))
+  }
+}
+
+function consumesDefaultModel(shape: OnboardingShape): boolean {
+  if (shape.target === InstallTarget.OpenCode) return false
+  return shape.codexMode === CodexMode.Gateway || shape.codexMode === CodexMode.Both
 }
 
 async function selectShape(target: InstallTargetValue, defaultCodexMode: CodexOnboardingMode, io: OnboardingIO): Promise<OnboardingShape> {
@@ -214,6 +278,32 @@ async function selectShape(target: InstallTargetValue, defaultCodexMode: CodexOn
       }
     default:
       return assertNever(target)
+  }
+}
+
+function targetLabel(target: InstallTargetValue): string {
+  switch (target) {
+    case InstallTarget.OpenCode: return 'OpenCode'
+    case InstallTarget.Codex: return 'Codex'
+    case InstallTarget.Both: return 'OpenCode + Codex'
+    default: return assertNever(target)
+  }
+}
+
+function authLabel(auth: InstallAuthValue): string {
+  switch (auth) {
+    case InstallAuth.Sso: return 'LiteLLM SSO'
+    case InstallAuth.Environment: return 'API key (stored in ~/.litellm/token.json)'
+    default: return assertNever(auth)
+  }
+}
+
+function codexModeLabel(mode: CodexModeValue): string {
+  switch (mode) {
+    case CodexMode.Gateway: return 'Gateway'
+    case CodexMode.OAuth: return 'OAuth pass-through'
+    case CodexMode.Both: return 'Both (gateway + OAuth)'
+    default: return assertNever(mode)
   }
 }
 

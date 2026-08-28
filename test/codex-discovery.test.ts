@@ -291,7 +291,7 @@ describe('Bundled Codex catalog discovery', () => {
 
     // When/Then: both errors are clear and secret-free
     expect(() => readBundledCodexCatalog(missing)).toThrow(/codex.*not found/i)
-    expect(() => readBundledCodexCatalog(missing)).toThrow(new RegExp('^(?!.*codex-token).*$'))
+    expect(() => readBundledCodexCatalog(missing)).toThrow(/^(?![\s\S]*codex-token)[\s\S]*$/)
     expect(() => readBundledCodexCatalog(invalid)).toThrow(/catalog|models/i)
   })
 

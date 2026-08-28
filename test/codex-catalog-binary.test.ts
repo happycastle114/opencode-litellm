@@ -4,20 +4,21 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { buildCodexCatalog, renderCodexOAuthConfig } from '../src/cli/codex-config'
-import { readBundledCodexCatalog } from '../src/cli/codex-discovery'
+import { createCodexSpawnBoundary, readBundledCodexCatalog } from '../src/cli/codex-discovery'
 import { QWEN_GATEWAY_MODEL } from '../src/cli/qwen-routing'
 
-const codexBinary = Bun.which('codex')
+const RUN_BINARY_TESTS = process.env.CODEX_BINARY_TESTS === '1'
+const codexBinary = RUN_BINARY_TESTS ? Bun.which('codex') : null
+const spawnBoundary = RUN_BINARY_TESTS ? createCodexSpawnBoundary() : undefined
 
 describe('Codex model catalog binary compatibility', () => {
   test.skipIf(codexBinary === null)('is accepted by the installed Codex model parser', () => {
-    // Given: an isolated Codex home containing only the generated catalog
     if (codexBinary === null) return
     const root = mkdtempSync(join(tmpdir(), 'opencode-litellm-codex-catalog-'))
     const codexHome = join(root, '.codex')
     const catalogPath = join(codexHome, 'litellm-models.json')
     mkdirSync(codexHome, { recursive: true })
-    const bundled = readBundledCodexCatalog()
+    const bundled = readBundledCodexCatalog(spawnBoundary!)
     const catalog = buildCodexCatalog([
       { id: 'coding-fast' },
       { id: QWEN_GATEWAY_MODEL },
@@ -29,17 +30,15 @@ describe('Codex model catalog binary compatibility', () => {
     )
 
     try {
-      // When: the installed Codex binary parses and renders the custom catalog
       const result = spawnSync(codexBinary, ['debug', 'models'], {
         encoding: 'utf8',
         env: {
-          ...process.env,
+          PATH: process.env.PATH ?? '/usr/bin:/bin',
           CODEX_HOME: codexHome,
           HOME: root,
         },
       })
 
-      // Then: parsing succeeds and preserves the generated model row
       expect(result.error).toBeUndefined()
       expect(result.status).toBe(0)
       const payload = JSON.parse(result.stdout)
@@ -62,7 +61,7 @@ describe('Codex model catalog binary compatibility', () => {
       const codexHome = join(root, '.codex')
       const catalogPath = join(codexHome, 'litellm-codex-oauth-models.json')
       mkdirSync(codexHome, { recursive: true })
-      const bundled = readBundledCodexCatalog()
+      const bundled = readBundledCodexCatalog(spawnBoundary!)
       writeFileSync(catalogPath, bundled.json)
       writeFileSync(join(codexHome, 'config.toml'), '')
       const oauthConfig = renderCodexOAuthConfig({
@@ -78,7 +77,7 @@ describe('Codex model catalog binary compatibility', () => {
 
       try {
         const env = {
-          ...process.env,
+          PATH: process.env.PATH ?? '/usr/bin:/bin',
           CODEX_HOME: codexHome,
           HOME: root,
           LITELLM_PROXY_API_KEY: 'isolated-fixture-key',

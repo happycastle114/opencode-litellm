@@ -8,7 +8,7 @@ const installerOnlyMarkers = [
   'ToolkitDefault',
   'CODEX_HOME',
   'OPENCODE_CONFIG',
-  'llm.soungmin.kr',
+  'gateway.example.test',
 ] as const
 
 test('runtime bundle does not pull installer-only install intent state', () => {

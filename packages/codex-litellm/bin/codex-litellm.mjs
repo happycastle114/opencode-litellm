@@ -10,7 +10,7 @@ const CLI_ARGUMENT = Object.freeze({
 })
 
 const require = createRequire(import.meta.url)
-const cliPath = require.resolve('@happycastle114/opencode-litellm/cli')
+const cliPath = require.resolve('@happycastle/opencode-litellm/cli')
 const args = process.argv.slice(2)
 const forwardedArgs = args[0] === CLI_ARGUMENT.Install && !args.includes(CLI_ARGUMENT.TargetOption)
   ? [

@@ -10,11 +10,11 @@ surfaces.
 This repository contains a two-package toolkit, not only an OpenCode model
 plugin:
 
-- `@happycastle114/opencode-litellm` is the core plugin and CLI. It configures
+- `@happycastle/opencode-litellm` is the core plugin and CLI. It configures
   OpenCode and Codex, discovers LiteLLM models/search tools/MCP servers/toolsets,
   runs the documented LiteLLM SSO flow, manages the shared research skill, and
   launches OpenCode, Codex, or Claude Code with child-scoped credentials.
-- `@happycastle114/codex-litellm` is the thin Codex-focused wrapper around the core CLI. It
+- `@happycastle/codex-litellm` is the thin Codex-focused wrapper around the core CLI. It
   defaults onboarding to Codex while forwarding the shared command surface.
 
 Changes should preserve the managed-file safety, credential boundaries, and
@@ -24,7 +24,7 @@ the affected package or target.
 
 ## Development setup
 
-Use Node.js `^22.22.2 || ^24.15.0 || >=26.0.0`, npm, and git. `npm ci`
+Use Node.js `^22.22.2 || ^24.12.0 || >=26.0.0`, npm, and git. `npm ci`
 installs the pinned Bun `1.3.14` build/test runtime from `devDependencies`, so
 source builds and tests do not rely on a global or unpinned Bun version.
 
@@ -90,42 +90,27 @@ it also supports `workflow_dispatch`. It validates that the core package,
 scoped Codex wrapper, and exact wrapper-to-core dependency carry the same
 version, runs `npm test`, and packs both artifacts before any registry write.
 
-Publication targets the GitHub Packages npm registry at
-`https://npm.pkg.github.com`. The job grants `contents: read` and
-`packages: write`, and passes the Actions `GITHUB_TOKEN` as `NODE_AUTH_TOKEN`.
-It creates a mode-0600 npm config in `$RUNNER_TEMP` with only the
-`@happycastle114` scope mapping and token reference. No Keychain lookup,
-`NPM_TOKEN`, or user-level npm config is used.
+Publication targets the public npm registry at `https://registry.npmjs.org`.
+The job uses `setup-node` with `registry-url` and passes an automation-granular
+token from the `NPM_TOKEN` repository secret as `NODE_AUTH_TOKEN`. No
+user-level npm config or Keychain is used.
 
 The workflow preflights each exact version and publishes only packages whose
 version is missing. Existing versions must match package name, version,
-`gitHead`, GitHub Packages tarball URL, and the SHA-512 integrity of the tested
-tarball; an identity mismatch fails instead of republishing an immutable
-version. The core tarball is published first, followed by the wrapper. The
-readback gate uses `npm view` and `npm pack` against GitHub Packages to verify
-metadata, downloaded tarball bytes, embedded package manifests, and the exact
-wrapper dependency. A clean consumer then installs the scoped wrapper through
-GitHub Packages and runs both shipped binaries.
+`gitHead`, and the SHA-512 integrity of the tested tarball; an identity
+mismatch fails instead of republishing an immutable version. The core tarball
+is published first, followed by the wrapper. The readback gate uses
+`npm view` and `npm pack` against npmjs.org to verify metadata, downloaded
+tarball bytes, embedded package manifests, and the exact wrapper dependency.
+A clean consumer then installs the scoped wrapper and runs both shipped
+binaries.
 
-GitHub Packages requires npm authentication for reads even when a package is
-public. For a local consumer, use an ephemeral config and a classic PAT with
-`read:packages`:
+Packages are public on npmjs.org, so consumers need no authentication:
 
 ```sh
-export NODE_AUTH_TOKEN='<GitHub classic PAT with read:packages>'
-export NPM_CONFIG_USERCONFIG="$(mktemp)"
-umask 077
-printf '%s\n' \
-  '@happycastle114:registry=https://npm.pkg.github.com' \
-  '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}' \
-  'always-auth=true' > "$NPM_CONFIG_USERCONFIG"
-npx --yes --package @happycastle114/opencode-litellm@0.6.0 opencode-litellm install
-npx --yes --package @happycastle114/codex-litellm@0.6.0 codex-litellm install
-rm -f "$NPM_CONFIG_USERCONFIG"
+npx @happycastle/opencode-litellm install
+npx @happycastle/codex-litellm install
 ```
-
-The direct full-SHA checkout and locally packed tarball path in the README
-remains available when registry access is not desired.
 
 CI and release workflow actions use reviewed, immutable 40-character commit
 pins with the corresponding upstream version in an inline comment. When an
