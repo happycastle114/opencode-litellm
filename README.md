@@ -165,7 +165,7 @@ Release qualification covers Codex CLI 0.144.1 and current stable 0.150.1.
 
 | Surface | Endpoint | Result |
 |---|---|---|
-| Models | `GET /v1/models` | OpenCode picker + Codex JSON catalog, including permitted LiteLLM routing groups |
+| Models | `GET /v1/models` | OpenCode picker + Codex JSON catalog; permitted routing groups appear when the remote gateway is LiteLLM 1.98+ |
 | Search tools | `GET /search_tools/list` | OpenCode `searchTools` |
 | MCP servers | `GET /v1/mcp/server` | Remote MCP entries |
 | MCP toolsets | `GET /v1/mcp/toolset` | Toolset MCP entries |
