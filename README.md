@@ -3,6 +3,13 @@
 One command to connect OpenCode, Codex, and Claude Code to your LiteLLM
 gateway — model discovery, search tools, MCP servers, and auth included.
 
+## 환경별 설치 안내
+
+- [Windows: PowerShell / CMD](docs/README.windows.md)
+- [macOS: Terminal / Codex 데스크톱](docs/README.macos.md)
+- [Linux / WSL / SSH](docs/README.linux.md)
+- [공통 로그인·모델 갱신·문제 해결](docs/client-setup.md)
+
 ## Quick start
 
 ```bash
@@ -38,8 +45,7 @@ LITELLM_BASE_URL=https://your-gateway.com LITELLM_PROXY_API_KEY=your-key \
 - OpenCode and/or Codex installed
 - A reachable LiteLLM gateway
 
-Native Windows setup is documented in [docs/windows-setup.md](docs/windows-setup.md),
-including a checked `.bat` entrypoint for configuring both clients.
+Choose the environment guide above for shell commands and configuration paths.
 
 ## Usage by client
 
@@ -156,7 +162,8 @@ Or enter the key interactively — it is stored in `~/.litellm/token.json`
 ```bash
 npx @happycastle/opencode-litellm doctor --target both --json
 opencode models litellm        # OpenCode model picker
-codex debug models --bundled   # Codex model catalog
+# In Codex, use /model to inspect the configured gateway catalog.
+# codex debug models --bundled shows the bundled reference catalog, not gateway access.
 ```
 
 Release qualification covers Codex CLI 0.144.1 and current stable 0.150.1.

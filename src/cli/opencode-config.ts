@@ -80,8 +80,11 @@ export function planOpenCodeEdits(
   const withDefault = isStudentCatalog(intent.models ?? [])
     ? applyEdits(updated, modify(updated, ['model'], STUDENT_AUTO.OpenCodeId, { formattingOptions: FORMATTING }))
     : updated
-  if (withDefault === source) return []
-  return [{ offset: 0, length: source.length, content: withDefault }]
+  const withSmallModel = isStudentCatalog(intent.models ?? [])
+    ? applyEdits(withDefault, modify(withDefault, ['small_model'], STUDENT_AUTO.SmallModel, { formattingOptions: FORMATTING }))
+    : withDefault
+  if (withSmallModel === source) return []
+  return [{ offset: 0, length: source.length, content: withSmallModel }]
 }
 
 export function applyOpenCodeEdits(source: string, edits: readonly Edit[]): string {

@@ -4,7 +4,7 @@ import { join } from 'node:path'
 
 const ROOT = join(import.meta.dir, '..')
 const BATCH_PATH = join(ROOT, 'scripts', 'setup-windows.bat')
-const GUIDE_PATH = join(ROOT, 'docs', 'windows-setup.md')
+const GUIDE_PATH = join(ROOT, 'docs', 'README.windows.md')
 
 describe('Windows setup assets', () => {
   test('ships a non-forwarding batch installer for both clients', () => {
@@ -30,10 +30,11 @@ describe('Windows setup assets', () => {
     const guide = readFileSync(GUIDE_PATH, 'utf8')
 
     // Then: setup, diagnostics, and official platform guidance are present
-    expect(guide).toContain('.\\scripts\\setup-windows.bat')
-    expect(guide).toContain('opencode-litellm doctor --target both --json')
-    expect(guide).toContain('https://learn.chatgpt.com/docs/codex/cli')
-    expect(guide).toContain('https://learn.chatgpt.com/docs/windows/windows-sandbox')
+    expect(guide).toContain('scripts\\setup-windows.bat')
+    const common = readFileSync(join(ROOT, 'docs', 'client-setup.md'), 'utf8')
+    expect(common).toContain('doctor --target both --json')
+    expect(guide).toContain('https://developers.openai.com/codex/cli')
+    expect(guide).toContain('https://developers.openai.com/codex/windows')
     expect(guide).toContain('https://docs.litellm.ai/docs/proxy/cli')
   })
 })

@@ -1,4 +1,5 @@
 import { join } from 'node:path'
+import { refreshCodexLaunchCatalog } from './codex-launch-catalog'
 import {
   AgentCommand,
   launchAgent,
@@ -6,7 +7,7 @@ import {
 import { BOUNDARY_COMMAND, type CliResult } from './command'
 import {
   InstallAuth,
-  type CodexMode,
+  CodexMode,
 } from './install-intent'
 import {
   loadLaunchConfig,
@@ -24,16 +25,20 @@ import { resolveProcessExitCode } from './process-exit-code'
 
 const TOKEN_PATH = ['.litellm', 'token.json'] as const
 
-export function runAgent(
+export async function runAgent(
   command: typeof BOUNDARY_COMMAND.Claude
     | typeof BOUNDARY_COMMAND.Codex
     | typeof BOUNDARY_COMMAND.OpenCode,
   argv: readonly string[],
   context: ProgramContext,
-): CliResult {
+): Promise<CliResult> {
   const launchConfig = loadLaunchConfig({ env: context.env })
   const state = resolveLaunchState(launchConfig, agentCommand(command))
   const apiKey = resolveLaunchApiKey(state, context.env)
+  const warning = command === BOUNDARY_COMMAND.Codex && state.codexMode !== CodexMode.OAuth && state.configPath !== undefined
+    ? await refreshCodexLaunchCatalog({ configPath: state.configPath, gatewayOrigin: state.gatewayOrigin, apiKey, now: context.now })
+    : ''
+  if (warning !== '') (context.launchWarning ?? ((message) => { process.stderr.write(message) }))(warning)
   const result = launchAgent({
     command: agentCommand(command),
     args: argv,

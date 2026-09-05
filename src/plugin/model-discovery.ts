@@ -45,6 +45,7 @@ export async function discoverAndMergeModels(
     for (const id of Object.keys(input.models)) {
       if (!authorized.has(id)) delete input.models[id]
     }
+    if (input.config !== undefined) input.config.small_model = STUDENT_AUTO.SmallModel
     const selected = input.config?.model
     if (input.config !== undefined && (selected === undefined ||
       (selected.startsWith(STUDENT_AUTO.OpenCodePrefix) && !authorized.has(selected.slice(STUDENT_AUTO.OpenCodePrefix.length))))) {

@@ -45,7 +45,7 @@ export async function runCliProgram(
       case BOUNDARY_COMMAND.Claude:
       case BOUNDARY_COMMAND.Codex:
       case BOUNDARY_COMMAND.OpenCode:
-        return runAgent(
+        return await runAgent(
           invocation.command,
           invocation.passthroughArgs ?? [],
           context,

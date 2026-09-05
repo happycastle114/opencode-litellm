@@ -1,6 +1,7 @@
 export const STUDENT_AUTO = {
   Id: 'student-auto',
   OpenCodeId: 'litellm/student-auto',
+  SmallModel: 'litellm/gpt-5.6-luna',
   OpenCodePrefix: 'litellm/',
   DisplayName: 'Student Auto',
   ContextWindow: 500_000,

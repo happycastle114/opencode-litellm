@@ -13,6 +13,7 @@ import { resolveHeaderSafeApiKey } from '../utils/api-key'
 
 export type PublicPluginConfig = {
   model?: string
+  small_model?: string
   provider?: Record<string, unknown>
   mcp?: Record<string, unknown>
 }
