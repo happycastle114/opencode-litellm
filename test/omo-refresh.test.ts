@@ -16,7 +16,8 @@ test('two authenticated refreshes use latest authorized server policy and preser
   const server = Bun.serve({ port: 0, fetch(request) {
     expect(request.headers.get('authorization')).toBe('Bearer fixture-key')
     if (new URL(request.url).pathname === '/v1/models') return Response.json({ data: ['student-auto','gpt-5.6-luna','gpt-5.6-terra'].map(id => ({id})) })
-    expect(new URL(request.url).searchParams.get('include_team_models')).toBe('true')
+    expect(new URL(request.url).pathname).toBe('/model/info')
+    expect(new URL(request.url).search).toBe('')
     return Response.json({ data: [{ model_name: 'student-auto', model_info: { metadata: { omo: { version:1, agents: { explore:{model, fallback_models:[]} }, categories:{} } } } }] }, {status})
   } })
   const input = { configPath:join(home, 'opencode.json'), baseURL:server.url.origin, apiKey:'fixture-key', now: () => new Date(0) }

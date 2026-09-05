@@ -17,7 +17,7 @@ import {
 
 const PLUGIN_NAME = 'opencode-plugin-litellm'
 const OPENAGENT_PLUGIN_NAME = 'oh-my-openagent'
-const OPENAGENT_PLUGIN_VERSION = '4.19.4'
+const OPENAGENT_PLUGIN_VERSION = '4.19.0'
 export const OH_MY_OPENAGENT_PLUGIN_SPEC = `${OPENAGENT_PLUGIN_NAME}@${OPENAGENT_PLUGIN_VERSION}`
 const LEGACY_STREAM_RECOVERY = { Protocol: 'file:', FileName: 'opencode-litellm-stream-recovery.mjs' } as const
 const WEBSEARCH_PLUGIN_NAME = 'opencode-websearch'

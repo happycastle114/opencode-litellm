@@ -2,7 +2,7 @@ import { buildAPIURL, buildHeaders } from '../utils/litellm-api'
 import { STUDENT_AUTO } from '../utils/student-catalog'
 import { isRecord, OmoPolicyError, parseOmoPolicy, type OmoPolicy } from './policy'
 
-const ENDPOINT = { Models: '/v1/models', Policy: '/model/info?include_team_models=true' } as const
+const ENDPOINT = { Models: '/v1/models', Policy: '/model/info' } as const
 const HTTP_STATUS = { NotFound: 404, MethodNotAllowed: 405 } as const
 const TIMEOUT_MS = 3000
 

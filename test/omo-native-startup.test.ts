@@ -12,7 +12,7 @@ test.skipIf(!RUN_NATIVE)('direct OpenCode initializes real OMO after current ser
   const binary = Bun.which('opencode')
   const omo = process.env.OMO_NATIVE_PLUGIN_PATH
   const plugin = resolve(process.env.LITELLM_NATIVE_PLUGIN_PATH ?? 'dist/index.mjs')
-  if (binary === null || omo === undefined) throw new Error('Native QA requires opencode on PATH and OMO_NATIVE_PLUGIN_PATH pointing to OMO 4.19.4 dist/index.js')
+  if (binary === null || omo === undefined) throw new Error('Native QA requires opencode on PATH and OMO_NATIVE_PLUGIN_PATH pointing to OMO 4.19.0 dist/index.js')
   const configDir = join(home, 'config', 'opencode')
   const workspace = join(home, 'workspace')
   const bin = join(home, 'bin')
@@ -30,6 +30,7 @@ test.skipIf(!RUN_NATIVE)('direct OpenCode initializes real OMO after current ser
     expect(request.headers.get('authorization')).toBe('Bearer fixture-key')
     if (new URL(request.url).pathname === '/model/info') {
       policyReads += 1
+      expect(new URL(request.url).search).toBe('')
       return Response.json({data:[{model_name:'student-auto',model_info:{metadata:{omo:{version:1,
         agents:{explore:{model,fallback_models:[]}},categories:{}}}}}]}, {status})
     }

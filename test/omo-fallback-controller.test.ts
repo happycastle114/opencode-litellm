@@ -11,10 +11,10 @@ const functions = [
   'applyUserConfiguredFallbackChain','canonicalizeModelIDForDuplicateCheck','isSameFailedModel',
   'createModelFallbackStateController','canonicalizeModelID','createReachabilityChecker','getNextReachableFallback',
   'selectFallbackProviderWithCache','selectFallbackProvider','transformModelForProvider','transformModelForProviderUsingAnthropicBehavior',
-  'splitReasoningSuffix2','isReasoningLevelOrAuto','stringifyRuntimeFallbackModel','createFallbackState','findNextAvailableFallback','isModelInCooldown','areRuntimeFallbackModelsEquivalent',
+  'stringifyRuntimeFallbackModel','createFallbackState','findNextAvailableFallback','isModelInCooldown','areRuntimeFallbackModelsEquivalent',
   'parseCanonicalRuntimeFallbackModel','canonicalizeRuntimeFallbackModelID','canonicalizeRuntimeFallbackProviderFamily',
 ]
-const variables = ['AGENT_MODEL_REQUIREMENTS','REASONING_LEVELS2','REASONING_AUTO2','REASONING_LEVEL_OR_AUTO_SET2','stringifyRuntimeModel']
+const variables = ['AGENT_MODEL_REQUIREMENTS','stringifyRuntimeModel']
 
 test.skipIf(process.env.OPENCODE_BINARY_TESTS !== '1')('real OMO error controllers cannot escape a rendered primary-only managed fallback', () => {
   const path = process.env.OMO_NATIVE_PLUGIN_PATH
@@ -39,7 +39,7 @@ test.skipIf(process.env.OPENCODE_BINARY_TESTS !== '1')('real OMO error controlle
   expect(config.agents.custom).toEqual({model:'openai/private',fallback_models:['anthropic/custom']})
   const connected = ['litellm','openai']
   const context = createContext({ Map, Set, raw: [], rendered: config.agents.explore.fallback_models,
-    log2() {}, HOOK_NAME13:'fixture', getAgentConfigKey:(name:string)=>name,
+    log2() {}, HOOK_NAME12:'fixture', getAgentConfigKey:(name:string)=>name,
     readProviderModelsCache:()=>({connected}),readConnectedProvidersCache:()=>connected,
     exports_connected_providers_cache:{readConnectedProvidersCache:()=>connected},
   })
@@ -56,5 +56,5 @@ test.skipIf(process.env.OPENCODE_BINARY_TESTS !== '1')('real OMO error controlle
     }
     ({legacy:onFailure([]),managed:onFailure(rendered),runtime:findNextAvailableFallback(createFallbackState('litellm/gpt-5.6-luna'),rendered,60)})
   `, context)
-  expect(result).toEqual({legacy:{providerID:'openai',modelID:'gpt-5.6-luna-fast',variant:'low',reasoning:undefined,reasoningEffort:undefined,temperature:undefined,top_p:undefined,maxTokens:undefined,thinking:undefined},managed:null,runtime:undefined})
+  expect(result).toEqual({legacy:{providerID:'openai',modelID:'gpt-5.4-mini-fast',variant:undefined,reasoningEffort:undefined,temperature:undefined,top_p:undefined,maxTokens:undefined,thinking:undefined},managed:null,runtime:undefined})
 })

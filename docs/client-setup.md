@@ -44,6 +44,8 @@ Codex 안에서는 `/model`을 확인합니다. `codex debug models --bundled`�
 
 ## OMO 에이전트·카테고리 모델 중앙 관리
 
+OpenCode 연동은 검증된 호환 버전 `oh-my-openagent@4.19.0`을 사용합니다. Codex에 별도로 설치된 OMO 버전은 변경하지 않습니다. 학생은 설치 프로그램이 관리하는 OpenCode용 `oh-my-openagent.jsonc` / `oh-my-openagent.json` 설정을 그대로 사용하면 됩니다. 기존 `oh-my-opencode` 설정 파일이 선택된 경우에도 설치 프로그램이 해당 파일을 갱신합니다.
+
 OMO의 `agents`와 `categories`에 배정할 모델은 서버 정책으로 관리합니다. 관리자는 GitOps 저장소에서 `student-auto`의 `model_info.metadata.omo`를 수정하고 배포합니다. 정책은 기존 물리 모델인 `gpt-5.6-luna`, `gpt-5.6-terra`, `gpt-6-astra`를 역할별로 지정합니다. 역할마다 새로운 모델 별칭을 만들 필요는 없습니다.
 
 학생은 최신 툴킷으로 설치한 뒤 OpenCode를 다시 시작하면 됩니다. OpenChamber를 사용한다면 실행 중인 OpenCode 백엔드도 다시 시작해야 합니다. LiteLLM 플러그인이 서버의 허용 모델과 OMO 정책을 읽고 로컬 OMO 설정에 반영한 다음 OMO가 초기화됩니다. 설치 프로그램이 이 순서를 맞추므로 학생이 로컬 역할별 모델을 직접 편집할 필요는 없습니다. 이미 실행 중인 세션에는 재시작 전 정책이 남을 수 있습니다.
