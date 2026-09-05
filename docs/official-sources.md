@@ -392,3 +392,9 @@ Existing explicit model choices remain selected. When the established router
 aliases are absent, a newly generated Codex catalog prefers `gpt-6-astra`.
 Provider setup follows [OpenCode's providers documentation](https://opencode.ai/docs/providers/)
 and gateway discovery follows [LiteLLM model management](https://docs.litellm.ai/docs/proxy/model_management).
+
+[GPT-5.6 Terra's model reference](https://developers.openai.com/api/docs/models/gpt-5.6-terra),
+checked 2026-09-05, specifies the same context/output limits and image input,
+with reasoning efforts `none`, `low`, `medium` (default), `high`, `xhigh`, and
+`max`. Both client selectors use the shared profile registry for Terra as well
+as Astra; explicit Terra selections remain selected when Astra is available.

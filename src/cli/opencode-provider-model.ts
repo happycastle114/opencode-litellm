@@ -1,4 +1,4 @@
-import { GPT6_ASTRA, isGpt6Astra } from '../utils/model-profile'
+import { getModelProfile } from '../utils/model-profile'
 import { formatModelName } from '../utils/format-model-name'
 import { classifyModel, MODEL_TYPE } from '../utils/model-modality'
 import type { CodexDiscoveryModel } from './codex-discovery-model'
@@ -29,31 +29,31 @@ export function toOpenCodeProviderModel(
   ) {
     return undefined
   }
-  const astra = isGpt6Astra(model.id)
-  const hasLimits = astra || model.max_input_tokens !== undefined ||
+  const profile = getModelProfile(model.id)
+  const hasLimits = profile !== undefined || model.max_input_tokens !== undefined ||
     model.max_output_tokens !== undefined
-  const supportsImageInput = astra || model.supports_vision === true ||
+  const supportsImageInput = profile !== undefined || model.supports_vision === true ||
     model.input_modalities?.some(
       (modality) => modality.toLowerCase() === INPUT_MODALITY.Image,
     ) === true
   return {
-    name: astra ? GPT6_ASTRA.DisplayName : formatModelName({ id: model.id, object: model.object ?? 'model' }),
+    name: profile?.DisplayName ?? formatModelName({ id: model.id, object: model.object ?? 'model' }),
     ...(hasLimits
       ? {
           limit: {
-            context: astra ? GPT6_ASTRA.ContextWindow : model.max_input_tokens ?? 0,
-            output: model.max_output_tokens ?? (astra ? GPT6_ASTRA.OutputTokens : 0),
+            context: profile?.ContextWindow ?? model.max_input_tokens ?? 0,
+            output: model.max_output_tokens ?? profile?.OutputTokens ?? 0,
           },
         }
       : {}),
-    ...(astra ? {
+    ...(profile !== undefined ? {
       modalities: { input: ['text', 'image'], output: ['text'] },
       reasoning: true as const,
       variants: Object.fromEntries(
-        GPT6_ASTRA.ReasoningLevels.map((reasoningEffort) => [reasoningEffort, { reasoningEffort }]),
+        profile.ReasoningLevels.map((reasoningEffort) => [reasoningEffort, { reasoningEffort }]),
       ),
     } : {}),
-    ...(astra || model.supports_function_calling === true ? { tool_call: true } : {}),
+    ...(profile !== undefined || model.supports_function_calling === true ? { tool_call: true } : {}),
     ...(supportsImageInput ? { attachment: true } : {}),
   }
 }
