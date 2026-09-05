@@ -91,17 +91,22 @@ The installer sets `web_search = "live"`, so Codex sends the Responses
 `web_search` tool through LiteLLM. The gateway must enable LiteLLM's documented
 `websearch_interception` callback and configure a search tool.
 
-> **Codex desktop app only (no CLI)?**
+> **Codex desktop setup**
 >
-> The installer writes `~/.codex/config.toml` and model catalogs that the
-> Codex desktop app reads on startup. You don't need the `codex` CLI binary.
+> The installer writes `~/.codex/config.toml` and model catalogs for the
+> Codex desktop app. A compatible `codex` CLI must be on PATH during setup:
+> the installer reads its native catalog with `codex debug models --bundled`.
 >
 > ```bash
-> # Just run install — it configures everything the desktop app needs
-> npx @happycastle/codex-litellm install
+> codex --version
+> npx @happycastle/codex-litellm install --codex-mode gateway
 >
-> # Then restart the Codex desktop app. Models appear in the picker.
+> # Then restart the Codex desktop app to load the generated configuration.
 > ```
+>
+> Opening the app icon does not run the toolkit launch refresh. Rerun install
+> when its gateway catalog needs updating; CLI users get automatic refresh
+> through `codex-litellm codex`.
 >
 > For `gateway` mode, the installer writes a small auth helper at
 > `~/.codex/libexec/litellm-auth-token.mjs` so the desktop app can resolve
