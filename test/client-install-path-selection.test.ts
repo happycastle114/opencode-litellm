@@ -14,7 +14,7 @@ import { runCliProgram } from '../src/cli/program'
 
 const MANAGED_PLUGIN = {
   repository: 'https://github.com/happycastle114/opencode-litellm.git',
-  revision: 'a7ad90427ff32568e6b2b7b212761c66e0a78ae6',
+  revision: '7574ae1a16a28eff4087912737a617e745dc5a06',
 } as const
 const VALUE = {
   ApiKey: 'path-selection-key',

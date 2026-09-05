@@ -1,6 +1,6 @@
 export const MANAGED_OPEN_CODE_PLUGIN = {
   repository: 'https://github.com/happycastle114/opencode-litellm.git',
-  revision: 'a7ad90427ff32568e6b2b7b212761c66e0a78ae6',
+  revision: '7574ae1a16a28eff4087912737a617e745dc5a06',
   checkoutDirectory: 'opencode-litellm-git',
   entrypoint: 'src/index.ts',
   remote: 'origin',
