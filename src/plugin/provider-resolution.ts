@@ -12,6 +12,7 @@ import { loadOfficialLiteLLMApiKey } from '../cli/official-token'
 import { resolveHeaderSafeApiKey } from '../utils/api-key'
 
 export type PublicPluginConfig = {
+  model?: string
   provider?: Record<string, unknown>
   mcp?: Record<string, unknown>
 }

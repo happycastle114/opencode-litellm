@@ -1,3 +1,5 @@
+import { STUDENT_AUTO } from './student-catalog'
+
 /** Documented capabilities used when the gateway omits optional model metadata. */
 export const GPT6_ASTRA = {
   Id: 'gpt-6-astra',
@@ -17,7 +19,7 @@ export const GPT56_TERRA = {
   ReasoningLevels: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
 } as const
 
-const MODEL_PROFILES = [GPT6_ASTRA, GPT56_TERRA] as const
+const MODEL_PROFILES = [GPT6_ASTRA, GPT56_TERRA, STUDENT_AUTO] as const
 export type ModelProfile = (typeof MODEL_PROFILES)[number]
 
 export function getModelProfile(id: string): ModelProfile | undefined {

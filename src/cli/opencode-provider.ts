@@ -1,3 +1,4 @@
+import { isStudentCatalog } from '../utils/student-catalog'
 import type { CodexDiscoveryModel } from './codex-discovery-model'
 import { buildOpenCodeProviderModels } from './opencode-provider-model'
 
@@ -45,7 +46,9 @@ export function buildOpenCodeProvider(
   const existingModels = isRecord(providerModels)
     ? providerModels
     : {}
-  const models = { ...discoveredModels, ...existingModels }
+  const models = isStudentCatalog(intent.models ?? [])
+    ? Object.fromEntries(Object.entries(discoveredModels).map(([id, model]) => [id, existingModels[id] ?? model]))
+    : { ...discoveredModels, ...existingModels }
   const preserved = isLegacyManagedWhitelist(provider[PROVIDER_FIELD.Whitelist])
     ? withoutField(provider, PROVIDER_FIELD.Whitelist)
     : provider

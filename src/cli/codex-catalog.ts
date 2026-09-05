@@ -1,3 +1,4 @@
+import { isStudentCatalog, STUDENT_AUTO } from '../utils/student-catalog'
 import { GPT6_ASTRA, getModelProfile } from '../utils/model-profile'
 import { classifyModel, MODEL_TYPE } from '../utils/model-modality'
 import { QWEN_GATEWAY_MODEL } from './qwen-routing'
@@ -47,7 +48,7 @@ export function buildCodexCatalog(
   if (modelIds.length === 0) throw new Error('LiteLLM returned no usable models for the Codex catalog.')
   const defaultModel = preferredDefaultModel !== undefined && modelIds.includes(preferredDefaultModel)
     ? preferredDefaultModel
-    : chooseDefaultModel(modelIds)
+    : isStudentCatalog(models) ? STUDENT_AUTO.Id : chooseDefaultModel(modelIds)
   const orderedModelIds = [defaultModel, ...modelIds.filter((slug) => slug !== defaultModel)]
   const catalog = {
     models: orderedModelIds.map((slug, index) => {
