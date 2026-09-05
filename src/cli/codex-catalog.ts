@@ -1,5 +1,6 @@
+import { chooseDefaultModel } from '../utils/default-model'
 import { isStudentCatalog, STUDENT_AUTO } from '../utils/student-catalog'
-import { GPT6_ASTRA, getModelProfile } from '../utils/model-profile'
+import { getModelProfile } from '../utils/model-profile'
 import { classifyModel, MODEL_TYPE } from '../utils/model-modality'
 import { QWEN_GATEWAY_MODEL } from './qwen-routing'
 import type { CodexModelTemplate } from './codex-bundled-catalog'
@@ -14,13 +15,7 @@ const QWEN_CATALOG_METADATA = {
   ContextWindow: 1_000_000,
   DisplayName: 'Qwen3.8 Max Preview',
 } as const
-const DEFAULT_MODEL_ORDER = [
-  'coding-fast',
-  'student-auto-router',
-  GPT6_ASTRA.Id,
-  'codex/gpt-5.6',
-  'coding-strong',
-] as const
+
 
 export type LiteLLMModel = {
   readonly id: string
@@ -88,18 +83,7 @@ export function buildCodexCatalog(
   return { defaultModel, json: `${JSON.stringify(catalog, null, 2)}\n` }
 }
 
-function chooseDefaultModel(modelIds: readonly string[]): string {
-  for (const candidate of DEFAULT_MODEL_ORDER) {
-    if (modelIds.includes(candidate)) return candidate
-  }
-  return modelIds[0] ?? unreachableCatalog()
-}
-
 function isKnownNonChatModel(model: LiteLLMModel): boolean {
   const type = classifyModel(model)
   return type === MODEL_TYPE.Embedding || type === MODEL_TYPE.Image || type === MODEL_TYPE.Audio
-}
-
-function unreachableCatalog(): never {
-  throw new Error('Codex catalog cannot select a default model from an empty list.')
 }

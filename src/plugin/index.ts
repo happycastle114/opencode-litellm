@@ -1,3 +1,4 @@
+import { bootstrapOmoPolicy } from '../omo/plugin-bootstrap'
 import type { Plugin } from '@opencode-ai/plugin'
 import type { LiteLLMSearchEndpoint } from '../search/client'
 import { parseSearchToolOptions } from '../search/options'
@@ -79,6 +80,7 @@ const liteLLMPluginImplementation: PublicPlugin = (async (
   _input: object,
   pluginOptions?: Record<string, unknown>,
 ): Promise<PublicPluginHooks> => {
+  await bootstrapOmoPolicy(_input)
   const searchToolOptions = parseSearchToolOptions(pluginOptions)
   const mcpDiscoveryOptions = parseMcpDiscoveryOptions(pluginOptions)
   const mcpToolsets = parseMcpToolsetOptions(pluginOptions)

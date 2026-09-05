@@ -10,6 +10,7 @@ const CODEX_CONFIG_FILE = 'config.toml' as const
 export type PathEnv = {
   readonly HOME?: string
   readonly XDG_CONFIG_HOME?: string
+  readonly OPENCODE_CONFIG_DIR?: string
 }
 
 export class PathResolutionError extends Error {
@@ -31,8 +32,8 @@ export function resolveOpenCodeConfigCandidatePaths(
   env: PathEnv,
 ): readonly [string, string?] {
   if (override !== undefined) return [resolve(override)]
-  const configHome = nonEmpty(env.XDG_CONFIG_HOME) ?? deriveConfigHome(env.HOME)
-  const configDirectory = join(configHome, 'opencode')
+  const configDirectory = nonEmpty(env.OPENCODE_CONFIG_DIR) ??
+    join(nonEmpty(env.XDG_CONFIG_HOME) ?? deriveConfigHome(env.HOME), 'opencode')
   return [
     join(configDirectory, OpenCodeConfigFile.Jsonc),
     join(configDirectory, OpenCodeConfigFile.Json),

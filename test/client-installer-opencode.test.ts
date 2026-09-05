@@ -12,7 +12,7 @@ import {
   INSTALL_SELECTION_WARNING_KIND,
 } from '../src/cli/install-preparation'
 import { InstallTarget } from '../src/cli/install-intent'
-import { QWEN_GATEWAY_MODEL, resolveOhMyOpenAgentProfilePath } from '../src/cli/qwen-routing'
+import { resolveOhMyOpenAgentProfilePath } from '../src/cli/qwen-routing'
 import {
   VALUE,
   createHomeDirectory,
@@ -36,7 +36,7 @@ describe('prepared client installer', () => {
     const base = preparedInstall({ target: InstallTarget.OpenCode, opencodeConfig: configPath })
     const prepared = {
       ...base,
-      discovery: { ...base.discovery, warnings: [{
+      discovery: { ...base.discovery, omoPolicy: { version: 1 as const, agents: { explore: { model: 'gateway-model', fallback_models: [] } }, categories: {} }, warnings: [{
         resource: GATEWAY_DISCOVERY_RESOURCE.SearchTools,
         kind: GATEWAY_DISCOVERY_WARNING_KIND.TimedOut,
         endpoint: '/v1/search/tools',
@@ -71,10 +71,10 @@ describe('prepared client installer', () => {
       readFileSync(resolveOhMyOpenAgentProfilePath(configPath), 'utf8'),
     )
     expect(openAgentProfile.disabled_mcps).toEqual(['websearch'])
+    expect(openAgentProfile.agents.explore).toEqual({ model: 'litellm/gateway-model', fallback_models: [] })
     expect(result.warnings).toEqual([
       "Selected search 'search-hidden' is not present in gateway discovery inventory and was skipped.",
       'Gateway search_tools discovery timed_out at /v1/search/tools; continuing with available resources.',
-      `Qwen model routing skipped: gateway model '${QWEN_GATEWAY_MODEL}' was not discovered; Oh My OpenAgent built-in websearch is disabled at ${resolveOhMyOpenAgentProfilePath(configPath)}.`,
     ])
     expect(JSON.stringify(result.warnings)).not.toContain(VALUE.ApiKey)
   })

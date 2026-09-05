@@ -7,7 +7,6 @@ const installerOnlyMarkers = [
   'ReservedAuthEnvironment',
   'ToolkitDefault',
   'CODEX_HOME',
-  'OPENCODE_CONFIG',
   'gateway.example.test',
 ] as const
 

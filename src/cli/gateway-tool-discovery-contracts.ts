@@ -1,3 +1,4 @@
+import type { OmoPolicy } from '../omo/policy'
 import type { CodexDiscoveryModel } from './codex-discovery'
 
 export const ENDPOINT = {
@@ -41,6 +42,7 @@ export const GATEWAY_DISCOVERY_RESOURCE = {
   McpServers: 'mcp_servers',
   SearchTools: 'search_tools',
   Toolsets: 'toolsets',
+  OmoPolicy: 'omo_policy',
 } as const
 
 export const GATEWAY_DISCOVERY_WARNING_KIND = {
@@ -87,6 +89,7 @@ export type GatewayToolDiscoveryInput = {
 }
 
 export type GatewayToolDiscoveryResult = {
+  readonly omoPolicy?: OmoPolicy
   readonly models: readonly CodexDiscoveryModel[]
   readonly mcpServerNames: readonly string[]
   readonly searchToolNames: readonly string[]
