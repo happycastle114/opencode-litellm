@@ -14,7 +14,7 @@ From a clone of this repository, run in Command Prompt or PowerShell:
 ```
 
 The batch file checks `node` and `npx`, then starts the published installer for
-both clients. It does not inspect or forward arguments and does not read macOS Keychain.
+both clients. It does not inspect or forward arguments.
 The installer prompts for the LiteLLM gateway URL, authentication method, model,
 web search, and MCP choices.
 

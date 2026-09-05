@@ -146,7 +146,6 @@ function autoRouterSuccess(plan: AutoRouterPlan): string {
   return [
     `Configured official LiteLLM Auto Router: ${plan.configPath}`,
     'Scope: Claude Code only; OpenCode and Codex are unchanged.',
-    'Security boundary: official LiteLLM persists the gateway provider API key in its 0600 config; this toolkit keeps it out of argv, output, Keychain, and toolkit-owned files.',
     `Start Auto Router: ${AUTO_ROUTER_LIFECYCLE_COMMAND.Up}`,
     `Stop Auto Router and restore Claude settings: ${AUTO_ROUTER_LIFECYCLE_COMMAND.Down}`,
     `After gateway key rotation: run the stop command, delete ${plan.configPath}, sign in again, then rerun install with --auto-router configure.`,
