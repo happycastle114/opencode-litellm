@@ -398,3 +398,18 @@ checked 2026-09-05, specifies the same context/output limits and image input,
 with reasoning efforts `none`, `low`, `medium` (default), `high`, `xhigh`, and
 `max`. Both client selectors use the shared profile registry for Terra as well
 as Astra; explicit Terra selections remain selected when Astra is available.
+
+## Student automatic routing
+
+When discovery returns exactly `student-auto`, `gpt-5.6-luna`,
+`gpt-5.6-terra`, and `gpt-6-astra`, new student installs default to
+`student-auto`. Reinstalling OpenCode also resets its default to this route;
+manual direct model choices remain available in the client. Runtime discovery
+preserves authorized manual choices and repairs absent or retired LiteLLM
+selections. Retired LiteLLM picker entries are removed for this narrow catalog.
+Broader owner catalogs retain their existing selection policy.
+
+The router is gateway-owned and uses native Responses, including streaming.
+Its client profile advertises the common 500,000-token context and 128,000-token
+output limit. Clients send the public route unchanged; gateway routing and
+classification internals are not client model entries.

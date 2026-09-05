@@ -1,3 +1,5 @@
+import { isStudentCatalog, STUDENT_AUTO } from '../utils/student-catalog'
+import type { PublicPluginConfig } from './provider-resolution'
 import {
   discoverLiteLLMModels,
 } from '../utils/litellm-api'
@@ -11,6 +13,7 @@ export type ModelDiscoveryInput = {
   readonly apiKey: string | undefined
   readonly customHeaders: Record<string, string> | undefined
   readonly signal: AbortSignal
+  readonly config?: PublicPluginConfig
   readonly models: Record<string, unknown>
 }
 
@@ -35,6 +38,18 @@ export async function discoverAndMergeModels(
       '[opencode-litellm] LiteLLM responded but exposed zero models.',
     )
     return
+  }
+
+  if (isStudentCatalog(discovered)) {
+    const authorized = new Set(discovered.map((model) => model.id))
+    for (const id of Object.keys(input.models)) {
+      if (!authorized.has(id)) delete input.models[id]
+    }
+    const selected = input.config?.model
+    if (input.config !== undefined && (selected === undefined ||
+      (selected.startsWith(STUDENT_AUTO.OpenCodePrefix) && !authorized.has(selected.slice(STUDENT_AUTO.OpenCodePrefix.length))))) {
+      input.config.model = STUDENT_AUTO.OpenCodeId
+    }
   }
 
   for (const model of discovered) {

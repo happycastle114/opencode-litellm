@@ -1,3 +1,4 @@
+import { isStudentCatalog, STUDENT_AUTO } from '../utils/student-catalog'
 import {
   applyEdits,
   modify,
@@ -76,8 +77,11 @@ export function planOpenCodeEdits(
       formattingOptions: FORMATTING,
     }),
   )
-  if (updated === source) return []
-  return [{ offset: 0, length: source.length, content: updated }]
+  const withDefault = isStudentCatalog(intent.models ?? [])
+    ? applyEdits(updated, modify(updated, ['model'], STUDENT_AUTO.OpenCodeId, { formattingOptions: FORMATTING }))
+    : updated
+  if (withDefault === source) return []
+  return [{ offset: 0, length: source.length, content: withDefault }]
 }
 
 export function applyOpenCodeEdits(source: string, edits: readonly Edit[]): string {

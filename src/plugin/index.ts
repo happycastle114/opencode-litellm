@@ -124,6 +124,7 @@ const liteLLMPluginImplementation: PublicPlugin = (async (
       try {
         await Promise.all([
           discoverAndMergeModels({
+            config: resolution.config,
             baseURL: resolution.baseURL,
             apiKey: resolution.apiKey,
             customHeaders: resolution.customHeaders,

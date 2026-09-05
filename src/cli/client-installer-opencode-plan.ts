@@ -1,3 +1,4 @@
+import { isStudentCatalog } from '../utils/student-catalog'
 import { dirname } from 'node:path'
 import {
   CLIENT_INSTALL_ASSET_OPERATION,
@@ -82,7 +83,7 @@ export function prepareOpenCodeInstall(
         expectation: plannedProfile.expectation,
       },
     ],
-    warnings: qwenRoutingEnabled
+    warnings: qwenRoutingEnabled || isStudentCatalog(prepared.discovery.models)
       ? []
       : [
           `Qwen model routing skipped: gateway model '${QWEN_GATEWAY_MODEL}' was not discovered; Oh My OpenAgent built-in websearch is disabled at ${profilePath}.`,
