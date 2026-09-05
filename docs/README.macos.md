@@ -9,7 +9,7 @@ opencode --version
 codex --version
 ```
 
-Codex 데스크톱만 설정한다면 `codex --version`과 CLI 실행 단계는 생략할 수 있습니다.
+Codex 데스크톱에서 사용할 경우에도 게이트웨이 모델 목록을 만들려면 `codex` CLI가 PATH에 있어야 합니다. `codex --version`을 확인한 뒤 설치하고, 이후 데스크톱 앱으로 실행할 수 있습니다.
 
 ## 설치와 실행
 
