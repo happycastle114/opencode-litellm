@@ -22,7 +22,7 @@ test('two authenticated refreshes use latest authorized server policy and preser
   const input = { configPath:join(home, 'opencode.json'), baseURL:server.url.origin, apiKey:'fixture-key', now: () => new Date(0) }
   try {
     await refreshOmoProfile(input)
-    expect(parse(readFileSync(path,'utf8')).agents.explore).toEqual({model:'litellm/gpt-5.6-luna',temperature:0.2,fallback_models:[]})
+    expect(parse(readFileSync(path,'utf8')).agents.explore).toEqual({model:'litellm/gpt-5.6-luna',temperature:0.2,fallback_models:['litellm/gpt-5.6-luna']})
     model = 'gpt-5.6-terra'
     await refreshOmoProfile(input)
     expect(parse(readFileSync(path,'utf8')).agents.explore.model).toBe('litellm/gpt-5.6-terra')

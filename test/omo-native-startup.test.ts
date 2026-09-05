@@ -12,7 +12,7 @@ test.skipIf(!RUN_NATIVE)('direct OpenCode initializes real OMO after current ser
   const binary = Bun.which('opencode')
   const omo = process.env.OMO_NATIVE_PLUGIN_PATH
   const plugin = resolve(process.env.LITELLM_NATIVE_PLUGIN_PATH ?? 'dist/index.mjs')
-  if (binary === null || omo === undefined) throw new Error('Native QA requires opencode on PATH and OMO_NATIVE_PLUGIN_PATH pointing to OMO 4.19.0 dist/index.js')
+  if (binary === null || omo === undefined) throw new Error('Native QA requires opencode on PATH and OMO_NATIVE_PLUGIN_PATH pointing to OMO 4.19.4 dist/index.js')
   const configDir = join(home, 'config', 'opencode')
   const workspace = join(home, 'workspace')
   const bin = join(home, 'bin')
@@ -59,7 +59,7 @@ test.skipIf(!RUN_NATIVE)('direct OpenCode initializes real OMO after current ser
       const effective = await launch()
       expect(effective.model).toEqual({providerID:'litellm',modelID:selected})
       expect(effective.temperature).toBe(0.2)
-      expect(JSON.parse(readFileSync(profile,'utf8')).agents.explore.fallback_models).toEqual([])
+      expect(JSON.parse(readFileSync(profile,'utf8')).agents.explore.fallback_models).toEqual([`litellm/${selected}`])
     }
     const prior = readFileSync(profile,'utf8')
     for (const failure of [401,503]) {

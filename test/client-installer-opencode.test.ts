@@ -71,7 +71,7 @@ describe('prepared client installer', () => {
       readFileSync(resolveOhMyOpenAgentProfilePath(configPath), 'utf8'),
     )
     expect(openAgentProfile.disabled_mcps).toEqual(['websearch'])
-    expect(openAgentProfile.agents.explore).toEqual({ model: 'litellm/gateway-model', fallback_models: [] })
+    expect(openAgentProfile.agents.explore).toEqual({ model: 'litellm/gateway-model', fallback_models: ['litellm/gateway-model'] })
     expect(result.warnings).toEqual([
       "Selected search 'search-hidden' is not present in gateway discovery inventory and was skipped.",
       'Gateway search_tools discovery timed_out at /v1/search/tools; continuing with available resources.',

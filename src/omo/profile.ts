@@ -16,8 +16,10 @@ export function renderOmoPolicy(source: string, policy: OmoPolicy): string {
       const slot = isRecord(current) ? current[name] : undefined
       if (slot !== undefined && !isRecord(slot)) throw new OmoPolicyError('OMO profile slot must be an object.')
       if (isRecord(slot) && typeof slot.model === 'string' && !slot.model.startsWith(OMO_POLICY.ModelPrefix)) continue
+      // OMO treats [] as inherited built-in fallbacks; a primary-only chain is skipped as a no-op on failure.
+      const fallbackModels = assignment.fallback_models.length === 0 ? [assignment.model] : assignment.fallback_models
       const fields = { model: `${OMO_POLICY.ModelPrefix}${assignment.model}`,
-        fallback_models: assignment.fallback_models.map((id) => `${OMO_POLICY.ModelPrefix}${id}`),
+        fallback_models: fallbackModels.map((id) => `${OMO_POLICY.ModelPrefix}${id}`),
         ...(assignment.variant === undefined ? {} : { variant: assignment.variant }),
         ...(assignment.reasoningEffort === undefined ? {} : { reasoningEffort: assignment.reasoningEffort }),
       }

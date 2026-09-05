@@ -14,7 +14,7 @@ test('server OMO assignment replaces managed model and fallbacks, preserving cus
   const output = renderOmoPolicy(source, parsed)
   expect(output).toContain('// keep this comment')
   expect(parseJsonc(output)).toEqual({ agents: {
-    explore: { model: 'litellm/gpt-5.6-luna', fallback_models: [], temperature: 0.3, prompt_append: 'keep' },
+    explore: { model: 'litellm/gpt-5.6-luna', fallback_models: ['litellm/gpt-5.6-luna'], temperature: 0.3, prompt_append: 'keep' },
     custom: { model: 'openai/private' },
   }, categories: {}, disabled_hooks: ['keep'] })
   expect(renderOmoPolicy(output, parsed)).toBe(output)

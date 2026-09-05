@@ -54,7 +54,7 @@ describe('OpenCode legacy Qwen profile migration', () => {
     expect(statSync(profilePath).mode & 0o777).toBe(0o600)
     const profile = parseJsonc(readFileSync(profilePath, 'utf8'))
     const opencode = parseJsonc(readFileSync(opencodePath, 'utf8'))
-    expect(OH_MY_OPENAGENT_PLUGIN_SPEC).toBe('oh-my-openagent@4.19.0')
+    expect(OH_MY_OPENAGENT_PLUGIN_SPEC).toBe('oh-my-openagent@4.19.4')
     expect(opencode.plugin).toContain(OH_MY_OPENAGENT_PLUGIN_SPEC)
     expect(opencode.plugin[0][1].searchTools).toBeUndefined()
     expect(profile.agents).toBeUndefined()
