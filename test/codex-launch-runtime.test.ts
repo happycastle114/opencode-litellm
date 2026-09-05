@@ -9,6 +9,8 @@ let home = ''
 setupProgramHome('codex-launch-runtime-', (path) => { home = path })
 
 test('built CLI refreshes between native child launches with USERPROFILE-only home and no credential helpers', async () => {
+  const node = Bun.which('node')
+  if (node === null) throw new Error('Node.js must be available on PATH for the built CLI fixture')
   let ids = ['old-permission']
   let status = 200
   let requests = 0
@@ -40,25 +42,27 @@ fs.appendFileSync(path.join(process.env.HOME, 'native.jsonl'), JSON.stringify({ 
     const windows = process.platform === 'win32'
     const executable = join(bin, windows ? 'codex.cmd' : 'codex')
     writeFileSync(executable, windows
-      ? `@echo off\r\n"${process.execPath}" "${native}" %*\r\n`
-      : `#!/bin/sh\nexec "${process.execPath}" "${native}" "$@"\n`)
+      ? `@echo off\r\n"${node}" "${native}" %*\r\n`
+      : `#!/bin/sh\nexec "${node}" "${native}" "$@"\n`)
     chmodSync(executable, 0o700)
     const helper = join(bin, windows ? 'security.cmd' : 'security')
     writeFileSync(helper, windows
       ? '@echo off\r\ntype nul > "%USERPROFILE%\\credential-helper-called"\r\nexit /b 91\r\n'
       : '#!/bin/sh\ntouch "$USERPROFILE/credential-helper-called"\nexit 91\n')
     chmodSync(helper, 0o700)
-    const env = { ...process.env, HOME: undefined, USERPROFILE: home,
-      LITELLM_PROXY_API_KEY: 'fixture-key', PATH: `${bin}${delimiter}${process.env.PATH ?? ''}` }
+    // Match the installer's home scope instead of inheriting host XDG or credential settings.
+    const env = { USERPROFILE: home, LITELLM_PROXY_API_KEY: 'fixture-key',
+      PATH: `${bin}${delimiter}${process.env.PATH ?? ''}`,
+      SystemRoot: process.env.SystemRoot, ComSpec: process.env.ComSpec, PATHEXT: process.env.PATHEXT }
     const launch = async () => {
-      const child = Bun.spawn([process.execPath, resolve('dist/opencode-litellm.mjs'), 'codex', 'exec', 'fixture'],
+      const child = Bun.spawn([node, resolve('dist/opencode-litellm.mjs'), 'codex', 'exec', 'fixture'],
         { env, stdout: 'pipe', stderr: 'pipe' })
       const stderr = await new Response(child.stderr).text()
       return { exitCode: await child.exited, stderr }
     }
-    expect((await launch()).exitCode).toBe(0)
+    expect(await launch()).toEqual({ exitCode: 0, stderr: '' })
     ids = ['student-auto', 'gpt-5.6-luna', 'gpt-5.6-terra', 'gpt-6-astra']
-    expect((await launch()).exitCode).toBe(0)
+    expect(await launch()).toEqual({ exitCode: 0, stderr: '' })
     const lines = readFileSync(join(home, 'native.jsonl'), 'utf8').trim().split('\n').map((line) => JSON.parse(line))
     expect(lines[0].models).toEqual(['old-permission'])
     expect(lines[1].models.sort()).toEqual([...ids].sort())
