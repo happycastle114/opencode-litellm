@@ -1,3 +1,4 @@
+import { GPT6_ASTRA, isGpt6Astra } from '../utils/model-profile'
 import { classifyModel, MODEL_TYPE } from '../utils/model-modality'
 import { QWEN_GATEWAY_MODEL } from './qwen-routing'
 import type { CodexModelTemplate } from './codex-bundled-catalog'
@@ -15,6 +16,7 @@ const QWEN_CATALOG_METADATA = {
 const DEFAULT_MODEL_ORDER = [
   'coding-fast',
   'student-auto-router',
+  GPT6_ASTRA.Id,
   'codex/gpt-5.6',
   'coding-strong',
 ] as const
@@ -49,14 +51,15 @@ export function buildCodexCatalog(
   const orderedModelIds = [defaultModel, ...modelIds.filter((slug) => slug !== defaultModel)]
   const catalog = {
     models: orderedModelIds.map((slug, index) => {
+      const astra = isGpt6Astra(slug)
       const isQwenPreview = slug === QWEN_GATEWAY_MODEL
-      const contextWindow = isQwenPreview
+      const contextWindow = astra ? GPT6_ASTRA.ContextWindow : isQwenPreview
         ? QWEN_CATALOG_METADATA.ContextWindow
         : CATALOG_DEFAULT_METADATA.ContextWindow
       return {
         ...template,
         slug,
-        display_name: isQwenPreview ? QWEN_CATALOG_METADATA.DisplayName : slug,
+        display_name: astra ? GPT6_ASTRA.DisplayName : isQwenPreview ? QWEN_CATALOG_METADATA.DisplayName : slug,
         description: 'LiteLLM gateway model',
         visibility: CATALOG_VISIBILITY.List,
         supported_in_api: true,
@@ -65,10 +68,11 @@ export function buildCodexCatalog(
         max_context_window: contextWindow,
         auto_compact_token_limit: Math.floor(contextWindow * 0.9),
         effective_context_window_percent: 95,
-        input_modalities: isQwenPreview
+        input_modalities: astra || isQwenPreview
           ? [CATALOG_INPUT_MODALITY.Text, CATALOG_INPUT_MODALITY.Image]
           : [CATALOG_INPUT_MODALITY.Text],
-        supported_reasoning_levels: [],
+        ...(astra ? { default_reasoning_level: GPT6_ASTRA.DefaultReasoning } : {}),
+        supported_reasoning_levels: astra ? GPT6_ASTRA.ReasoningLevels.map((effort) => ({ effort, description: effort })) : [],
         supports_parallel_tool_calls: false,
         supports_search_tool: true,
         supports_image_detail_original: false,

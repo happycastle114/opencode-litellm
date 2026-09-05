@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import type { Hooks } from '@opencode-ai/plugin'
 import { LiteLLMPlugin } from '../src/index'
+import { version } from '../src/version'
 import {
   createContext,
   sendModels,
@@ -88,7 +89,7 @@ describe('native LiteLLM web search tool', () => {
           tools: [{ type: 'web_search' }],
         },
         url: '/v1/responses',
-        userAgent: 'opencode-litellm/0.7.12',
+        userAgent: `opencode-litellm/${version}`,
       }])
       expect(metadata).toEqual([{
         title: 'Web search: LiteLLM websearch interception official docs',

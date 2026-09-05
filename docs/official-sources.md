@@ -50,7 +50,7 @@ does not require or install a Rust toolchain on those supported platforms.
 | Claude settings patch and restore | [`settings.py`](https://github.com/BerriAI/litellm/blob/d8f71d7bdbd7c9873d98293f83d64c6db72847e6/litellm/proxy/client/cli/commands/autoroute/settings.py) | Treat `up` as Claude-only configuration and direct operators to `down` for restoration |
 
 The secret boundary is exact: the toolkit keeps the gateway key out of argv,
-stdout/stderr, Keychain, and toolkit-owned files. The official wizard persists
+stdout/stderr and toolkit-owned files. The official wizard persists
 the provider API key inside its own `0600` YAML. The toolkit does not mask or
 replace that upstream behavior. After key rotation, operators must run the
 pinned `down`, delete the YAML, refresh login/environment authentication, and
@@ -365,7 +365,7 @@ The release workflow publishes both scoped packages to the public npm
 registry at `https://registry.npmjs.org` using an automation-granular
 `NPM_TOKEN` repository secret. The workflow uses `setup-node` with
 `registry-url` and passes the token as `NODE_AUTH_TOKEN`. No user-level
-npm config or Keychain is used.
+npm configuration is used.
 
 | Package/bin | Manifest | Registry status at documentation time |
 |---|---|---|
@@ -379,3 +379,16 @@ Packages are public on npmjs.org, so consumers need no authentication:
 npx @happycastle/opencode-litellm install
 npx @happycastle/codex-litellm install
 ```
+
+## GPT-6 Astra (checked 2026-09-05)
+
+[OpenAI's model reference](https://developers.openai.com/api/docs/models/gpt-6-astra)
+sets a 1,050,000-token context window, 128,000 maximum output tokens, image
+input, and reasoning efforts `low`, `medium`, `high`, `xhigh`, and `max`.
+The shared profile fills missing discovery capabilities in both client model
+selectors. OpenCode uses its existing `@ai-sdk/openai` Responses provider and
+explicit effort variants; Codex advertises those efforts in its model catalog.
+Existing explicit model choices remain selected. When the established router
+aliases are absent, a newly generated Codex catalog prefers `gpt-6-astra`.
+Provider setup follows [OpenCode's providers documentation](https://opencode.ai/docs/providers/)
+and gateway discovery follows [LiteLLM model management](https://docs.litellm.ai/docs/proxy/model_management).

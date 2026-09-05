@@ -1,3 +1,4 @@
+import { GPT6_ASTRA, isGpt6Astra } from '../utils/model-profile'
 import { formatModelName } from '../utils/format-model-name'
 import { classifyModel, MODEL_TYPE } from '../utils/model-modality'
 import type { CodexDiscoveryModel } from './codex-discovery-model'
@@ -11,6 +12,9 @@ export type OpenCodeProviderModel = {
     readonly output: number
   }
   readonly tool_call?: true
+  readonly modalities?: { readonly input: readonly string[]; readonly output: readonly string[] }
+  readonly reasoning?: true
+  readonly variants?: Readonly<Record<string, { readonly reasoningEffort: string }>>
   readonly attachment?: true
 }
 
@@ -25,23 +29,31 @@ export function toOpenCodeProviderModel(
   ) {
     return undefined
   }
-  const hasLimits = model.max_input_tokens !== undefined ||
+  const astra = isGpt6Astra(model.id)
+  const hasLimits = astra || model.max_input_tokens !== undefined ||
     model.max_output_tokens !== undefined
-  const supportsImageInput = model.supports_vision === true ||
+  const supportsImageInput = astra || model.supports_vision === true ||
     model.input_modalities?.some(
       (modality) => modality.toLowerCase() === INPUT_MODALITY.Image,
     ) === true
   return {
-    name: formatModelName({ id: model.id, object: model.object ?? 'model' }),
+    name: astra ? GPT6_ASTRA.DisplayName : formatModelName({ id: model.id, object: model.object ?? 'model' }),
     ...(hasLimits
       ? {
           limit: {
-            context: model.max_input_tokens ?? 0,
-            output: model.max_output_tokens ?? 0,
+            context: astra ? GPT6_ASTRA.ContextWindow : model.max_input_tokens ?? 0,
+            output: model.max_output_tokens ?? (astra ? GPT6_ASTRA.OutputTokens : 0),
           },
         }
       : {}),
-    ...(model.supports_function_calling === true ? { tool_call: true } : {}),
+    ...(astra ? {
+      modalities: { input: ['text', 'image'], output: ['text'] },
+      reasoning: true as const,
+      variants: Object.fromEntries(
+        GPT6_ASTRA.ReasoningLevels.map((reasoningEffort) => [reasoningEffort, { reasoningEffort }]),
+      ),
+    } : {}),
+    ...(astra || model.supports_function_calling === true ? { tool_call: true } : {}),
     ...(supportsImageInput ? { attachment: true } : {}),
   }
 }
