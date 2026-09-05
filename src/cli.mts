@@ -9,6 +9,7 @@ import {
   createNodeSsoOnboardingBoundaries,
 } from './cli/node-onboarding-boundaries'
 import { runCliProgram } from './cli/program'
+import { normalizeCliEnvironment } from './cli/environment'
 
 const argv = applyBinaryDefaults(process.argv.slice(2), process.argv[1] ?? '')
 const onboardingIO = needsNodeOnboardingBoundary(argv)
@@ -19,7 +20,7 @@ try {
   result = await runCliProgram(
     argv,
     {
-      env: process.env,
+      env: normalizeCliEnvironment(process.env),
       now: () => new Date(),
       externalSetup: true,
       ...(onboardingIO === undefined

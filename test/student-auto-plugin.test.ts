@@ -15,6 +15,7 @@ test.each([
     response.end(JSON.stringify({ data: ids.map((model_group) => ({ model_group, mode: 'responses' })) }))
   })
   const config = {
+    small_model: 'litellm/gpt-5.6-sol',
     ...(selected === undefined ? {} : { model: selected }),
     provider: { litellm: { options: { baseURL: server.baseURL, apiKey: 'test-only' }, models: { 'old-classifier': { name: 'retired' } } } },
   }
@@ -24,6 +25,7 @@ test.each([
     await hooks.config?.(config)
     // Then: unauthorized entries disappear, native Responses remains, direct choices survive
     expect(config.model).toBe(expected)
+    expect(config.small_model).toBe('litellm/gpt-5.6-luna')
     expect(Object.keys(config.provider.litellm.models).sort()).toEqual([...ids].sort())
     expect(config.provider.litellm).toMatchObject({ npm: '@ai-sdk/openai' })
   } finally {

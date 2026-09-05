@@ -170,3 +170,14 @@ describe('opencode JSONC editing', () => {
   })
 
 })
+
+test('retires only the legacy LiteLLM stream recovery file plugin on upgrade', () => {
+  const legacy='file:///tmp/plugins/opencode-litellm-stream-recovery.mjs'
+  const other='file:///tmp/plugins/user-stream-recovery.mjs'
+  const output=parseJsonc(render(JSON.stringify({plugin:[legacy,[legacy,{enabled:true}],other,'keep@1.0.0']})))
+  expect(output.plugin).not.toContain(legacy)
+  expect(output.plugin.some((entry:unknown)=>Array.isArray(entry)&&entry[0]===legacy)).toBe(false)
+  expect(output.plugin).toContain(other)
+  expect(output.plugin).toContain('keep@1.0.0')
+  expect(output.plugin).toContain(PLUGIN_SPEC)
+})

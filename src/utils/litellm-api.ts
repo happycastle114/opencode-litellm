@@ -27,7 +27,7 @@ export function buildAPIURL(baseURL: string, endpoint: string = MODELS_ENDPOINT)
   return `${normalizeBaseURL(baseURL)}${endpoint}`
 }
 
-function buildHeaders(
+export function buildHeaders(
   apiKey: string | undefined,
   customHeaders: Record<string, string> | undefined,
   options: LiteLLMRequestOptions = {},

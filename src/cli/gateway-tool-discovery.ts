@@ -1,3 +1,4 @@
+import { discoverOmoPolicy } from '../omo/discovery'
 import {
   CodexDiscoveryError,
   discoverCodexGatewayResources,
@@ -114,7 +115,14 @@ export async function discoverGatewayTools(
       ))
     }
 
+    let omoPolicy
+    try {
+      omoPolicy = await discoverOmoPolicy({ baseURL: origin, apiKey, authorizedModels: coreResult.value.models, fetcher, signal: controller.signal })
+    } catch {
+      warnings.push({ resource: GATEWAY_DISCOVERY_RESOURCE.OmoPolicy, kind: GATEWAY_DISCOVERY_WARNING_KIND.Unavailable, endpoint: '/model/info' })
+    }
     return {
+      ...(omoPolicy === undefined ? {} : { omoPolicy }),
       models: coreResult.value.models,
       mcpServerNames: coreResult.value.mcpServerNames,
       searchToolNames: searchResult.status === 'fulfilled' ? searchResult.value.names : [],

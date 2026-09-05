@@ -19,6 +19,7 @@ const PLUGIN_NAME = 'opencode-plugin-litellm'
 const OPENAGENT_PLUGIN_NAME = 'oh-my-openagent'
 const OPENAGENT_PLUGIN_VERSION = '4.19.0'
 export const OH_MY_OPENAGENT_PLUGIN_SPEC = `${OPENAGENT_PLUGIN_NAME}@${OPENAGENT_PLUGIN_VERSION}`
+const LEGACY_STREAM_RECOVERY = { Protocol: 'file:', FileName: 'opencode-litellm-stream-recovery.mjs' } as const
 const WEBSEARCH_PLUGIN_NAME = 'opencode-websearch'
 const LEGACY_OPENAGENT_PLUGIN_NAME = 'oh-my-opencode'
 const DEFAULT_SEARCH_MAX_RESULTS = 8
@@ -80,8 +81,11 @@ export function planOpenCodeEdits(
   const withDefault = isStudentCatalog(intent.models ?? [])
     ? applyEdits(updated, modify(updated, ['model'], STUDENT_AUTO.OpenCodeId, { formattingOptions: FORMATTING }))
     : updated
-  if (withDefault === source) return []
-  return [{ offset: 0, length: source.length, content: withDefault }]
+  const withSmallModel = isStudentCatalog(intent.models ?? [])
+    ? applyEdits(withDefault, modify(withDefault, ['small_model'], STUDENT_AUTO.SmallModel, { formattingOptions: FORMATTING }))
+    : withDefault
+  if (withSmallModel === source) return []
+  return [{ offset: 0, length: source.length, content: withSmallModel }]
 }
 
 export function applyOpenCodeEdits(source: string, edits: readonly Edit[]): string {
@@ -110,9 +114,18 @@ function mergePluginList(
       !isLiteLLMEntry(entry) &&
       !isOpenAgentEntry(entry) &&
       !isWebSearchEntry(entry) &&
+      !isLegacyStreamRecoveryEntry(entry) &&
       pluginSpecName(entry) !== specName,
   )
   return [spec, openAgentSpec, ...preserved]
+}
+
+function isLegacyStreamRecoveryEntry(entry: PluginSpec): boolean {
+  try {
+    const url = new URL(pluginSpecName(entry))
+    return url.protocol === LEGACY_STREAM_RECOVERY.Protocol &&
+      decodeURIComponent(url.pathname).split('/').at(-1) === LEGACY_STREAM_RECOVERY.FileName
+  } catch { return false }
 }
 
 function readPluginList(config: unknown): readonly PluginSpec[] {

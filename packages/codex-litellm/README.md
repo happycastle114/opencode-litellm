@@ -5,6 +5,13 @@ Thin Codex-focused wrapper for
 Defaults `install` to `--target codex`; everything else is forwarded to the
 core CLI.
 
+## 환경별 설치 안내
+
+- [Windows](https://github.com/happycastle114/opencode-litellm/blob/main/docs/README.windows.md)
+- [macOS](https://github.com/happycastle114/opencode-litellm/blob/main/docs/README.macos.md)
+- [Linux / WSL](https://github.com/happycastle114/opencode-litellm/blob/main/docs/README.linux.md)
+- [로그인·모델 갱신·문제 해결](https://github.com/happycastle114/opencode-litellm/blob/main/docs/client-setup.md)
+
 ## Quick start
 
 ```bash

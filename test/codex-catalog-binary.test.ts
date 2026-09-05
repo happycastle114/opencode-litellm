@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { buildCodexCatalog, renderCodexOAuthConfig } from '../src/cli/codex-config'
 import { createCodexSpawnBoundary, readBundledCodexCatalog } from '../src/cli/codex-discovery'
 import { QWEN_GATEWAY_MODEL } from '../src/cli/qwen-routing'
+import { STUDENT_AUTO } from '../src/utils/student-catalog'
 
 const RUN_BINARY_TESTS = process.env.CODEX_BINARY_TESTS === '1'
 const codexBinary = RUN_BINARY_TESTS ? Bun.which('codex') : null
@@ -22,6 +23,7 @@ describe('Codex model catalog binary compatibility', () => {
     const catalog = buildCodexCatalog([
       { id: 'coding-fast' },
       { id: QWEN_GATEWAY_MODEL },
+      { id: STUDENT_AUTO.Id },
     ], bundled.template)
     writeFileSync(catalogPath, catalog.json)
     writeFileSync(
@@ -46,6 +48,7 @@ describe('Codex model catalog binary compatibility', () => {
       expect(payload.models.map((model: { readonly slug: string }) => model.slug)).toEqual([
         'coding-fast',
         QWEN_GATEWAY_MODEL,
+        STUDENT_AUTO.Id,
       ])
       expect(payload.models.map(normalizeParsedModel)).toEqual(
         expected.models.map(normalizeParsedModel),

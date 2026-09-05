@@ -202,22 +202,37 @@ upstream tool description. The installer removes standalone
 
 OpenCode onboarding pins the official consumer package
 [`oh-my-openagent@4.19.0`](https://registry.npmjs.org/oh-my-openagent/4.19.0).
-The `v4.19.0` tag resolves to immutable commit
+The registry `gitHead` and GitHub `v4.19.0` tag both resolve to immutable commit
 [`14083b89`](https://github.com/code-yeongyu/oh-my-openagent/tree/14083b89f1cbf4680be13493a6c4afd67c957e8a).
-The audited npm artifact has integrity
+The published npm artifact has integrity
 `sha512-Ov1a/V750SYoLHy6e6PHyUPaWyRGukjUDe5HzHqFMSKEx8IS0DUeT0EXGQIOO28/DSXE7TE4g82wVAi/UVX0zA==`.
+
+The OpenCode integration retains this compatible pin for native OpenCode
+`1.18.29`; OMO `4.19.4` changes the plugin export and configuration contract.
+This does not change the separately installed Codex OMO version. The managed
+OpenCode profile remains `oh-my-openagent.jsonc` / `oh-my-openagent.json`
+(or the existing legacy `oh-my-opencode` filename), not a unified OMO config.
+
+Policy discovery reads authenticated `/v1/models` and plain `/model/info`.
+Do not add `include_team_models=true`: the live student endpoint returns the
+required model metadata through the query-free endpoint; assignments remain
+intersected with the authenticated `/v1/models` catalog.
 
 | Contract | Immutable source | Toolkit behavior |
 |---|---|---|
 | Renamed and legacy config precedence | [Configuration reference](https://github.com/code-yeongyu/oh-my-openagent/blob/14083b89f1cbf4680be13493a6c4afd67c957e8a/docs/reference/configuration.md) | Resolve renamed JSONC, renamed JSON, legacy JSONC, legacy JSON, then create renamed JSON beside the selected OpenCode config |
-| Agent and category model overrides | [Configuration reference](https://github.com/code-yeongyu/oh-my-openagent/blob/14083b89f1cbf4680be13493a6c4afd67c957e8a/docs/reference/configuration.md) and [schema](https://github.com/code-yeongyu/oh-my-openagent/blob/14083b89f1cbf4680be13493a6c4afd67c957e8a/assets/oh-my-opencode.schema.json) | Route only the bounded planning/research/writing/long-context entries to `litellm/alibaba-token/qwen3.8-max-preview`; preserve unrelated fields and JSONC comments |
+| Agent and category model overrides | [Configuration reference](https://github.com/code-yeongyu/oh-my-openagent/blob/14083b89f1cbf4680be13493a6c4afd67c957e8a/docs/reference/configuration.md) and [schema](https://github.com/code-yeongyu/oh-my-openagent/blob/14083b89f1cbf4680be13493a6c4afd67c957e8a/assets/oh-my-opencode.schema.json) | Apply authorized `student-auto.model_info.metadata.omo` assignments to managed LiteLLM agents/categories before OMO initialization; preserve external-provider slots, unrelated fields, and JSONC comments |
 | Built-in MCP controls | [Configuration reference](https://github.com/code-yeongyu/oh-my-openagent/blob/14083b89f1cbf4680be13493a6c4afd67c957e8a/docs/reference/configuration.md) | Preserve the managed OMA `websearch` profile setting separately from LiteLLM tool IDs; LiteLLM never registers the reserved OpenCode `websearch` name |
 
 The installer replaces unversioned, differently versioned, and legacy
 `oh-my-opencode` plugin entries with one exact `oh-my-openagent@4.19.0` entry.
-It writes the active profile atomically as `0600`. If the exact Qwen model is
-not discovered, no Qwen route is invented. The MCP collision policy is applied
-on every OpenCode install regardless of Qwen or LiteLLM search selection.
+It writes the active profile atomically as `0600`. Model assignment comes from
+server policy instead of the retired Qwen-specific local assignment. An empty
+server fallback list is rendered locally as the same primary model, preventing
+OMO from inheriting a cross-provider fallback chain. The old local streaming
+recovery model switching to Sol/Luna is retired; gateway routing owns model
+fallback decisions. MCP collision handling remains independent of model policy
+and LiteLLM search selection.
 
 ## Codex contract
 

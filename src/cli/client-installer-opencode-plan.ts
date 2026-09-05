@@ -1,4 +1,4 @@
-import { isStudentCatalog } from '../utils/student-catalog'
+import { renderOmoPolicy } from '../omo/profile'
 import { dirname } from 'node:path'
 import {
   CLIENT_INSTALL_ASSET_OPERATION,
@@ -16,7 +16,6 @@ import { applyOpenCodeEdits, planOpenCodeEdits } from './opencode-config'
 import { resolveOpenCodeConfigPath } from './paths'
 import type { PathEnv } from './paths'
 import {
-  QWEN_GATEWAY_MODEL,
   renderOhMyOpenAgentProfile,
   resolveOhMyOpenAgentProfilePath,
 } from './qwen-routing'
@@ -57,14 +56,12 @@ export function prepareOpenCodeInstall(
     disableMcp: prepared.options.disableMcp,
   }, path))
   const profilePath = destinations.profile
-  const qwenRoutingEnabled = prepared.discovery.models.some(
-    (model) => model.id === QWEN_GATEWAY_MODEL,
-  )
   const plannedProfile = readPlannedSource(profilePath, '{}\n')
   const profileSource = plannedProfile.contents
-  const profileOutput = renderOhMyOpenAgentProfile(profileSource, {
-    qwenRoutingEnabled,
-  }, profilePath)
+  const baseProfile = renderOhMyOpenAgentProfile(profileSource, { qwenRoutingEnabled: false }, profilePath)
+  const profileOutput = prepared.discovery.omoPolicy === undefined
+    ? baseProfile
+    : renderOmoPolicy(baseProfile, prepared.discovery.omoPolicy)
   return {
     path,
     managedPlugin,
@@ -83,11 +80,7 @@ export function prepareOpenCodeInstall(
         expectation: plannedProfile.expectation,
       },
     ],
-    warnings: qwenRoutingEnabled || isStudentCatalog(prepared.discovery.models)
-      ? []
-      : [
-          `Qwen model routing skipped: gateway model '${QWEN_GATEWAY_MODEL}' was not discovered; Oh My OpenAgent built-in websearch is disabled at ${profilePath}.`,
-        ],
+    warnings: [],
   }
 }
 

@@ -38,8 +38,8 @@ afterEach(() => {
   rmSync(homeDirectory, { recursive: true, force: true })
 })
 
-describe('OpenCode Qwen installer integration', () => {
-  test('creates an atomic 0600 no-search profile when exact Qwen is discovered', async () => {
+describe('OpenCode legacy Qwen profile migration', () => {
+  test('does not infer OMO assignments from Qwen catalog presence', async () => {
     const opencodePath = join(homeDirectory, '.config', 'opencode', 'opencode.jsonc')
     const profilePath = resolveOhMyOpenAgentProfilePath(opencodePath)
     const prepared = preparedInstall(opencodePath, [{ id: QWEN_GATEWAY_MODEL }])
@@ -57,9 +57,8 @@ describe('OpenCode Qwen installer integration', () => {
     expect(OH_MY_OPENAGENT_PLUGIN_SPEC).toBe('oh-my-openagent@4.19.0')
     expect(opencode.plugin).toContain(OH_MY_OPENAGENT_PLUGIN_SPEC)
     expect(opencode.plugin[0][1].searchTools).toBeUndefined()
-    expect(profile.agents['sisyphus-junior'].model).toBe(QWEN_OPENCODE_MODEL)
-    expect(profile.categories.writing.model).toBe(QWEN_OPENCODE_MODEL)
-    expect(profile.categories['long-context'].model).toBe(QWEN_OPENCODE_MODEL)
+    expect(profile.agents).toBeUndefined()
+    expect(profile.categories).toBeUndefined()
     expect(profile.disabled_mcps).toEqual(['websearch'])
     expect(readFileSync(profilePath, 'utf8')).not.toContain('sk-')
     const first = readFileSync(profilePath, 'utf8')
@@ -70,7 +69,7 @@ describe('OpenCode Qwen installer integration', () => {
     expect(readFileSync(profilePath, 'utf8')).toBe(first)
   })
 
-  test('creates the no-search policy profile and warns only that Qwen routing was skipped', async () => {
+  test('creates the no-search policy profile without obsolete Qwen advice', async () => {
     const opencodePath = join(homeDirectory, '.config', 'opencode', 'opencode.jsonc')
     const profilePath = resolveOhMyOpenAgentProfilePath(opencodePath)
     const prepared = preparedInstall(opencodePath, [{ id: 'coding-fast' }])
@@ -85,9 +84,7 @@ describe('OpenCode Qwen installer integration', () => {
     expect(parseJsonc(readFileSync(profilePath, 'utf8')).disabled_mcps).toEqual(['websearch'])
     const opencode = parseJsonc(readFileSync(opencodePath, 'utf8'))
     expect(opencode.plugin[0][1].searchTools).toBeUndefined()
-    expect(result.warnings).toEqual([
-      `Qwen model routing skipped: gateway model '${QWEN_GATEWAY_MODEL}' was not discovered; Oh My OpenAgent built-in websearch is disabled at ${profilePath}.`,
-    ])
+    expect(result.warnings).toEqual([])
   })
 
   test('preserves an existing profile while enforcing no-search when Qwen is absent', async () => {
@@ -138,9 +135,10 @@ describe('OpenCode Qwen installer integration', () => {
     writeFileSync(profilePath, `{
   // preserve user-owned route metadata
   "agents": {
-    "plan": { "fallback_models": ["openai/gpt-5.6"] },
+    "plan": { "model": "${QWEN_OPENCODE_MODEL}", "fallback_models": ["openai/gpt-5.6"] },
     "sisyphus": { "model": "openai/gpt-5.6" }
-  }
+  },
+  "categories": { "writing": { "model": "${QWEN_OPENCODE_MODEL}" } }
 }
 `)
 

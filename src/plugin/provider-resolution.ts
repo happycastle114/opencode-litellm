@@ -13,6 +13,7 @@ import { resolveHeaderSafeApiKey } from '../utils/api-key'
 
 export type PublicPluginConfig = {
   model?: string
+  small_model?: string
   provider?: Record<string, unknown>
   mcp?: Record<string, unknown>
 }
@@ -74,6 +75,7 @@ export function readCustomHeaders(
 
 export async function resolveProvider(
   config: PublicPluginConfig,
+  requestOptions: { readonly allowAmbientFallback?: boolean } = {},
 ): Promise<ProviderResolution> {
   const providerConfig = isRecord(config.provider) ? config.provider : {}
   if (config.provider !== providerConfig) config.provider = providerConfig
@@ -101,7 +103,7 @@ export async function resolveProvider(
   const officialFallbackAllowed = !configuredCredentialDeclared ||
     configuredKey === '' ||
     (configuredKey !== undefined && ENV_REFERENCE_PATTERN.test(configuredKey))
-  const ambientApiKey = !configuredCredentialDeclared && officialKey === undefined
+  const ambientApiKey = requestOptions.allowAmbientFallback !== false && !configuredCredentialDeclared && officialKey === undefined
     ? normalizeApiKey(resolveSearchApiKey())
     : undefined
   const apiKey = configuredApiKey ??

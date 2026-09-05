@@ -22,7 +22,7 @@ export type CodexGatewayDiscoveryResult = { readonly models: readonly CodexDisco
 export class CodexDiscoveryError extends Error {
   readonly name = 'CodexDiscoveryError'
 
-  constructor(message: string, readonly status?: number) {
+  constructor(message: string, readonly status?: number, readonly retryable = false) {
     super(message)
   }
 }
@@ -165,18 +165,18 @@ function modelDiscoveryError(reason: unknown): CodexDiscoveryError {
   if (reason instanceof EndpointFailure) {
     switch (reason.kind) {
       case FAILURE_KIND.Status:
-        return new CodexDiscoveryError(`LiteLLM model discovery responded with HTTP ${reason.status ?? 0}.`, reason.status)
+        return new CodexDiscoveryError(`LiteLLM model discovery responded with HTTP ${reason.status ?? 0}.`, reason.status, reason.status === 429 || (reason.status !== undefined && reason.status >= 500))
       case FAILURE_KIND.Json:
         return new CodexDiscoveryError('LiteLLM model discovery returned malformed JSON.')
       case FAILURE_KIND.Shape:
         return new CodexDiscoveryError('LiteLLM model discovery returned an invalid or empty catalog.')
       case FAILURE_KIND.Request:
-        return new CodexDiscoveryError('LiteLLM model discovery request failed.')
+        return new CodexDiscoveryError('LiteLLM model discovery request failed.', undefined, true)
       default:
         return assertNever(reason.kind)
     }
   }
-  return new CodexDiscoveryError('LiteLLM model discovery request failed.')
+  return new CodexDiscoveryError('LiteLLM model discovery request failed.', undefined, true)
 }
 
 function mcpWarning(reason: unknown): string {
