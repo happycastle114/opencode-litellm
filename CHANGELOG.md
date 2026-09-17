@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.8.0] — 2026-09-17
+Release target: `0.8.0` (publication pending).
 
 ### Changed
 - SSO now delegates PKCE login, token renewal, OS keyring storage, and logout
@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   did not pass the native server-policy startup test on OpenCode `1.18.31`.
 
 ### Fixed
+- Failed native login no longer accepts an older credential as proof of a new login.
+- Logout reports an unverified native credential store when metadata is missing,
+  instead of claiming that the stored credential was removed.
 - Removed macOS session-wide credential exports. OAuth and MCP admission keys
   are supplied only to the client process launched by the toolkit; legacy
   launchd cleanup remains available on logout.
