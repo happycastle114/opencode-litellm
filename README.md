@@ -155,16 +155,24 @@ npx @happycastle/opencode-litellm whoami --base-url https://your-gateway.com
 npx @happycastle/opencode-litellm logout --base-url https://your-gateway.com
 ```
 
-The toolkit delegates login to `lite --base-url <url> login --pkce`, token
+The toolkit delegates login to `lite --base-url <url> --api-key '' login --pkce`, token
 resolution/renewal to `lite --base-url <url> auth print-token`, and logout to
 `lite --base-url <url> logout`. It does not implement a separate browser or
 polling flow. `auth print-token` emits a credential for its caller; the toolkit
 captures it instead of displaying it.
 
+The empty login key skips native renewal of a previous credential before a new
+sign-in. Login succeeds only after native metadata records a newer finite login
+timestamp and the new exact-origin credential is usable; a failed or cancelled
+attempt does not reuse the earlier login as proof of success.
+
 LiteLLM stores secrets in the OS keyring and metadata in
 `~/.litellm/token.json`. When a keyring is unavailable, the official CLI uses
 an owner-only file instead; its login output identifies the storage used.
 Do not copy this file as a portable login or delete it instead of logging out.
+If logout finds no metadata, it reports the native credential store as unverified;
+run `lite logout` for native diagnostics and cleanup. A missing metadata file
+does not prove that the OS keyring is empty.
 See the [pinned native authentication contract](docs/official-sources.md#litellm-authentication-and-agent-contracts).
 
 ### Environment key

@@ -28,13 +28,13 @@ const INSPECTION_STATUS = {
 
 const LOGOUT_STATUS = {
   Removed: 'removed',
-  Absent: 'absent',
 } as const
 
 const ERROR_CODE = {
   ReadFailed: 'read-failed',
   DeleteFailed: 'delete-failed',
   Mismatch: 'mismatch',
+  CredentialStoreUnverified: 'credential-store-unverified',
 } as const
 
 const NATIVE_LOGOUT = {
@@ -80,8 +80,10 @@ export class LiteLLMAuthLifecycleError extends Error {
   readonly name = 'LiteLLMAuthLifecycleError'
 
   constructor(readonly code: AuthLifecycleErrorCode) {
-    super(`LiteLLM auth lifecycle failed (${code}).` +
-      (code === ERROR_CODE.DeleteFailed ? ' Run lite logout to inspect the native credential-store diagnostic.' : ''))
+    super(code === ERROR_CODE.CredentialStoreUnverified
+      ? 'LiteLLM metadata is absent; the native credential store is unverified. Run lite logout for native diagnostic and cleanup.'
+      : `LiteLLM auth lifecycle failed (${code}).` +
+        (code === ERROR_CODE.DeleteFailed ? ' Run lite logout to inspect the native credential-store diagnostic.' : ''))
   }
 }
 
@@ -139,7 +141,7 @@ export function logoutLiteLLMAuth(
   try {
     stored = JSON.parse(readFileSync(path, 'utf8'))
   } catch (error: unknown) {
-    if (isMissingFile(error)) return { status: LOGOUT_STATUS.Absent }
+    if (isMissingFile(error)) throw new LiteLLMAuthLifecycleError(ERROR_CODE.CredentialStoreUnverified)
     if (error instanceof SyntaxError || isNodeError(error)) {
       throw new LiteLLMAuthLifecycleError(ERROR_CODE.ReadFailed)
     }

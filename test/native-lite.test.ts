@@ -13,6 +13,17 @@ const TOKEN = 'sk-native-test-credential'
 const TOKEN_PATH = join(tmpdir(), 'native-lite-test-home', '.litellm', 'token.json')
 
 describe('official LiteLLM command boundary', () => {
+  test('disables pre-command credential refresh for a new PKCE login', () => {
+    let captured: readonly string[] = []
+    runNativeLite({ command: NativeLiteCommand.Login, baseUrl: ORIGIN, tokenFilePath: TOKEN_PATH }, {
+      spawn: (_file, args) => {
+        captured = args
+        return { status: 0, stdout: null, stderr: null }
+      },
+    })
+    expect(captured).toEqual(['--base-url', ORIGIN, '--api-key', '', 'login', '--pkce'])
+  })
+
   test('binds token resolution to the exact gateway and excludes ambient credentials', () => {
     // Given: another gateway and student credential are in the parent environment.
     let captured: { file: string; args: readonly string[]; options: NativeLiteSpawnOptions } | undefined

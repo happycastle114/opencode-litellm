@@ -13,6 +13,7 @@ import {
 const TOKEN_FIELD = {
   baseURL: 'base_url',
   key: 'key',
+  timestamp: 'timestamp',
 } as const
 const MANUAL_KEY_PATH = ['opencode-litellm', 'api-key.json'] as const
 
@@ -20,6 +21,12 @@ export type OfficialLiteLLMTokenOptions = {
   readonly tokenFilePath?: string
   readonly expectedBaseURL?: string
   readonly native?: NativeLiteBoundary
+}
+
+export function readOfficialLiteLLMTokenTimestamp(tokenFilePath?: string): number | undefined {
+  const record = readTokenRecord(tokenFilePath ?? nativeLiteTokenPath())
+  const timestamp = record?.[TOKEN_FIELD.timestamp]
+  return typeof timestamp === 'number' && Number.isFinite(timestamp) ? timestamp : undefined
 }
 
 export function loadOfficialLiteLLMApiKey(

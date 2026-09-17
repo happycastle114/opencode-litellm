@@ -25,7 +25,8 @@ const NATIVE_LITE = {
   file: 'token.json',
   baseUrlOption: '--base-url',
   tokenArgs: ['auth', 'print-token'],
-  loginArgs: ['login', '--pkce'],
+  // LiteLLM 1.101.0 main.py:97-101 otherwise refreshes an old credential before PKCE.
+  loginArgs: ['--api-key', '', 'login', '--pkce'],
   logoutArgs: ['logout'],
   commandTimeoutMs: 30_000,
   loginTimeoutMs: 300_000,

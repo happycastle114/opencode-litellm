@@ -137,6 +137,22 @@ describe('CLI program', () => {
     expect(result.stderr).not.toContain('sk-partial-logout-secret')
     expect(existsSync(tokenPath)).toBe(false)
   })
+
+  test('reports missing metadata as unverified logout without touching the native store', async () => {
+    let nativeCalls = 0
+    const result = await runCliProgram(['logout', '--base-url', 'https://litellm.example.com'], {
+      env: { HOME: dir }, now: () => new Date(0),
+      ssoBoundaries: { spawn: () => {
+        nativeCalls += 1
+        return { status: 0, stdout: NATIVE_LOGOUT_SUCCESS, stderr: '' }
+      } },
+    })
+    expect(result.exitCode).toBe(1)
+    expect(result.stdout).toBe('')
+    expect(result.stderr).toContain('unverified')
+    expect(result.stderr).toContain('lite logout')
+    expect(nativeCalls).toBe(0)
+  })
 })
 
 function nativeAuth(secret: string, tokenPath: string): NativeLiteSpawn {

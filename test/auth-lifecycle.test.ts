@@ -81,7 +81,7 @@ describe('native LiteLLM lifecycle', () => {
     expect(result.status).toBe(AuthLogoutStatus.Removed)
     expect(existsSync(tokenFilePath)).toBe(false)
     expect(readFileSync(manualPath, 'utf8')).toBe(manualSource)
-    expect(logoutLiteLLMAuth({ baseUrl: ORIGIN, tokenFilePath })).toEqual({ status: AuthLogoutStatus.Absent })
+    expect(() => logoutLiteLLMAuth({ baseUrl: ORIGIN, tokenFilePath })).toThrow(/unverified/)
   })
 
   test('fails closed when native logout warns that the keychain entry remains', () => {
@@ -89,7 +89,15 @@ describe('native LiteLLM lifecycle', () => {
     writeFileSync(tokenFilePath, JSON.stringify({ base_url: ORIGIN }))
     // When and Then: a warning cannot be reported as a complete logout.
     expect(() => logoutLiteLLMAuth({ baseUrl: ORIGIN, tokenFilePath, native: {
-      spawn: () => ({ status: 0, stdout: 'Your credential is still in your OS keychain.', stderr: '' }),
+      spawn: () => {
+        unlinkSync(tokenFilePath)
+        return { status: 0, stdout: 'Your credential is still in your OS keychain.', stderr: '' }
+      },
     } })).toThrow(LiteLLMAuthLifecycleError)
+    let retryCalls = 0
+    expect(() => logoutLiteLLMAuth({ baseUrl: ORIGIN, tokenFilePath, native: {
+      spawn: () => { retryCalls += 1; return { status: 0, stdout: LOGOUT_SUCCESS, stderr: '' } },
+    } })).toThrow(/unverified/)
+    expect(retryCalls).toBe(0)
   })
 })
