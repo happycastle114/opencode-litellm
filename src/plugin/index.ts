@@ -21,6 +21,7 @@ import {
 } from './provider-resolution'
 import { discoverAndMergeModels } from './model-discovery'
 import { discoverAndMergeMcpServers } from './mcp-discovery'
+import { parsePluginAuth } from './options'
 
 type PublicPluginHooks = {
   readonly config?: (config: PublicPluginConfig) => Promise<void>
@@ -81,6 +82,7 @@ const liteLLMPluginImplementation: PublicPlugin = (async (
   pluginOptions?: Record<string, unknown>,
 ): Promise<PublicPluginHooks> => {
   await bootstrapOmoPolicy(_input)
+  const auth = parsePluginAuth(pluginOptions)
   const searchToolOptions = parseSearchToolOptions(pluginOptions)
   const mcpDiscoveryOptions = parseMcpDiscoveryOptions(pluginOptions)
   const mcpToolsets = parseMcpToolsetOptions(pluginOptions)
@@ -104,7 +106,7 @@ const liteLLMPluginImplementation: PublicPlugin = (async (
     },
     config: async (config: PublicPluginConfig) => {
       searchEndpoint = undefined
-      const resolution = await resolveProvider(config)
+      const resolution = await resolveProvider(config, { auth })
       if (resolution.kind === PROVIDER_RESOLUTION.UnresolvedCredential) {
         console.warn(
           '[opencode-litellm] Configured LiteLLM credential could not be resolved; discovery is disabled.',

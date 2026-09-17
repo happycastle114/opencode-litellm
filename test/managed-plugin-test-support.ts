@@ -1,6 +1,6 @@
 export const MANAGED_PLUGIN = {
   repository: 'https://github.com/happycastle114/opencode-litellm.git',
-  revision: '93305ec57ca615640844e9fa536108294915a81b',
+  revision: '88ed45d2fce30d5f4b0a380bff39400561f2b5ed',
   checkoutDirectory: 'opencode-litellm-git',
   entrypoint: 'src/index.ts',
 } as const

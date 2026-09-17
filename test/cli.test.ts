@@ -10,11 +10,11 @@ const GLOBAL_HELP = `Usage: opencode-litellm <command> [options]
 Commands:
   install  Configure supported clients for LiteLLM
   doctor   Check the local LiteLLM integration
-  login    Sign in with the built-in LiteLLM SSO onboarding flow
-  logout   Remove the local LiteLLM SSO session
+  login    Sign in through the official LiteLLM CLI (PKCE)
+  logout   Log out through the official LiteLLM CLI
   whoami   Show safe local LiteLLM SSO session metadata
   claude   Launch Claude Code with OAuth-safe LiteLLM routing
-  codex    Launch Codex with the installed LiteLLM profile
+  codex    Launch Codex with the installed LiteLLM configuration
   opencode Launch OpenCode with the installed LiteLLM toolkit
 
 Options:
@@ -57,17 +57,18 @@ Options:
 
 const AUTH_HELP = `Usage: opencode-litellm <login|logout|whoami> [options]
 
-Manage the built-in LiteLLM CLI-compatible SSO session.
+Manage SSO through the official LiteLLM CLI.
+Requires lite on PATH: uv tool install 'litellm[cli]==1.101.0'
 
 Options:
   --base-url <url>  LiteLLM gateway origin
-  --auth-env <name> Codex OAuth admission-key environment name
+  --auth-env <name> Legacy session variable to clear on logout
   -h, --help        Show help
 `
 
 const AGENT_HELP = `Usage: opencode-litellm <claude|codex|opencode> [args...]
 
-Launch an agent with the installed LiteLLM toolkit while keeping credentials in memory.
+Launch an agent with gateway credentials scoped to its child process.
 
 Options:
   -h, --help  Show help; other arguments are forwarded to the agent

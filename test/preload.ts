@@ -1,0 +1,1 @@
+process.env.LITELLM_CLI_DISABLE_KEYRING = '1'

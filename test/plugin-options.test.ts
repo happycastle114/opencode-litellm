@@ -1,7 +1,16 @@
 import { describe, expect, test } from 'bun:test'
 import { LiteLLMPlugin } from '../src/index'
+import { InstallAuth } from '../src/cli/install-intent'
 
 describe('LiteLLMPlugin search tool options', () => {
+  test.each([InstallAuth.Environment, InstallAuth.Sso])('accepts the explicit authentication source %s', async (auth) => {
+    await expect(LiteLLMPlugin({}, { auth })).resolves.toHaveProperty('config')
+  })
+
+  test.each(['manual', null, 17])('rejects an unsupported authentication source %s', async (auth) => {
+    await expect(LiteLLMPlugin({}, { auth })).rejects.toThrow('auth')
+  })
+
   test('registers only native web-search when named options are omitted', async () => {
     // Given: the plugin is loaded without tuple options
     // When: OpenCode initializes the plugin

@@ -32,3 +32,30 @@ test.each([
     await server.close()
   }
 })
+
+test.each([
+  { selected: 'openai/gpt-6-astra', small: 'openai/gpt-5.6-luna' },
+  { selected: 'openai/gpt-6-astra', small: undefined },
+  { selected: 'litellm/gpt-5.6-terra', small: 'anthropic/claude-haiku' },
+])('preserves unrelated provider defaults for %j', async ({ selected, small }) => {
+  // Given: a student gateway is configured alongside native provider defaults.
+  const server = await startServer((_request, response) => {
+    response.setHeader('content-type', 'application/json')
+    response.end(JSON.stringify({ data: ids.map((model_group) => ({ model_group, mode: 'responses' })) }))
+  })
+  const config = {
+    model: selected,
+    small_model: small,
+    provider: { litellm: { options: { baseURL: server.baseURL, apiKey: 'test-only' }, models: {} } },
+  }
+  try {
+    // When: the public plugin discovers the authorized gateway catalog.
+    const hooks = await LiteLLMPlugin({})
+    await hooks.config?.(config)
+    // Then: neither an explicit native default nor native automatic selection is replaced.
+    expect({ model: config.model, small_model: config.small_model }).toEqual({ model: selected, small_model: small })
+    expect(Object.keys(config.provider.litellm.models).sort()).toEqual([...ids].sort())
+  } finally {
+    await server.close()
+  }
+})

@@ -3,28 +3,20 @@ import { isStudentCatalog, STUDENT_AUTO } from '../utils/student-catalog'
 import { getModelProfile } from '../utils/model-profile'
 import { classifyModel, MODEL_TYPE } from '../utils/model-modality'
 import { QWEN_GATEWAY_MODEL } from './qwen-routing'
-import type { CodexModelTemplate } from './codex-bundled-catalog'
+import type { BundledCodexCatalog, CodexModelTemplate } from './codex-bundled-catalog'
+import type { CodexDiscoveryModel } from './codex-discovery-model'
 
 const CATALOG_VISIBILITY = { List: 'list' } as const
 const CATALOG_INPUT_MODALITY = { Image: 'image', Text: 'text' } as const
 const CATALOG_DEFAULT_METADATA = {
   ContextWindow: 200_000,
-  DefaultReasoningLevel: 'medium',
 } as const
 const QWEN_CATALOG_METADATA = {
   ContextWindow: 1_000_000,
   DisplayName: 'Qwen3.8 Max Preview',
 } as const
 
-
-export type LiteLLMModel = {
-  readonly id: string
-  readonly object?: string
-  readonly mode?: string
-  readonly type?: string
-  readonly model_type?: string
-  readonly input_modalities?: readonly string[]
-}
+export type LiteLLMModel = CodexDiscoveryModel
 
 export type CodexCatalog = {
   readonly defaultModel: string
@@ -33,13 +25,12 @@ export type CodexCatalog = {
 
 export function buildCodexCatalog(
   models: readonly LiteLLMModel[],
-  template: CodexModelTemplate,
+  bundled: BundledCodexCatalog,
   preferredDefaultModel?: string,
 ): CodexCatalog {
-  const modelIds = [...new Set(
-    models.filter((model) => !isKnownNonChatModel(model))
-      .map((model) => model.id.trim()).filter((id) => id !== ''),
-  )].sort()
+  const discovered = new Map(models.filter((model) => !isKnownNonChatModel(model))
+    .filter((model) => model.id.trim() !== '').map((model) => [model.id.trim(), model]))
+  const modelIds = [...discovered.keys()].sort()
   if (modelIds.length === 0) throw new Error('LiteLLM returned no usable models for the Codex catalog.')
   const defaultModel = preferredDefaultModel !== undefined && modelIds.includes(preferredDefaultModel)
     ? preferredDefaultModel
@@ -47,31 +38,23 @@ export function buildCodexCatalog(
   const orderedModelIds = [defaultModel, ...modelIds.filter((slug) => slug !== defaultModel)]
   const catalog = {
     models: orderedModelIds.map((slug, index) => {
-      const profile = getModelProfile(slug)
-      const isQwenPreview = slug === QWEN_GATEWAY_MODEL
-      const contextWindow = profile?.ContextWindow ?? (isQwenPreview
-        ? QWEN_CATALOG_METADATA.ContextWindow
-        : CATALOG_DEFAULT_METADATA.ContextWindow)
+      const native = bundled.templates.find((model) => model.slug === slug)
+      const template = native ?? gatewayTemplate(slug, bundled.template)
+      const model = discovered.get(slug)
+      const contextWindow = model?.max_input_tokens
       return {
         ...template,
         slug,
-        display_name: profile?.DisplayName ?? (isQwenPreview ? QWEN_CATALOG_METADATA.DisplayName : slug),
         description: 'LiteLLM gateway model',
         visibility: CATALOG_VISIBILITY.List,
         supported_in_api: true,
         priority: index,
-        context_window: contextWindow,
-        max_context_window: contextWindow,
-        auto_compact_token_limit: Math.floor(contextWindow * 0.9),
-        effective_context_window_percent: 95,
-        input_modalities: profile !== undefined || isQwenPreview
-          ? [CATALOG_INPUT_MODALITY.Text, CATALOG_INPUT_MODALITY.Image]
-          : [CATALOG_INPUT_MODALITY.Text],
-        ...(profile !== undefined ? { default_reasoning_level: profile.DefaultReasoning } : {}),
-        supported_reasoning_levels: profile?.ReasoningLevels.map((effort) => ({ effort, description: effort })) ?? [],
-        supports_parallel_tool_calls: false,
-        supports_search_tool: true,
-        supports_image_detail_original: false,
+        ...(contextWindow === undefined ? {} : {
+          context_window: contextWindow,
+          max_context_window: contextWindow,
+          auto_compact_token_limit: Math.floor(contextWindow * 0.9),
+        }),
+        ...gatewayInputModalities(model),
         use_responses_lite: false,
         additional_speed_tiers: [],
         service_tiers: [],
@@ -81,6 +64,43 @@ export function buildCodexCatalog(
     }),
   }
   return { defaultModel, json: `${JSON.stringify(catalog, null, 2)}\n` }
+}
+
+function gatewayTemplate(slug: string, template: CodexModelTemplate): CodexModelTemplate {
+  const profile = getModelProfile(slug)
+  const isQwenPreview = slug === QWEN_GATEWAY_MODEL
+  const contextWindow = profile?.ContextWindow ?? (isQwenPreview
+    ? QWEN_CATALOG_METADATA.ContextWindow
+    : CATALOG_DEFAULT_METADATA.ContextWindow)
+  return {
+    ...template,
+    display_name: profile?.DisplayName ?? (isQwenPreview ? QWEN_CATALOG_METADATA.DisplayName : slug),
+    context_window: contextWindow,
+    max_context_window: contextWindow,
+    auto_compact_token_limit: Math.floor(contextWindow * 0.9),
+    effective_context_window_percent: 95,
+    input_modalities: profile !== undefined || isQwenPreview
+      ? [CATALOG_INPUT_MODALITY.Text, CATALOG_INPUT_MODALITY.Image]
+      : [CATALOG_INPUT_MODALITY.Text],
+    ...(profile === undefined ? {} : { default_reasoning_level: profile.DefaultReasoning }),
+    supported_reasoning_levels: profile?.ReasoningLevels.map((effort) => ({ effort, description: effort })) ?? [],
+    supports_parallel_tool_calls: false,
+    supports_search_tool: true,
+    supports_image_detail_original: false,
+  }
+}
+
+function gatewayInputModalities(model: LiteLLMModel | undefined): { readonly input_modalities?: readonly string[] } {
+  if (model?.input_modalities !== undefined) {
+    return { input_modalities: model.input_modalities.filter((modality) =>
+      modality === CATALOG_INPUT_MODALITY.Text || modality === CATALOG_INPUT_MODALITY.Image) }
+  }
+  if (model?.supports_vision !== undefined) {
+    return { input_modalities: model.supports_vision
+      ? [CATALOG_INPUT_MODALITY.Text, CATALOG_INPUT_MODALITY.Image]
+      : [CATALOG_INPUT_MODALITY.Text] }
+  }
+  return {}
 }
 
 function isKnownNonChatModel(model: LiteLLMModel): boolean {

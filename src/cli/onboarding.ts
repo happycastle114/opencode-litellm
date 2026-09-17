@@ -293,7 +293,7 @@ function targetLabel(target: InstallTargetValue): string {
 function authLabel(auth: InstallAuthValue): string {
   switch (auth) {
     case InstallAuth.Sso: return 'LiteLLM SSO'
-    case InstallAuth.Environment: return 'API key (stored in ~/.litellm/token.json)'
+    case InstallAuth.Environment: return 'API key (stored locally)'
     default: return assertNever(auth)
   }
 }

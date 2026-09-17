@@ -6,10 +6,9 @@ import { buildCodexCatalog } from './codex-catalog'
 import {
   createCodexSpawnBoundary,
   readBundledCodexCatalog,
-  CodexCatalogError,
-  type BundledCodexCatalog,
+  type CodexSpawnBoundary,
 } from './codex-bundled-catalog'
-import { CodexDiscoveryError, discoverCodexGatewayResources } from './codex-gateway-discovery'
+import { discoverCodexGatewayResources } from './codex-gateway-discovery'
 import { writeConfigAtomic } from './file-adapter'
 import { assertManagedRegularFileOrAbsent, readManagedTextFile } from './managed-file-safety'
 
@@ -18,9 +17,10 @@ export type CodexLaunchCatalogInput = {
   readonly gatewayOrigin: string
   readonly apiKey: string
   readonly now: () => Date
+  readonly codexSpawnBoundary?: CodexSpawnBoundary
 }
 
-export async function refreshCodexLaunchCatalog(input: CodexLaunchCatalogInput): Promise<string> {
+export async function refreshCodexLaunchCatalog(input: CodexLaunchCatalogInput): Promise<void> {
   const source = readManagedTextFile(input.configPath, '')
   const config = parseToml(source)
   const catalogPath = config.model_catalog_json
@@ -29,19 +29,10 @@ export async function refreshCodexLaunchCatalog(input: CodexLaunchCatalogInput):
     throw new AgentLaunchError('The installed Codex gateway catalog path is missing or invalid; reinstall Codex LiteLLM.')
   }
   assertManagedRegularFileOrAbsent(catalogPath)
-  const cached = readValidatedCatalog(catalogPath)
-  let discovered
-  try {
-    discovered = await discoverCodexGatewayResources({ origin: input.gatewayOrigin, apiKey: input.apiKey })
-  } catch (error) {
-    if (error instanceof CodexDiscoveryError && error.retryable && cached !== undefined) {
-      return 'Warning: LiteLLM model refresh temporarily failed; using the last validated Codex catalog.\n'
-    }
-    throw error
-  }
-  const template = cached?.template ?? readBundledCodexCatalog(createCodexSpawnBoundary()).template
+  const discovered = await discoverCodexGatewayResources({ origin: input.gatewayOrigin, apiKey: input.apiKey })
+  const bundled = readBundledCodexCatalog(input.codexSpawnBoundary ?? createCodexSpawnBoundary())
   const selected = typeof config.model === 'string' ? config.model : undefined
-  const catalog = buildCodexCatalog(discovered.models, template, selected)
+  const catalog = buildCodexCatalog(discovered.models, bundled, selected)
   if (readManagedTextFile(input.configPath, '') !== source) {
     throw new AgentLaunchError('Codex configuration changed during model refresh; retry the launch.')
   }
@@ -49,18 +40,6 @@ export async function refreshCodexLaunchCatalog(input: CodexLaunchCatalogInput):
   writeConfigAtomic(catalogPath, catalog.json, input)
   if (catalog.defaultModel !== selected) {
     writeConfigAtomic(input.configPath, replaceRootModel(source, catalog.defaultModel), input)
-  }
-  return ''
-}
-
-function readValidatedCatalog(path: string): BundledCodexCatalog | undefined {
-  const contents = readManagedTextFile(path, '')
-  if (contents === '') return undefined
-  try {
-    return readBundledCodexCatalog({ spawn: () => ({ status: 0, stdout: contents }) })
-  } catch (error) {
-    if (error instanceof CodexCatalogError) return undefined
-    throw error
   }
 }
 

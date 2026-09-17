@@ -55,11 +55,15 @@ export async function discoverAndMergeModels(
       }
     }
   }
-  if (isStudentCatalog(discovered)) {
-    if (input.config !== undefined) input.config.small_model = STUDENT_AUTO.SmallModel
-    const selected = input.config?.model
-    if (input.config !== undefined && (selected === undefined ||
-      (selected.startsWith(STUDENT_AUTO.OpenCodePrefix) && !authorized.has(selected.slice(STUDENT_AUTO.OpenCodePrefix.length))))) {
+  if (isStudentCatalog(discovered) && input.config !== undefined) {
+    const selected = input.config.model
+    const small = input.config.small_model
+    const usesLiteLLMDefault = selected === undefined || selected.startsWith(STUDENT_AUTO.OpenCodePrefix)
+    if (small?.startsWith(STUDENT_AUTO.OpenCodePrefix) || (small === undefined && usesLiteLLMDefault)) {
+      input.config.small_model = STUDENT_AUTO.SmallModel
+    }
+    if (selected === undefined ||
+      (selected.startsWith(STUDENT_AUTO.OpenCodePrefix) && !authorized.has(selected.slice(STUDENT_AUTO.OpenCodePrefix.length)))) {
       input.config.model = STUDENT_AUTO.OpenCodeId
     }
   }

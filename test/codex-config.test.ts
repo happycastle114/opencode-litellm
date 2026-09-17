@@ -164,7 +164,7 @@ describe('Codex model catalog', () => {
     const catalog = buildCodexCatalog([
       { id: 'coding-strong', object: 'model' },
       { id: 'coding-fast', object: 'model' },
-    ], bundledCatalog.template)
+    ], bundledCatalog)
 
     // When: the catalog is serialized
     const payload = JSON.parse(catalog.json)
@@ -181,7 +181,7 @@ describe('Codex model catalog', () => {
     const catalog = buildCodexCatalog([
       { id: QWEN_GATEWAY_MODEL, object: 'model' },
       { id: 'coding-fast', object: 'model' },
-    ], bundledCatalog.template)
+    ], bundledCatalog)
     const payload = JSON.parse(catalog.json)
     const qwen = payload.models.find((model: { slug: string }) => model.slug === QWEN_GATEWAY_MODEL)
     const codingFast = payload.models.find((model: { slug: string }) => model.slug === 'coding-fast')
@@ -195,7 +195,7 @@ describe('Codex model catalog', () => {
     // Given: the exact Qwen preview route is returned by LiteLLM discovery
     const catalog = buildCodexCatalog(
       [{ id: QWEN_GATEWAY_MODEL, object: 'model' }],
-      bundledCatalog.template,
+      bundledCatalog,
     )
 
     // When: Codex consumes the generated catalog row
@@ -222,7 +222,7 @@ describe('Codex model catalog', () => {
     // Given: a discovered route and a distinctive selected Codex 0.144.1 template
     const catalog = buildCodexCatalog(
       [{ id: 'ordinary-model', object: 'model' }],
-      bundledCatalog.template,
+      bundledCatalog,
     )
 
     // When: Codex consumes the generated catalog row
@@ -267,7 +267,7 @@ describe('Codex model catalog', () => {
   test('does not elevate Qwen when it is the only discovered model', () => {
     const catalog = buildCodexCatalog(
       [{ id: QWEN_GATEWAY_MODEL, object: 'model' }],
-      bundledCatalog.template,
+      bundledCatalog,
     )
     const payload = JSON.parse(catalog.json)
 
@@ -290,7 +290,7 @@ describe('Codex model catalog', () => {
       { id: 'cliproxy/wan2.2-r2v-flash', object: 'model' },
       { id: 'openai/gpt-4o-mini-tts', object: 'model' },
       { id: 'openai/gpt-4o-transcribe', object: 'model' },
-    ], bundledCatalog.template)
+    ], bundledCatalog)
     const payload = JSON.parse(catalog.json)
 
     expect(payload.models.map((model: { slug: string }) => model.slug)).toEqual([

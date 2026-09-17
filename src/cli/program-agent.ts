@@ -14,7 +14,7 @@ import {
   type LaunchClientState,
   type LaunchConfig,
 } from './launch-config'
-import { loadOfficialLiteLLMApiKey, loadEnvKey } from './official-token'
+import { loadOfficialLiteLLMApiKey, loadEnvKey, resolveManualLiteLLMApiKeyPath } from './official-token'
 import {
   PathResolutionError,
   type PathEnv,
@@ -34,11 +34,16 @@ export async function runAgent(
 ): Promise<CliResult> {
   const launchConfig = loadLaunchConfig({ env: context.env })
   const state = resolveLaunchState(launchConfig, agentCommand(command))
-  const apiKey = resolveLaunchApiKey(state, context.env)
-  const warning = command === BOUNDARY_COMMAND.Codex && state.codexMode !== CodexMode.OAuth && state.configPath !== undefined
-    ? await refreshCodexLaunchCatalog({ configPath: state.configPath, gatewayOrigin: state.gatewayOrigin, apiKey, now: context.now })
-    : ''
-  if (warning !== '') (context.launchWarning ?? ((message) => { process.stderr.write(message) }))(warning)
+  const apiKey = resolveLaunchApiKey(state, context)
+  if (command === BOUNDARY_COMMAND.Codex && state.codexMode !== CodexMode.OAuth && state.configPath !== undefined) {
+    await refreshCodexLaunchCatalog({
+      configPath: state.configPath,
+      gatewayOrigin: state.gatewayOrigin,
+      apiKey,
+      now: context.now,
+      codexSpawnBoundary: context.codexSpawnBoundary,
+    })
+  }
   const result = launchAgent({
     command: agentCommand(command),
     args: argv,
@@ -58,14 +63,15 @@ export async function runAgent(
 
 function resolveLaunchApiKey(
   config: LaunchClientState,
-  environment: Readonly<Record<string, string | undefined>>,
+  context: ProgramContext,
 ): string {
+  const environment = context.env
   switch (config.auth) {
     case InstallAuth.Environment: {
       const key = environment[config.authEnv]
       if (isHeaderSafeApiKey(key)) return key
       const storedKey = loadEnvKey(
-        resolveTokenPath(environment),
+        resolveManualLiteLLMApiKeyPath(environment),
         config.gatewayOrigin,
       )
       if (storedKey !== undefined) return storedKey
@@ -77,6 +83,7 @@ function resolveLaunchApiKey(
       const key = loadOfficialLiteLLMApiKey({
         tokenFilePath: resolveTokenPath(environment),
         expectedBaseURL: config.gatewayOrigin,
+        native: context.ssoBoundaries,
       })
       if (key !== undefined) return key
       throw new Error(

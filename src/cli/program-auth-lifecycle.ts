@@ -7,7 +7,6 @@ import {
 } from './auth-lifecycle'
 import {
   clearCodexSessionEnvironment,
-  syncCodexSessionEnvironment,
   type CodexEnvironmentBoundary,
 } from './client-installer-codex-environment'
 import type { CliResult } from './command'
@@ -46,10 +45,10 @@ export async function runAuthLifecycleCommand(
   const homeDirectory = resolveHome(context.env)
   const tokenFilePath = join(homeDirectory, ...TOKEN_PATH)
   if (command === AUTH_COMMAND.WhoAmI) {
-    return inspectAuth(parsed.options.baseUrl, tokenFilePath)
+    return inspectAuth(parsed.options.baseUrl, tokenFilePath, context)
   }
   return withClientInstallPlanningLock(homeDirectory, async () => {
-    return mutateAuth(command, parsed.options, tokenFilePath, homeDirectory, context)
+    return mutateAuth(command, parsed.options, tokenFilePath, context)
   })
 }
 
@@ -57,31 +56,22 @@ async function mutateAuth(
   command: Exclude<ProgramAuthCommand, typeof AUTH_COMMAND.WhoAmI>,
   options: { readonly baseUrl: string; readonly authEnv: string },
   tokenFilePath: string,
-  homeDirectory: string,
   context: ProgramAuthContext,
 ): Promise<CliResult> {
   switch (command) {
     case AUTH_COMMAND.Login:
-      if (context.ssoBoundaries === undefined) {
-        return failure('LiteLLM SSO login requires an interactive browser boundary.')
-      }
       await (context.ssoOnboarding ?? onboardLiteLLMSso)({
         baseUrl: options.baseUrl,
         tokenFilePath,
-        now: () => context.now().getTime(),
         boundaries: context.ssoBoundaries,
       })
       return lifecycleResult(
         `Authenticated LiteLLM SSO for ${options.baseUrl}.`,
-        syncCodexSessionEnvironment(
-          options.authEnv,
-          context,
-          homeDirectory,
-        ),
+        [],
         false,
       )
     case AUTH_COMMAND.Logout: {
-      const result = logoutLiteLLMAuth({ tokenFilePath })
+      const result = logoutLiteLLMAuth({ baseUrl: options.baseUrl, tokenFilePath, native: context.ssoBoundaries })
       return lifecycleResult(
         `LiteLLM SSO session ${result.status}.`,
         clearCodexSessionEnvironment(options.authEnv, context),
@@ -93,8 +83,8 @@ async function mutateAuth(
   }
 }
 
-function inspectAuth(baseUrl: string, tokenFilePath: string): CliResult {
-  const inspection = inspectLiteLLMAuth({ baseUrl, tokenFilePath })
+function inspectAuth(baseUrl: string, tokenFilePath: string, context: ProgramAuthContext): CliResult {
+  const inspection = inspectLiteLLMAuth({ baseUrl, tokenFilePath, native: context.ssoBoundaries })
   return {
     exitCode: inspection.status === AuthInspectionStatus.Authenticated ? 0 : 1,
     stdout: `${JSON.stringify(inspection, null, 2)}\n`,

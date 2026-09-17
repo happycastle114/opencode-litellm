@@ -13,7 +13,7 @@ const VALUE = {
 } as const
 const MANAGED_PLUGIN = {
   repository: 'https://github.com/happycastle114/opencode-litellm.git',
-  revision: '93305ec57ca615640844e9fa536108294915a81b',
+  revision: '88ed45d2fce30d5f4b0a380bff39400561f2b5ed',
 } as const
 const BUNDLED_CATALOG_SOURCE = readFileSync(
   new URL('./fixtures/codex-bundled-catalog-0.144.1.json', import.meta.url),
@@ -44,7 +44,7 @@ afterEach(() => {
   rmSync(homeDirectory, { recursive: true, force: true })
 })
 
-describe('Codex post-commit environment sync', () => {
+describe('Codex installation process isolation', () => {
   test('does not invoke launchd when the filesystem commit fails', async () => {
     // Given: an SSO Codex install whose first filesystem promotion will fail
     let launchdCalls = 0
@@ -71,11 +71,11 @@ describe('Codex post-commit environment sync', () => {
     for (const path of committedPaths()) expect(existsSync(path)).toBe(false)
   })
 
-  test('keeps committed files and reports a warning when launchd throws', async () => {
+  test('commits without relying on a global macOS credential export', async () => {
     // Given: a fully stageable SSO Codex install with a throwing launchd boundary
     let launchdCalls = 0
 
-    // When: launchd export fails after the filesystem transaction commits
+    // When: installation commits with an unavailable launchd boundary
     const result = await runCliProgram(installArguments(), {
       ...programBoundary(),
       codexSpawnBoundary: {
@@ -86,10 +86,10 @@ describe('Codex post-commit environment sync', () => {
       },
     })
 
-    // Then: installation succeeds, warns, and every filesystem destination remains
+    // Then: installation succeeds without calling launchd
     expect(result.exitCode).toBe(0)
-    expect(result.stdout).toContain(`Warning: Could not export ${VALUE.AuthEnvironment}`)
-    expect(launchdCalls).toBe(1)
+    expect(result.stdout).not.toContain('Could not export')
+    expect(launchdCalls).toBe(0)
     for (const path of committedPaths()) expect(existsSync(path)).toBe(true)
   })
 
@@ -152,6 +152,7 @@ function programBoundary() {
     externalSetup: true,
     platform: 'darwin',
     bundledCodexCatalog: () => BUNDLED_CATALOG,
+    ssoBoundaries: { spawn: () => ({ status: 0, stdout: `${VALUE.Token}\n`, stderr: '' }) },
     gatewayDiscovery: async () => ({
       models: [], searchToolNames: [], mcpServerNames: [], toolsets: [], warnings: [],
     }),
@@ -160,7 +161,6 @@ function programBoundary() {
 
 function committedPaths(): readonly string[] {
   return [
-    join(homeDirectory, '.codex', 'libexec', 'litellm-auth-token.mjs'),
     join(homeDirectory, '.codex', 'litellm-codex-oauth-models.json'),
     join(homeDirectory, '.codex', 'config.toml'),
     join(homeDirectory, '.agents', 'skills', 'litellm-research-router', 'SKILL.md'),

@@ -19,7 +19,6 @@ import {
   formatClientInstallRecoveryWarning,
 } from './client-install-recovery'
 import {
-  completePreparedCodex,
   prepareCodexInstall,
   type CodexClientInstallerBoundary,
   type CodexInstallPlan,
@@ -63,7 +62,6 @@ type ClientTransactionPlan = {
   readonly configured: readonly ClientConfiguredPath[]
   readonly warnings: readonly string[]
   readonly managedPlugin?: ManagedOpenCodePluginPlan
-  readonly codex?: CodexInstallPlan
 }
 
 export class ClientInstallerError extends Error {
@@ -114,15 +112,11 @@ export async function installPreparedClients(
     }
     throw error
   }
-  const codexWarnings = plan.codex === undefined
-    ? []
-    : completePreparedCodex(plan.codex, prepared, boundary).warnings
   return {
     configured: plan.configured,
     warnings: [
       ...plan.warnings,
       ...destinationLeaseWarnings,
-      ...codexWarnings,
       ...findClientInstallRecoveryFiles(plan.assets).map(
         formatClientInstallRecoveryWarning,
       ),
@@ -176,7 +170,6 @@ function prepareClientTransaction(
         ],
         warnings: [...preparedWarnings, ...openCode.warnings],
         managedPlugin: openCode.managedPlugin,
-        codex,
       }
     }
     default:
@@ -208,7 +201,6 @@ function codexTransaction(
     assets: [...plan.assets, skill, ...additional],
     configured: [{ client: InstallTarget.Codex, path: plan.path }],
     warnings,
-    codex: plan,
   }
 }
 

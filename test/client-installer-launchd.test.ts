@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { rmSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync } from 'node:fs'
+import { parse as parseToml } from 'smol-toml'
 import { join } from 'node:path'
 import { installPreparedClients } from '../src/cli/client-installer'
 import { CodexMode, InstallAuth, InstallTarget } from '../src/cli/install-intent'
@@ -23,7 +24,7 @@ afterEach(() => {
 
 describe('prepared client installer', () => {
   test(
-    'syncs the SSO gateway key into launchd for a Codex OAuth header',
+    'keeps the SSO gateway key out of the macOS login session',
     async () => {
       // Given: external macOS setup using SSO and the OAuth Codex mode
       const calls: Array<{ readonly file: string; readonly args: readonly string[] }> = []
@@ -49,15 +50,11 @@ describe('prepared client installer', () => {
         },
       })
 
-      // Then: only the helper path and environment name cross the process boundary
-      expect(calls).toEqual([{
-        file: process.execPath,
-        args: [
-          join(homeDirectory, '.codex', 'libexec', 'litellm-auth-token.mjs'),
-          '--launchctl-setenv',
-          VALUE.AuthEnvironment,
-        ],
-      }])
+      // Then: installing a profile cannot change credentials inherited by other apps
+      expect(calls).toEqual([])
+      expect(existsSync(join(homeDirectory, '.codex', 'libexec', 'litellm-auth-token.mjs'))).toBe(false)
+      const config = parseToml(readFileSync(configPath, 'utf8'))
+      expect(config.model_providers?.['litellm-codex-oauth'].requires_openai_auth).toBe(true)
       expect(JSON.stringify({ calls, warnings: result.warnings })).not.toContain(VALUE.ApiKey)
     },
   )

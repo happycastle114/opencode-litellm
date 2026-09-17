@@ -7,6 +7,8 @@
 ## 로그인과 설치
 
 ```sh
+uv tool install 'litellm[cli]==1.101.0'
+lite --version
 npx --yes @happycastle/opencode-litellm@latest login --base-url https://llm.soungmin.kr
 npx --yes @happycastle/opencode-litellm@latest whoami --base-url https://llm.soungmin.kr
 npx --yes @happycastle/opencode-litellm@latest install --target both --base-url https://llm.soungmin.kr --codex-mode gateway
@@ -14,7 +16,15 @@ npx --yes @happycastle/opencode-litellm@latest install --target both --base-url 
 
 SSO는 해당 게이트웨이에 로그인할 권한이 있어야 합니다. 기존 키가 폐기되었다면 이전 키가 포함된 배치 파일을 다시 실행해도 복구되지 않습니다. 다시 로그인하거나 새 키로 대화형 설치를 진행합니다.
 
-환경변수로 키를 공급한 설치는 실행 때도 해당 환경변수가 필요합니다. 대화형으로 입력한 키와 SSO 토큰은 사용자 토큰 파일을 사용합니다. 토큰 파일을 다른 학생에게 복사하지 않습니다.
+0.8.0의 SSO는 공식 LiteLLM CLI에 위임합니다. 로그인은 `lite --base-url <url> login --pkce`, 토큰 조회·갱신은 `lite --base-url <url> auth print-token`, 로그아웃은 `lite --base-url <url> logout`을 사용합니다. Python이 필요하며 [uv](https://docs.astral.sh/uv/guides/tools/)로 별도 도구 환경을 관리할 수 있습니다. `auth print-token`은 실제 토큰을 출력하므로 툴킷이 내부에서 결과를 받아 사용합니다. 로그인 상태 확인에는 위의 `whoami`를 사용합니다.
+
+공식 CLI는 비밀 정보를 OS 키링에, 메타데이터를 `~/.litellm/token.json`에 저장합니다. 키링을 사용할 수 없으면 사용자 전용 파일로 저장하며 로그인 결과에 저장 위치가 표시됩니다. 파일만 복사하거나 삭제하는 대신 공식 로그인·로그아웃 절차를 사용합니다.
+
+환경변수로 키를 공급한 설치는 실행 때도 해당 환경변수가 필요하며 `--auth env`에서 저장된 키보다 우선합니다. 대화형으로 입력한 키는 별도 파일 `~/.config/opencode-litellm/api-key.json`에 `base_url`과 `key`로 저장됩니다. `XDG_CONFIG_HOME`을 지정했다면 `$XDG_CONFIG_HOME/opencode-litellm/api-key.json`을 사용하며 POSIX 권한은 `0600`입니다. 공식 CLI의 SSO 파일과 키링은 건드리지 않습니다. 이전 버전에서 수동 입력한 키는 `install --auth env`로 다시 입력해야 하며 기존 SSO 파일에서 자동 추정·복사하지 않습니다.
+
+Codex gateway SSO는 네이티브 `auth.command = "lite"`와 `auth.args`로 `lite --base-url <origin> auth print-token`을 직접 호출합니다. 수동 API 키를 저장한 경우에만 툴킷이 해당 파일 전용 리더를 설치합니다.
+
+OAuth 프록시와 인증이 필요한 MCP는 툴킷 런처를 통해 실행합니다. `both` 모드의 OAuth는 `npx --yes @happycastle/codex-litellm@latest codex --profile codex-oauth`로 선택합니다. 게이트웨이 입장 키는 해당 자식 프로세스에만 전달하며 `launchctl setenv`로 로그인 세션 전체에 내보내지 않습니다. 로그아웃은 이전 버전이 남긴 launchd 변수를 정리하지만 이미 실행 중인 앱은 다시 시작해야 합니다.
 
 ## 모델 목록과 자동 라우팅
 
@@ -27,11 +37,13 @@ SSO는 해당 게이트웨이에 로그인할 권한이 있어야 합니다. 기
 | `gpt-5.6-terra` | 복잡한 구현과 문제 해결 |
 | `gpt-6-astra` | 깊은 추론이 필요한 작업 |
 
-학생용 네 모델이 확인되면 제목·요약 등에 쓰는 OpenCode의 `small_model`은 `gpt-5.6-luna`로 설정합니다. OMO 에이전트와 작업 카테고리의 모델 배정은 아래 중앙 정책으로 별도 관리합니다.
+학생용 네 모델이 확인되면 LiteLLM 기본 설정의 제목·요약용 `small_model`은 `gpt-5.6-luna`를 사용합니다. 다른 공급자의 명시적 기본값과 자동 선택은 덮어쓰지 않습니다. OMO 에이전트와 작업 카테고리의 모델 배정은 아래 중앙 정책으로 별도 관리합니다.
 
 실제 허용 목록과 자동 라우팅 정책은 서버 관리자가 관리합니다. 로컬 목록에 모델을 수동 추가해도 서버 접근 권한이 생기지 않습니다.
 
-OpenCode 플러그인은 시작 시 모델을 조회합니다. 0.7.15부터 `codex-litellm` CLI 런처는 gateway 모드 실행마다 서버의 허용 모델을 조회해 로컬 카탈로그를 갱신한 뒤 Codex를 시작합니다. 권한이 사라진 모델은 목록에서 제거하며, 현재 선택이 계속 허용되면 유지합니다. 현재 선택이 허용되지 않고 학생용 네 모델이 반환되면 `student-auto`를 기본값으로 사용합니다. 인증 거절(HTTP 401/403)이나 비어 있거나 잘못된 응답이면 실행을 중단합니다. 일시적인 연결 오류나 HTTP 429/5xx에서는 기존의 검증된 카탈로그가 있을 때만 경고 후 실행합니다. OAuth 전용 모드는 내장 카탈로그를 사용합니다.
+OpenCode 플러그인은 시작 시 모델을 조회합니다. `codex-litellm` CLI 런처는 gateway 모드 실행마다 서버의 허용 모델과 현재 설치된 Codex의 네이티브 카탈로그를 읽어 목록을 갱신한 뒤 Codex를 시작합니다. 일치하는 모델은 해당 모델의 최신 네이티브 기능 필드를 사용합니다. 권한이 사라진 모델은 제거하고 허용된 기존 선택은 유지합니다. 현재 선택이 허용되지 않고 학생용 네 모델이 반환되면 `student-auto`를 기본값으로 사용합니다.
+
+0.8.0에서는 인증 거절, 빈 목록, 잘못된 응답, 연결 오류, HTTP 429/5xx 또는 네이티브 카탈로그 조회 실패 시 실행을 중단합니다. 이전 계정의 목록을 사용할 수 있으므로 저장된 목록으로 계속 실행하지 않습니다. OAuth 전용 모드는 내장 카탈로그를 사용합니다. 릴리스 검증 대상은 Codex CLI `0.154.0`, OpenCode SDK/plugin `1.18.31`입니다.
 
 이 갱신은 툴킷 CLI 런처를 실행할 때 적용됩니다. Codex 데스크톱 앱 아이콘으로 열면 런처를 거치지 않으므로 서버 카탈로그를 자동 갱신하지 않습니다. 이미 실행 중인 Codex의 `/model` 목록도 자동으로 갱신되지 않으므로, 변경된 권한을 반영하려면 런처로 새로 실행하세요.
 
@@ -46,6 +58,8 @@ Codex 안에서는 `/model`을 확인합니다. `codex debug models --bundled`�
 
 OpenCode 연동은 검증된 호환 버전 `oh-my-openagent@4.19.0`을 사용합니다. Codex에 별도로 설치된 OMO 버전은 변경하지 않습니다. 학생은 설치 프로그램이 관리하는 OpenCode용 `oh-my-openagent.jsonc` / `oh-my-openagent.json` 설정을 그대로 사용하면 됩니다. 기존 `oh-my-opencode` 설정 파일이 선택된 경우에도 설치 프로그램이 해당 파일을 갱신합니다.
 
+OpenCode `1.18.31`에서 OMO `4.19.4`를 검증했으나 서버의 에이전트 모델 배정이 적용되지 않아 버전 고정을 유지합니다. 검증 결과와 공식 소스는 [호환성 기록](official-sources.md#oh-my-openagent-consumer-contract)에 정리했습니다.
+
 OMO의 `agents`와 `categories`에 배정할 모델은 서버 정책으로 관리합니다. 관리자는 GitOps 저장소에서 `student-auto`의 `model_info.metadata.omo`를 수정하고 배포합니다. 정책은 기존 물리 모델인 `gpt-5.6-luna`, `gpt-5.6-terra`, `gpt-6-astra`를 역할별로 지정합니다. 역할마다 새로운 모델 별칭을 만들 필요는 없습니다.
 
 학생은 최신 툴킷으로 설치한 뒤 OpenCode를 다시 시작하면 됩니다. OpenChamber를 사용한다면 실행 중인 OpenCode 백엔드도 다시 시작해야 합니다. LiteLLM 플러그인이 서버의 허용 모델과 OMO 정책을 읽고 로컬 OMO 설정에 반영한 다음 OMO가 초기화됩니다. 설치 프로그램이 이 순서를 맞추므로 학생이 로컬 역할별 모델을 직접 편집할 필요는 없습니다. 이미 실행 중인 세션에는 재시작 전 정책이 남을 수 있습니다.
@@ -56,6 +70,8 @@ OMO의 `agents`와 `categories`에 배정할 모델은 서버 정책으로 관�
 
 서버 정책의 모델은 해당 학생에게 허용된 목록 안에 있어야 합니다. 역할 모델이 예전 값이라면 설치한 툴킷 버전, LiteLLM 플러그인 순서, OpenCode 백엔드 재시작 여부를 먼저 확인합니다. 이 OMO 설정은 OpenCode용이며 Codex의 모델 선택이나 제목·요약용 `small_model`과는 별개입니다.
 
+기존 OMO 파일에는 자동 생성 필드의 출처 표시가 없어, 정책이 사라졌다는 이유만으로 과거 설정을 자동 삭제하지 않습니다. 권한 변경 후 남은 LiteLLM 역할 설정은 작성 주체를 확인해 정리하고 수동 지정은 보존해야 합니다.
+
 ## 문제 해결
 
 | 증상 | 확인할 내용 |
@@ -64,6 +80,8 @@ OMO의 `agents`와 `categories`에 배정할 모델은 서버 정책으로 관�
 | `403` / 모델 접근 거절 | 서버의 학생 팀·키 권한 확인. 모델 이름은 위의 정확한 이름 사용 |
 | 모델이 안 보임 | 설치 명령 재실행 후 재시작. 다른 계정/게이트웨이 설정인지 확인 |
 | 실행 파일을 찾지 못함 | 같은 터미널에서 `opencode --version`, `codex --version` 확인 |
+| 공식 LiteLLM CLI를 찾지 못함 | `lite --version`과 PATH 확인. uv 설치 후 필요하면 `uv tool update-shell` 실행 및 터미널 재시작 |
+| 키링을 읽을 수 없음 | OS 키링 잠금 상태와 공식 CLI 안내 확인 후 다시 로그인 |
 | 설치 후에도 이전 설정 사용 | 설치 대상과 실행 환경, 별칭/고정 버전 래퍼 확인 |
 | 네트워크 오류 | 게이트웨이 접속과 서버 상태 확인. 반복 로그인으로 해결되지 않을 수 있음 |
 

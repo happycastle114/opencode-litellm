@@ -3,6 +3,8 @@ import {
   isValidToolsetName,
 } from '../utils/tool-name-validation'
 import { AutoRouterMode, type AutoRouterMode as AutoRouterModeValue } from './auto-router-contracts'
+import { InstallAuth } from '../utils/install-auth'
+export { InstallAuth } from '../utils/install-auth'
 export {
   TOOL_NAME_PATTERN,
   isValidToolName,
@@ -78,13 +80,6 @@ export const InstallTarget = {
 } as const
 
 export type InstallTarget = (typeof InstallTarget)[keyof typeof InstallTarget]
-
-export const InstallAuth = {
-  Environment: 'env',
-  Sso: 'sso',
-} as const
-
-export type InstallAuth = (typeof InstallAuth)[keyof typeof InstallAuth]
 
 export const CodexMode = {
   Gateway: 'gateway',

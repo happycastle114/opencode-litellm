@@ -12,6 +12,13 @@ gateway — model discovery, search tools, MCP servers, and auth included.
 
 ## Quick start
 
+For SSO, install the official LiteLLM CLI with [uv](https://docs.astral.sh/uv/getting-started/installation/). This uses a Python tool environment managed by uv.
+
+```bash
+uv tool install 'litellm[cli]==1.101.0'
+lite --version
+```
+
 ```bash
 # OpenCode
 npx @happycastle/opencode-litellm install
@@ -32,17 +39,18 @@ install.
 
 ```bash
 LITELLM_BASE_URL=https://your-gateway.com LITELLM_PROXY_API_KEY=your-key \
-  npx @happycastle/opencode-litellm install --non-interactive
+  npx @happycastle/opencode-litellm install --auth env --non-interactive
 
 # Codex only
 LITELLM_BASE_URL=https://your-gateway.com LITELLM_PROXY_API_KEY=your-key \
-  npx @happycastle/codex-litellm install --non-interactive
+  npx @happycastle/codex-litellm install --auth env --non-interactive
 ```
 
 ## Requirements
 
 - Node.js `^22.22.2 || ^24.12.0 || >=26.0.0`
 - OpenCode and/or Codex installed
+- Official `lite` CLI `1.101.0` on PATH for SSO; Python is required by that CLI
 - A reachable LiteLLM gateway
 
 Choose the environment guide above for shell commands and configuration paths.
@@ -91,6 +99,12 @@ The installer sets `web_search = "live"`, so Codex sends the Responses
 `web_search` tool through LiteLLM. The gateway must enable LiteLLM's documented
 `websearch_interception` callback and configure a search tool.
 
+The toolkit launcher refreshes the authorized gateway catalog before each
+Codex gateway launch. It reads the installed CLI's current native model fields,
+preserves valid model selections, and stops if discovery or native catalog
+loading fails. It does not fall back to a stale list after a key or permission
+change. The 0.8.0 release target is Codex CLI `0.154.0`.
+
 > **Codex desktop setup**
 >
 > The installer writes `~/.codex/config.toml` and model catalogs for the
@@ -108,13 +122,19 @@ The installer sets `web_search = "live"`, so Codex sends the Responses
 > when its gateway catalog needs updating; CLI users get automatic refresh
 > through `codex-litellm codex`.
 >
-> For `gateway` mode, the installer writes a small auth helper at
-> `~/.codex/libexec/litellm-auth-token.mjs` so the desktop app can resolve
-> your gateway key from `~/.litellm/token.json` without storing it in config.
+> For SSO gateway mode, Codex calls `lite --base-url <origin> auth print-token`
+> directly through its native `auth.command` and `auth.args` settings.
+> Only saved manual API-key mode installs the small reader at
+> `~/.codex/libexec/litellm-auth-token.mjs`; it reads the toolkit's separate
+> API-key file. The gateway key is not embedded in the Codex configuration.
+> SSO requires `lite` to be available to the app's process as well as your shell.
 >
-> For `oauth` or `both` mode, the OAuth profile is written to
-> `~/.codex/codex-oauth.config.toml`. Use `codex --profile codex-oauth`
-> from the CLI; the desktop app reads the main `config.toml` gateway config.
+> In `both` mode, the OAuth profile is written to
+> `~/.codex/codex-oauth.config.toml`. Launch it with
+> `npx @happycastle/codex-litellm codex --profile codex-oauth`.
+> Gateway admission for OAuth and configured MCP servers is supplied only to
+> the child process by the toolkit launcher. Opening the app icon does not
+> supply those variables; no key is exported to the macOS login session.
 
 ### Claude Code (bonus)
 
@@ -135,8 +155,25 @@ npx @happycastle/opencode-litellm whoami --base-url https://your-gateway.com
 npx @happycastle/opencode-litellm logout --base-url https://your-gateway.com
 ```
 
-Token is stored at `~/.litellm/token.json` (mode `0600`). No Python or
-`lite` CLI needed.
+The toolkit delegates login to `lite --base-url <url> --api-key '' login --pkce`, token
+resolution/renewal to `lite --base-url <url> auth print-token`, and logout to
+`lite --base-url <url> logout`. It does not implement a separate browser or
+polling flow. `auth print-token` emits a credential for its caller; the toolkit
+captures it instead of displaying it.
+
+The empty login key skips native renewal of a previous credential before a new
+sign-in. Login succeeds only after native metadata records a newer finite login
+timestamp and the new exact-origin credential is usable; a failed or cancelled
+attempt does not reuse the earlier login as proof of success.
+
+LiteLLM stores secrets in the OS keyring and metadata in
+`~/.litellm/token.json`. When a keyring is unavailable, the official CLI uses
+an owner-only file instead; its login output identifies the storage used.
+Do not copy this file as a portable login or delete it instead of logging out.
+If logout finds no metadata, it reports the native credential store as unverified;
+run `lite logout` for native diagnostics and cleanup. A missing metadata file
+does not prove that the OS keyring is empty.
+See the [pinned native authentication contract](docs/official-sources.md#litellm-authentication-and-agent-contracts).
 
 ### Environment key
 
@@ -145,8 +182,29 @@ export LITELLM_PROXY_API_KEY='your-key'
 npx @happycastle/opencode-litellm install --auth env
 ```
 
-Or enter the key interactively — it is stored in `~/.litellm/token.json`
-(mode `0600`) and reused by the launcher and Codex auth helper.
+Or enter the key interactively with `--auth env`. The toolkit stores this
+explicit API key in `~/.config/opencode-litellm/api-key.json`, or
+`$XDG_CONFIG_HOME/opencode-litellm/api-key.json` when configured. The file
+contains `base_url` and `key` and uses mode `0600` on POSIX. The launcher and
+manual-key Codex reader use this file; the official CLI exclusively owns
+`~/.litellm/token.json` and its SSO/keyring credentials. The configured
+environment variable takes precedence in environment-key mode.
+
+OpenCode installation records the selected mode as the LiteLLM plugin tuple's
+`auth` option (`"env"` or `"sso"`). Direct desktop launches then read only that
+mode's exact-origin credential, so a saved manual key and native SSO login can
+coexist without switching accounts. An explicitly resolved provider key still
+takes precedence. Reinstall to update an older plugin tuple; standalone tuples
+without `auth` retain native SSO fallback and do not infer a manual key.
+
+**Upgrading to 0.8.0:** manually entered keys saved by older toolkit versions
+must be entered again through `install --auth env`. The toolkit does not
+automatically infer or copy a manual key from the official SSO store. For SSO,
+install the official CLI and run `login` again.
+
+The toolkit never uses `launchctl setenv`. OAuth and MCP admission keys are
+passed only to the launched client. Logout retains cleanup for a legacy
+launchd variable; already running clients must be restarted.
 
 ## Common flags
 
@@ -171,7 +229,10 @@ opencode models litellm        # OpenCode model picker
 # codex debug models --bundled shows the bundled reference catalog, not gateway access.
 ```
 
-Release qualification covers Codex CLI 0.144.1 and current stable 0.150.1.
+Release qualification targets Codex CLI `0.154.0` and OpenCode SDK/plugin
+`1.18.31`. Native model inventory is inspected with Codex `model/list` or
+OpenCode's provider APIs; the [source notes](docs/official-sources.md) explain
+why custom LiteLLM discovery still uses the OpenCode config hook.
 
 ## Discovery endpoints
 
@@ -207,7 +268,7 @@ npm run typecheck
 ```bash
 LITELLM_BASE_URL=https://llm.example.com \
 LITELLM_PROXY_API_KEY='your-key' \
-npx @happycastle/opencode-litellm install --non-interactive
+npx @happycastle/opencode-litellm install --auth env --non-interactive
 ```
 
 </details>
@@ -241,10 +302,11 @@ The installer stages changes atomically. If a forced kill interrupts mid-write,
 the original file remains at `<destination>.<uuid>.rollback.tmp`. Rerunning
 `install` converges without clobbering recovery files.
 
-Key managed paths:
+Relevant paths (SSO storage is owned by the official CLI):
 
 ```text
 ~/.litellm/token.json
+~/.config/opencode-litellm/api-key.json
 ~/.config/opencode-litellm/launch.json
 ~/.codex/config.toml
 ~/.codex/litellm-models.json
@@ -277,9 +339,12 @@ The OAuth provider uses `base_url = <gateway>/codex-oauth`,
 `wire_api = "responses"`, `requires_openai_auth = true`,
 `forced_login_method = "chatgpt"`, and
 `env_http_headers = { "x-litellm-api-key" = "LITELLM_PROXY_API_KEY" }`.
+The toolkit launcher supplies that admission key to the Codex child; Codex
+continues to own the ChatGPT `Authorization` header. Use the launcher for
+OAuth and authenticated MCP access rather than exporting keys globally.
 
-`oauth` and `both` modes preflight the installed Codex bundled catalog
-(requires Codex 0.144.0+). The catalog must expose `gpt-5.6-sol`,
+`oauth` and `both` modes preflight the installed Codex bundled catalog.
+The 0.8.0 release target is `0.154.0`; the catalog must expose `gpt-5.6-sol`,
 `gpt-5.6-terra`, and `gpt-5.6-luna`.
 
 Request compression is disabled in OAuth configs to avoid zstd parsing

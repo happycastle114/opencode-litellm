@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { parse as parseJsonc } from 'jsonc-parser'
 import { LiteLLMPlugin } from '../src/index'
+import { InstallAuth } from '../src/cli/install-intent'
 import {
   baseIntent,
   render,
@@ -11,16 +12,18 @@ describe('opencode resource editing', () => {
     const source = JSON.stringify({
       plugin: [['opencode-plugin-litellm@0.6.0', {
         telemetry: { enabled: false },
+        auth: InstallAuth.Sso,
         searchTools: [{ toolName: 'stale', searchToolName: 'stale-search' }],
         mcpDiscovery: { enabled: true, include: ['stale-mcp'] },
         toolsets: ['stale toolset'],
       }]],
     })
-    const intent = { ...baseIntent, search: ['agy-search'], mcp: ['zread'] } as const
+    const intent = { ...baseIntent, auth: InstallAuth.Environment, search: ['agy-search'], mcp: ['zread'] } as const
     const parsed = parseJsonc(render(source, intent))
 
     expect(parsed.plugin[0][1]).toEqual({
       telemetry: { enabled: false },
+      auth: InstallAuth.Environment,
       searchTools: [{
         toolName: 'litellm_search',
         searchToolName: 'agy-search',
@@ -32,6 +35,12 @@ describe('opencode resource editing', () => {
         servers: [],
       },
     })
+  })
+
+  test('records SSO authentication even when optional tools are disabled', () => {
+    const intent = { ...baseIntent, auth: InstallAuth.Sso }
+    const parsed = parseJsonc(render('{}', intent))
+    expect(parsed.plugin[0][1]).toEqual({ auth: InstallAuth.Sso })
   })
 
   test('emits a search tuple when search options are enabled', () => {

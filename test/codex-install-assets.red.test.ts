@@ -12,6 +12,7 @@ import { dirname, join } from 'node:path'
 import { parse as parseToml } from 'smol-toml'
 import { runCliProgram } from '../src/cli/program'
 import { readBundledCodexCatalog } from '../src/cli/codex-discovery'
+import { nativeTokenBoundary } from './native-lite-test-support'
 
 const PROVIDER_ID = {
   GatewaySso: 'litellm-gateway-sso',
@@ -93,6 +94,12 @@ describe('Codex clean-home installation', () => {
     expect(requests).toContain(ENDPOINT.Models)
     expect(requests).toContain(ENDPOINT.McpServers)
     const config = parseToml(readFileSync(configPath, 'utf8'))
+    expect(config.model_providers[PROVIDER_ID.GatewaySso].auth).toEqual({
+      command: 'lite',
+      args: ['--base-url', GATEWAY_ORIGIN, 'auth', 'print-token'],
+      timeout_ms: 35000,
+    })
+    expect(existsSync(join(home, '.codex', 'libexec', 'litellm-auth-token.mjs'))).toBe(false)
     const catalog: unknown = JSON.parse(readFileSync(config.model_catalog_json, 'utf8'))
     expect(catalog).toHaveProperty('models.0.slug', DISCOVERED.Model)
     expect(config.mcp_servers).toHaveProperty(
@@ -170,6 +177,7 @@ async function installCodex() {
     env: { HOME: home, LITELLM_PROXY_API_KEY: 'test-proxy-key' },
     now: () => new Date(0),
     bundledCodexCatalog: () => BUNDLED_CATALOG,
+    ssoBoundaries: nativeTokenBoundary(join(home, '.litellm', 'token.json')),
   })
 }
 

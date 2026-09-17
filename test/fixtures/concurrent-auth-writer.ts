@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { runCliProgram } from '../../src/cli/program'
+import { nativeTokenBoundary } from '../native-lite-test-support'
 
 const MODE = {
   Install: 'install',
@@ -28,10 +29,7 @@ const context = {
     prompt: promptFrom(['', '', '', '', 'y']),
     write: () => undefined,
   },
-  ssoBoundaries: {
-    open: async () => undefined,
-    selectTeam: async () => undefined,
-  },
+  ssoBoundaries: nativeTokenBoundary(join(homeDirectory, '.litellm', 'token.json')),
   ssoOnboarding: async (input: { readonly tokenFilePath?: string }) => {
     const destination = input.tokenFilePath
     if (destination === undefined) throw new Error('Token path is missing.')

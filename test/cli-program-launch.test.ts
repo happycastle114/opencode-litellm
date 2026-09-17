@@ -1,10 +1,20 @@
-import { describe, expect, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join, relative } from 'node:path'
 import { runCliProgram } from '../src/cli/program'
 import { bundledCodexCatalogBoundary, DISCOVERY, setupProgramHome } from './cli-program-test-support'
 
 let dir = ''
+let gateway: ReturnType<typeof Bun.serve> | undefined
+let gatewayOrigin = ''
+beforeEach(() => {
+  gateway = Bun.serve({ port: 0, fetch(request) {
+    const rows = new URL(request.url).pathname.endsWith('/v1/models') ? DISCOVERY.models : []
+    return Response.json({ data: rows })
+  } })
+  gatewayOrigin = gateway.url.origin
+})
+afterEach(() => { gateway?.stop(true) })
 setupProgramHome('opencode-litellm-program-launch-', (path) => { dir = path })
 
 describe('CLI program', () => {
@@ -12,7 +22,7 @@ describe('CLI program', () => {
     const configPath = join(dir, 'opencode.jsonc')
     const calls: Array<{ readonly file: string; readonly args: readonly string[]; readonly options: { readonly env: Readonly<Record<string, string | undefined>> } }> = []
     const install = await runCliProgram([
-      'install', '--target', 'both', '--base-url', 'https://custom.example.com/proxy/',
+      'install', '--target', 'both', '--base-url', `${gatewayOrigin}/proxy/`,
       '--auth-env', 'CUSTOM_GATEWAY_KEY', '--codex-mode', 'both', '--opencode-config', configPath,
       '--non-interactive',
     ], {
@@ -23,6 +33,7 @@ describe('CLI program', () => {
     const launch = await runCliProgram(['codex', 'resume'], {
       env: { HOME: dir, CUSTOM_GATEWAY_KEY: 'custom-runtime-key', LITELLM_PROXY_URL: 'https://ambient.example.com' },
       now: () => new Date(0),
+      codexSpawnBoundary: bundledCodexCatalogBoundary(),
       agentLaunchBoundary: {
         which: (command) => command,
         spawn: (file, args, options) => { calls.push({ file, args, options }); return { status: 0, signal: null } },
@@ -30,6 +41,7 @@ describe('CLI program', () => {
     })
     const explicitOAuthProfile = await runCliProgram(['codex', '--profile', 'codex-oauth'], {
       env: { HOME: dir, CUSTOM_GATEWAY_KEY: 'custom-runtime-key' }, now: () => new Date(0),
+      codexSpawnBoundary: bundledCodexCatalogBoundary(),
       agentLaunchBoundary: {
         which: (command) => command,
         spawn: (file, args, options) => { calls.push({ file, args, options }); return { status: 0, signal: null } },
@@ -38,7 +50,7 @@ describe('CLI program', () => {
     expect(install.exitCode).toBe(0)
     expect(existsSync(join(dir, '.codex', 'codex-oauth.config.toml'))).toBe(true)
     expect(readFileSync(join(dir, '.codex', 'codex-oauth.config.toml'), 'utf8')).toContain(
-      'base_url = "https://custom.example.com/proxy/codex-oauth"',
+      `base_url = "${gatewayOrigin}/proxy/codex-oauth"`,
     )
     expect(launch.exitCode).toBe(0)
     expect(explicitOAuthProfile.exitCode).toBe(0)
@@ -53,7 +65,7 @@ describe('CLI program', () => {
   test('refuses an OpenCode launch after a Codex-only install', async () => {
     const codexPath = join(dir, '.codex', 'config.toml')
     const install = await runCliProgram([
-      'install', '--target', 'codex', '--base-url', 'https://codex.example.com',
+      'install', '--target', 'codex', '--base-url', gatewayOrigin,
       '--auth-env', 'CODEX_GATEWAY_KEY', '--codex-mode', 'gateway', '--codex-config', codexPath,
       '--non-interactive',
     ], {
@@ -83,7 +95,7 @@ describe('CLI program', () => {
       gatewayDiscovery: async () => DISCOVERY,
     })
     const codexInstall = await runCliProgram([
-      'install', '--target', 'codex', '--base-url', 'https://codex.example.com',
+      'install', '--target', 'codex', '--base-url', gatewayOrigin,
       '--auth-env', 'CODEX_GATEWAY_KEY', '--codex-mode', 'gateway', '--codex-config', codexRelativePath,
       '--non-interactive',
     ], {
@@ -102,6 +114,7 @@ describe('CLI program', () => {
     } as const
     const openLaunch = await runCliProgram(['opencode'], {
       env: openRuntimeEnvironment, now: () => new Date(0),
+      codexSpawnBoundary: bundledCodexCatalogBoundary(),
       agentLaunchBoundary: {
         which: (command) => command,
         spawn: (_file, _args, options) => { openCalls.push({ options }); return { status: 0, signal: null } },
@@ -114,6 +127,7 @@ describe('CLI program', () => {
         OPENCODE_LITELLM_API_KEY: 'ambient-opencode-key', ANTHROPIC_API_KEY: 'ambient-anthropic-key',
       },
       now: () => new Date(0),
+      codexSpawnBoundary: bundledCodexCatalogBoundary(),
       agentLaunchBoundary: {
         which: (command) => command,
         spawn: (_file, _args, options) => { codexCalls.push({ options }); return { status: 0, signal: null } },
@@ -144,8 +158,8 @@ describe('CLI program', () => {
     expect(codexCalls[0]?.options.env.LITELLM_API_KEY).toBeUndefined()
     expect(codexCalls[0]?.options.env.LITELLM_MASTER_KEY).toBeUndefined()
     expect(launchState.openCode).toMatchObject({ gatewayOrigin: 'https://open.example.com', authEnv: 'OPEN_GATEWAY_KEY', configPath: openCodePath })
-    expect(launchState.codex).toMatchObject({ gatewayOrigin: 'https://codex.example.com', authEnv: 'CODEX_GATEWAY_KEY', configPath: codexPath, codexMode: 'gateway' })
-    expect(launchState.claude.gatewayOrigin).toBe('https://codex.example.com')
+    expect(launchState.codex).toMatchObject({ gatewayOrigin: gatewayOrigin, authEnv: 'CODEX_GATEWAY_KEY', configPath: codexPath, codexMode: 'gateway' })
+    expect(launchState.claude.gatewayOrigin).toBe(gatewayOrigin)
     expect(launchStateSource).not.toContain('open-install-key')
     expect(launchStateSource).not.toContain('codex-install-key')
   })

@@ -7,7 +7,7 @@ import {
   resolveGatewayOrigin,
   type InstallPreparationBoundary,
 } from './install-preparation-auth'
-import type { DeferredSsoToken } from './install-preparation-auth'
+import type { DeferredApiKey } from './install-preparation-auth'
 import { loadAuthenticatedConnection,
   type AuthenticatedConnection } from './install-preparation-discovery'
 import { resourcesForOnboarding, selectDisabledMcp, selectInstallResources,
@@ -34,7 +34,7 @@ export type PreparedInstall = {
   readonly apiKey: string
   readonly discovery: GatewayToolDiscoveryResult
   readonly selectionWarnings: readonly InstallSelectionWarning[]
-  readonly deferredSsoToken?: DeferredSsoToken
+  readonly deferredApiKey?: DeferredApiKey
   readonly defaultModel?: string
 }
 
@@ -108,9 +108,9 @@ async function prepareNonInteractive(input: PreparationInput): Promise<PreparedI
       ...selected.toolsets.warnings,
       ...selected.disabledMcp.warnings,
     ],
-    ...(connection.deferredSsoToken === undefined
+    ...(connection.deferredApiKey === undefined
       ? {}
-      : { deferredSsoToken: connection.deferredSsoToken }),
+      : { deferredApiKey: connection.deferredApiKey }),
   }
 }
 
@@ -193,9 +193,9 @@ function interactiveResult(input: InteractiveResultInput): PreparedInstall {
     discovery: connection.discovery,
     selectionWarnings: disabledMcp.warnings,
     ...(plan.defaultModel === undefined ? {} : { defaultModel: plan.defaultModel }),
-    ...(connection.deferredSsoToken === undefined
+    ...(connection.deferredApiKey === undefined
       ? {}
-      : { deferredSsoToken: connection.deferredSsoToken }),
+      : { deferredApiKey: connection.deferredApiKey }),
   }
 }
 

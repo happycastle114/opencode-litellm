@@ -1,3 +1,5 @@
+import { CODEX_NATIVE_TOKEN_COMMAND } from './codex-config-blocks'
+import { loadEnvKey, resolveManualLiteLLMApiKeyPath } from './official-token'
 import {
   CODEX_AUTH_HELPER_MODE,
   renderCodexAuthHelperSource,
@@ -41,8 +43,6 @@ export type CodexInstallPlanningBoundary = {
 export type CodexInstallPlan = {
   readonly path: string
   readonly assets: readonly ClientInstallAssetPlan[]
-  readonly homeDirectory: string
-  readonly sessionEnvironmentRequired: boolean
 }
 
 class CodexInstallPlanningError extends Error {
@@ -58,27 +58,30 @@ export function prepareCodexInstall(
 ): CodexInstallPlan {
   const paths = destinations
   const helperPath = paths.helper
-  const helperSource = renderCodexAuthHelperSource(prepared.options.baseUrl)
-  const helperAsset = createCodexManagedWriteAsset(
-    helperPath,
-    helperSource,
-    CODEX_AUTH_HELPER_MODE,
-  )
+  const apiKeyFilePath = resolveManualLiteLLMApiKeyPath({ ...boundary.env, HOME: homeDirectory })
+  const usesManualKey = prepared.options.auth === InstallAuth.Environment &&
+    (prepared.deferredApiKey !== undefined || loadEnvKey(apiKeyFilePath, prepared.options.baseUrl) === prepared.apiKey)
+  const helperAsset = usesManualKey && prepared.options.codexMode !== CodexMode.OAuth
+    ? createCodexManagedWriteAsset(
+        helperPath,
+        renderCodexAuthHelperSource(prepared.options.baseUrl, apiKeyFilePath),
+        CODEX_AUTH_HELPER_MODE,
+      )
+    : createCodexRetireAsset(helperPath)
+  const auth = gatewayAuth(prepared.options.auth, prepared.options.baseUrl, helperPath, usesManualKey)
   const common = {
     path: paths.config,
-    homeDirectory,
-    sessionEnvironmentRequired: requiresSessionEnvironment(prepared),
   } as const
 
   switch (prepared.options.codexMode) {
     case CodexMode.Gateway: {
       const bundled = loadBundledCatalog(boundary)
-      const catalog = buildCodexCatalog(prepared.discovery.models, bundled.template, prepared.defaultModel)
+      const catalog = buildCodexCatalog(prepared.discovery.models, bundled, prepared.defaultModel)
       const configSource = readCodexSource(paths.config)
       const output = renderGatewayConfig(
         configSource.contents,
         prepared,
-        helperPath,
+        auth,
         paths.gatewayCatalog,
         catalog.defaultModel,
       )
@@ -115,13 +118,13 @@ export function prepareCodexInstall(
     case CodexMode.Both: {
       const bundled = loadBundledCatalog(boundary)
       assertBundledCodexOAuthCatalog(bundled)
-      const gatewayCatalog = buildCodexCatalog(prepared.discovery.models, bundled.template, prepared.defaultModel)
+      const gatewayCatalog = buildCodexCatalog(prepared.discovery.models, bundled, prepared.defaultModel)
       const configSource = readCodexSource(paths.config)
       const profileSource = readCodexSource(paths.oauthProfile)
       const mainOutput = renderGatewayConfig(
         configSource.contents,
         prepared,
-        helperPath,
+        auth,
         paths.gatewayCatalog,
         gatewayCatalog.defaultModel,
       )
@@ -148,14 +151,14 @@ export function prepareCodexInstall(
 function renderGatewayConfig(
   source: string,
   prepared: PreparedInstall,
-  helperPath: string,
+  auth: ReturnType<typeof gatewayAuth>,
   catalogPath: string,
   defaultModel: string,
 ): string {
   return renderCodexConfig(source, {
     baseUrl: prepared.options.baseUrl,
     authEnv: prepared.options.authEnv,
-    ...gatewayAuth(prepared.options.auth, helperPath, prepared.deferredSsoToken !== undefined),
+    ...auth,
     catalogPath,
     defaultModel,
     ...selectedResources(prepared),
@@ -185,25 +188,6 @@ function selectedResources(prepared: PreparedInstall) {
   }
 }
 
-function requiresSessionEnvironment(prepared: PreparedInstall): boolean {
-  switch (prepared.options.auth) {
-    case InstallAuth.Environment:
-      return false
-    case InstallAuth.Sso:
-      switch (prepared.options.codexMode) {
-        case CodexMode.Gateway:
-          return prepared.options.mcp.length > 0 || prepared.options.toolsets.length > 0
-        case CodexMode.OAuth:
-        case CodexMode.Both:
-          return true
-        default:
-          return assertNever(prepared.options.codexMode)
-      }
-    default:
-      return assertNever(prepared.options.auth)
-  }
-}
-
 function loadBundledCatalog(
   boundary: CodexInstallPlanningBoundary,
 ): BundledCodexCatalog {
@@ -213,13 +197,18 @@ function loadBundledCatalog(
 
 function gatewayAuth(
   auth: PreparedInstall['options']['auth'],
+  origin: string,
   helperPath: string,
-  hasDeferredToken: boolean,
-): { readonly authCommand?: string } {
-  if (auth === InstallAuth.Sso || hasDeferredToken) {
-    return { authCommand: helperPath }
+  usesManualKey: boolean,
+): { readonly authCommand?: string; readonly authArgs?: readonly string[] } {
+  switch (auth) {
+    case InstallAuth.Sso:
+      return { authCommand: CODEX_NATIVE_TOKEN_COMMAND, authArgs: ['--base-url', origin, 'auth', 'print-token'] }
+    case InstallAuth.Environment:
+      return usesManualKey ? { authCommand: helperPath } : {}
+    default:
+      return assertNever(auth)
   }
-  return {}
 }
 
 function assertNever(value: never): never {

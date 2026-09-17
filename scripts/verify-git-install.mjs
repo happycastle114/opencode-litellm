@@ -16,11 +16,11 @@ const TOOLKIT_HELP_SIGNATURE = [
   'Commands:',
   '  install  Configure supported clients for LiteLLM',
   '  doctor   Check the local LiteLLM integration',
-  '  login    Sign in with the built-in LiteLLM SSO onboarding flow',
-  '  logout   Remove the local LiteLLM SSO session',
+  '  login    Sign in through the official LiteLLM CLI (PKCE)',
+  '  logout   Log out through the official LiteLLM CLI',
   '  whoami   Show safe local LiteLLM SSO session metadata',
   '  claude   Launch Claude Code with OAuth-safe LiteLLM routing',
-  '  codex    Launch Codex with the installed LiteLLM profile',
+  '  codex    Launch Codex with the installed LiteLLM configuration',
   '  opencode Launch OpenCode with the installed LiteLLM toolkit',
 ].join('\n')
 const ALLOWED_ENVIRONMENT_NAMES = new Set([

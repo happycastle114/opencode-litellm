@@ -11,7 +11,7 @@ import {
   INSTALL_SELECTION_RESOURCE,
   INSTALL_SELECTION_WARNING_KIND,
 } from '../src/cli/install-preparation'
-import { InstallTarget } from '../src/cli/install-intent'
+import { InstallAuth, InstallTarget } from '../src/cli/install-intent'
 import { resolveOhMyOpenAgentProfilePath } from '../src/cli/qwen-routing'
 import {
   VALUE,
@@ -58,6 +58,7 @@ describe('prepared client installer', () => {
     const config = parseJsonc(readFileSync(configPath, 'utf8'))
     expect(result.configured).toEqual([{ client: InstallTarget.OpenCode, path: configPath }])
     expect(config.plugin[0][1]).toMatchObject({
+      auth: InstallAuth.Environment,
       searchTools: [{ searchToolName: 'search-visible' }],
       mcpDiscovery: { include: ['mcp-visible'] },
       toolsets: ['toolset-visible'],

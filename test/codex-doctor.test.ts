@@ -54,6 +54,50 @@ describe('doctor Codex inspection', () => {
     ]))
   })
 
+  test('accepts direct native LiteLLM authentication without a generated helper', () => {
+    // Given: Codex calls the official CLI for this exact gateway
+    writeFileSync(configPath, nativeAuthConfig(['--base-url', 'https://llm.example.com', 'auth', 'print-token']))
+    rmSync(helperPath)
+
+    // When: doctor inspects the generated configuration
+    const report = inspectCodexConfig(configPath, { helperPath })
+
+    // Then: native authentication is healthy without any local helper asset
+    expect(report.status).toBe('ok')
+    expect(findCheck(report, CodexDoctorCheckCode.BaseAuth).status).toBe('ok')
+    expect(report.checks.some((entry) => entry.code === CodexDoctorCheckCode.Helper)).toBe(false)
+  })
+
+  test.each([
+    ['another gateway', ['--base-url', 'https://other.example.com', 'auth', 'print-token']],
+    ['missing origin flag', ['https://llm.example.com', 'auth', 'print-token']],
+    ['extra arguments', ['--base-url', 'https://llm.example.com', 'auth', 'print-token', '--debug']],
+    ['another operation', ['--base-url', 'https://llm.example.com', 'logout']],
+    ['credential-bearing URL', ['--base-url', 'https://user:fixture-secret@llm.example.com', 'auth', 'print-token']],
+  ])('rejects native authentication with %s', (_label, args) => {
+    // Given: a malformed or differently scoped native token command
+    writeFileSync(configPath, nativeAuthConfig(args))
+
+    // When: doctor inspects the authentication boundary
+    const report = inspectCodexConfig(configPath)
+
+    // Then: invalid argument scopes never count as supported authentication
+    expect(findCheck(report, CodexDoctorCheckCode.BaseAuth).status).toBe('error')
+    expect(JSON.stringify(report)).not.toContain('fixture-secret')
+  })
+
+  test('retains exact helper-path checking for manually entered keys', () => {
+    // Given: a valid existing helper differs from the expected installation asset
+    const expectedHelper = join(root, 'another-helper.mjs')
+    writeFileSync(expectedHelper, '#!/usr/bin/env node\n')
+
+    // When: doctor checks the managed helper's identity
+    const report = inspectCodexConfig(configPath, { helperPath: expectedHelper })
+
+    // Then: another existing file cannot stand in for the configured helper
+    expect(findCheck(report, CodexDoctorCheckCode.Helper).status).toBe('error')
+  })
+
   test('accepts a gateway-only SSO config without an OAuth profile', () => {
     rmSync(profilePath)
     rmSync(oauthCatalogPath)
@@ -209,6 +253,20 @@ wire_api = "responses"
 command = ${JSON.stringify(helperPath)}
 `))
   writeFileSync(profilePath, oauthProfile())
+}
+
+function nativeAuthConfig(args: readonly string[]): string {
+  return baseConfig(`
+[model_providers.${PROVIDER.Sso}]
+name = "LiteLLM Gateway"
+base_url = "https://llm.example.com/v1"
+wire_api = "responses"
+
+[model_providers.${PROVIDER.Sso}.auth]
+command = "lite"
+args = ${JSON.stringify(args)}
+timeout_ms = 35000
+`)
 }
 
 function baseConfig(provider: string, selectedProvider = PROVIDER.Sso): string {

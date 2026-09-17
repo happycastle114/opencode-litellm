@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Release target: `0.8.0` (publication pending).
+
+### Changed
+- SSO now delegates PKCE login, token renewal, OS keyring storage, and logout
+  to the official LiteLLM CLI. Install `litellm[cli]==1.101.0` with uv; Python
+  is required. The toolkit no longer implements the browser/polling flow.
+- Manually saved API keys now use `~/.config/opencode-litellm/api-key.json`
+  (honoring `XDG_CONFIG_HOME`), separate from the official SSO store. Legacy
+  manual keys must be re-entered with `--auth env` and are never inferred.
+- Codex SSO calls `lite auth print-token` directly through native command auth.
+  Only saved manual keys use the toolkit's exact-file reader.
+- Codex gateway launches refresh authorized models and current native per-model
+  fields before starting. Any discovery/catalog failure stops the launch;
+  stale catalogs are no longer used as a fallback.
+- Release targets are Codex CLI `0.154.0` and OpenCode SDK/plugin `1.18.31`.
+  Custom LiteLLM discovery retains OpenCode's config hook for provider registration.
+- OpenCode's OMO integration retains the verified `4.19.0` pin; `4.19.4`
+  did not pass the native server-policy startup test on OpenCode `1.18.31`.
+
+### Fixed
+- Failed native login no longer accepts an older credential as proof of a new login.
+- Logout reports an unverified native credential store when metadata is missing,
+  instead of claiming that the stored credential was removed.
+- Removed macOS session-wide credential exports. OAuth and MCP admission keys
+  are supplied only to the client process launched by the toolkit; legacy
+  launchd cleanup remains available on logout.
+- Student gateway discovery preserves defaults belonging to other providers.
+
 ## [0.7.12] — 2026-08-29
 
 ### Added

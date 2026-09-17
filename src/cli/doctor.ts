@@ -3,6 +3,8 @@ import { dirname, isAbsolute, join } from 'node:path'
 import { parse as parseJsonc, type ParseError } from 'jsonc-parser'
 import { parse as parseToml } from 'smol-toml'
 import { CodexProviderId } from './codex-config'
+import { CODEX_NATIVE_TOKEN_COMMAND } from './codex-config-blocks'
+import { NativeLiteError, nativeLiteOrigin } from './native-lite'
 import { missingBundledCodexOAuthModels } from './codex-discovery'
 import { isManagedOpenCodePluginSpec } from './managed-plugin'
 import { version as CURRENT_PACKAGE_VERSION } from '../version'
@@ -13,6 +15,7 @@ const ENV_REFERENCE = /^\{env:[A-Za-z_][A-Za-z0-9_]*\}$/
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/
 const SECRET_FIELD = /^(?:api[_-]?key|key|token|access[_-]?token|secret|password|authorization)$/i
 const CODEX_FILE = { OAuthProfile: 'codex-oauth.config.toml', AuthHelper: ['libexec', 'litellm-auth-token.mjs'] } as const
+const NATIVE_TOKEN_ARGS = { BaseUrl: '--base-url', Auth: 'auth', Token: 'print-token', ApiPath: '/v1' } as const
 const CODEX_VALUE = { EnvironmentProvider: 'litellm', LoginMethod: 'chatgpt', Header: 'x-litellm-api-key', OAuthPath: '/codex-oauth', WireApi: 'responses' } as const
 
 export const CodexDoctorCheckCode = {
@@ -72,7 +75,10 @@ export function inspectCodexConfig(path: string, options: CodexDoctorOptions = {
     oauthMain ? checkOAuthAuth(config, path) : checkBaseAuth(config, path),
     checkCatalog(config, path, CodexDoctorCheckCode.BaseCatalog, oauthMain),
   ]
-  if (config.model_provider === CodexProviderId.GatewaySso) checks.splice(2, 0, checkHelper(config, path, options))
+  const providers = isRecord(config.model_providers) ? config.model_providers : undefined
+  if (config.model_provider === CodexProviderId.GatewaySso && !isNativeCodexAuth(providers?.[CodexProviderId.GatewaySso])) {
+    checks.splice(2, 0, checkHelper(config, path, options))
+  }
   const profilePath = options.oauthProfilePath ?? join(dirname(path), CODEX_FILE.OAuthProfile)
   const profileSource = readSource(profilePath)
   if (profileSource === undefined) {
@@ -107,11 +113,25 @@ function checkBaseAuth(config: Record<string, unknown>, path: string): DoctorChe
     isEnvName(provider.env_key) && provider.auth === undefined && provider.env_http_headers === undefined && noOAuth
   const auth = isRecord(provider.auth) ? provider.auth : undefined
   const validSso = selected === CodexProviderId.GatewaySso && auth !== undefined &&
-    typeof auth.command === 'string' && isAbsolute(auth.command) && provider.env_key === undefined &&
+    typeof auth.command === 'string' && (isAbsolute(auth.command) || isNativeCodexAuth(provider)) && provider.env_key === undefined &&
     provider.env_http_headers === undefined && noOAuth
   return validEnvironment || validSso
-    ? check(CodexDoctorCheckCode.BaseAuth, 'ok', 'Codex base provider has one environment-backed auth source', path)
+    ? check(CodexDoctorCheckCode.BaseAuth, 'ok', 'Codex base provider has one supported authentication source', path)
     : check(CodexDoctorCheckCode.BaseAuth, 'error', 'Codex base provider authentication must use exactly one supported source', path)
+}
+
+function isNativeCodexAuth(provider: unknown): boolean {
+  if (!isRecord(provider) || !isRecord(provider.auth)) return false
+  const { command, args } = provider.auth
+  if (command !== CODEX_NATIVE_TOKEN_COMMAND || !Array.isArray(args) || args.length !== 4 ||
+    args[0] !== NATIVE_TOKEN_ARGS.BaseUrl || typeof args[1] !== 'string' ||
+    args[2] !== NATIVE_TOKEN_ARGS.Auth || args[3] !== NATIVE_TOKEN_ARGS.Token) return false
+  try {
+    return provider.base_url === `${nativeLiteOrigin(args[1])}${NATIVE_TOKEN_ARGS.ApiPath}`
+  } catch (error) {
+    if (error instanceof NativeLiteError) return false
+    throw error
+  }
 }
 
 function checkHelper(config: Record<string, unknown>, path: string, options: CodexDoctorOptions): DoctorCheck {

@@ -11,7 +11,6 @@ export type ProgramContext = ClientInstallerBoundary & ProgramAuthContext & {
   readonly onboardingIO?: InstallPreparationBoundary['onboardingIO']
   readonly gatewayDiscovery?: InstallPreparationBoundary['discover']
   readonly agentLaunchBoundary?: AgentLaunchBoundary
-  readonly launchWarning?: (message: string) => void
   readonly autoRouterBoundary?: AutoRouterBoundary
   readonly releaseOnboardingTerminal?: () => void
 }

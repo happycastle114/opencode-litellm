@@ -45,6 +45,7 @@ test.skipIf(!RUN_NATIVE)('direct OpenCode initializes real OMO after current ser
       PATH:`${bin}${delimiter}${process.env.PATH ?? ''}`,HOME:home,XDG_CONFIG_HOME:join(home,'config'),OPENCODE_CONFIG_DIR:configDir,
       XDG_DATA_HOME:join(home,'data'),XDG_STATE_HOME:join(home,'state'),XDG_CACHE_HOME:join(home,'cache'),
       OPENCODE_DISABLE_DEFAULT_PLUGINS:'1',OPENCODE_DISABLE_AUTOUPDATE:'1',
+      LITELLM_CLI_DISABLE_KEYRING:'1',
       GIT_CONFIG_NOSYSTEM:'1',GIT_CONFIG_GLOBAL:'/dev/null',GIT_TERMINAL_PROMPT:'0',
     },stdout:'pipe',stderr:'pipe'})
     const timeout = setTimeout(() => child.kill(), 60_000)

@@ -10,10 +10,14 @@ import {
   setAmbientKeys,
   setupIdentityTest,
   teardownIdentityTest,
+  writeManualApiKey,
+  writeOfficialToken,
 } from './plugin-identity-test-support'
 
+let native: ReturnType<typeof setupIdentityTest>
+
 beforeEach(() => {
-  setupIdentityTest()
+  native = setupIdentityTest()
 })
 
 afterEach(async () => {
@@ -50,6 +54,8 @@ describe('LiteLLM configured provider identity', () => {
     const server = await createGatewayServer((url, authorization) => {
       authorizationByRoute.set(url, authorization)
     })
+    writeOfficialToken(server.baseURL)
+    writeManualApiKey(server.baseURL)
     const config = configured(server.baseURL, `{env:${ENV.configured}}`, {
       'CF-Access-Client-Id': 'cf-client-id',
       authorization: 'Bearer custom-header',
@@ -62,6 +68,7 @@ describe('LiteLLM configured provider identity', () => {
     await runSearch(hooks)
 
     expectAuthorization(authorizationByRoute, 'configured-key')
+    expect(native).not.toHaveBeenCalled()
     expect(config.provider?.litellm?.options?.apiKey).toBe('configured-key')
     expect(config.mcp?.['litellm-zread']?.headers).toEqual({
       'CF-Access-Client-Id': 'cf-client-id',
