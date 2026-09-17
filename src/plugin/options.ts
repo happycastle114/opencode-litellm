@@ -1,4 +1,4 @@
-import { InstallAuth } from '../cli/install-intent'
+import { InstallAuth } from '../utils/install-auth'
 
 export class PluginAuthConfigurationError extends Error {
   readonly name = 'PluginAuthConfigurationError'

@@ -14,7 +14,7 @@ import {
   resolveManualLiteLLMApiKeyPath,
 } from '../cli/official-token'
 import { resolveHeaderSafeApiKey } from '../utils/api-key'
-import { InstallAuth } from '../cli/install-intent'
+import { InstallAuth } from '../utils/install-auth'
 
 export type PublicPluginConfig = {
   model?: string
