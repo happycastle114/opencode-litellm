@@ -42,9 +42,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Verify Codex 0.150.1 model catalog compatibility
+      - name: Verify Codex 0.154.0 model catalog compatibility
         if: matrix.node == '24.15.0'
-        run: npm exec --yes --package=@openai/codex@0.150.1 -- env CODEX_BINARY_TESTS=1 bun test test/codex-catalog-binary.test.ts
+        run: npm exec --yes --package=@openai/codex@0.154.0 -- env CODEX_BINARY_TESTS=1 bun test test/codex-catalog-binary.test.ts
 
       - name: Pack core (dry run)
         run: npm pack --dry-run --ignore-scripts

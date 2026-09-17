@@ -1,40 +1,54 @@
 # Official sources and support matrix
 
-Checked on 2026-08-29. Runtime behavior is documented against the public
+Authentication and native-client contracts checked on 2026-09-17 for 0.8.0.
+Runtime behavior is documented against the public
 LiteLLM, OpenCode, Codex, Claude Code, and Oh My OpenAgent interfaces below.
 GitHub source references use immutable commits where the implementation
 contract matters.
 
 ## LiteLLM authentication and agent contracts
 
-The normal installer is a Node.js implementation of LiteLLM's documented CLI
-SSO wire flow. It does not shell out to Python, import the `lite` executable,
-or copy a user credential into client configuration. Optional Auto Router
-onboarding is the explicit exception: it invokes one pinned official CLI rather
-than reimplementing the upstream wizard and process manager.
+SSO uses the official LiteLLM CLI `1.101.0`, source commit
+[`18243cd7`](https://github.com/BerriAI/litellm/tree/18243cd7af4c3325165ba68b21379e2719e051c7).
+Install it with `uv tool install 'litellm[cli]==1.101.0'` and make `lite`
+available on the invoking client's PATH. The upstream
+[`cli` extra](https://github.com/BerriAI/litellm/blob/18243cd7af4c3325165ba68b21379e2719e051c7/pyproject.toml#L79-L91)
+includes keyring support; it requires Python. [uv tool installation](https://docs.astral.sh/uv/guides/tools/)
+manages an isolated Python environment.
 
-The optional Auto Router source baseline is the current stable
-[`v1.98.0`](https://github.com/BerriAI/litellm/releases/tag/v1.98.0), whose tag
-resolves to commit
-[`d8f71d7b`](https://github.com/BerriAI/litellm/tree/d8f71d7bdbd7c9873d98293f83d64c6db72847e6).
-The normal Node.js installer remains compatible with other gateway releases
-that expose the documented discovery and request surfaces below.
-This pin applies only to the optional local Auto Router process. The package
-contains no Helm, Kubernetes, Argo CD, or remote gateway version mutation and
-does not upgrade or downgrade the operator's LiteLLM server.
+The toolkit invokes native commands and captures their result. It does not
+implement a second PKCE, browser, polling, renewal, or keyring flow. These
+local CLI requirements do not change the operator's remote LiteLLM version.
 
 | Contract | Immutable or official source | Toolkit behavior |
 |---|---|---|
-| CLI SSO start, poll, and browser verification | [`auth.py`](https://github.com/BerriAI/litellm/blob/5d4c4d0fce45c73c4b56b48e46dfc4e56e8b0aa5/litellm/proxy/client/cli/commands/auth.py) and [`ui_sso.py`](https://github.com/BerriAI/litellm/blob/5d4c4d0fce45c73c4b56b48e46dfc4e56e8b0aa5/litellm/proxy/management_endpoints/ui_sso.py) | Use `POST /sso/cli/start`, poll `/sso/cli/poll/<login_id>` with `x-litellm-cli-poll-secret`, and verify same-origin browser URLs or `source=litellm-cli` fallback URLs |
-| Token file and POSIX permissions | [`auth.py`](https://github.com/BerriAI/litellm/blob/5d4c4d0fce45c73c4b56b48e46dfc4e56e8b0aa5/litellm/proxy/client/cli/commands/auth.py) | Atomically write `~/.litellm/token.json` as `0600`; preserve the official `key` field and never expose it in output |
-| Exact-origin key selection | [`cli_token_utils.py`](https://github.com/BerriAI/litellm/blob/5d4c4d0fce45c73c4b56b48e46dfc4e56e8b0aa5/litellm/litellm_core_utils/cli_token_utils.py) and security fix [`231c430`](https://github.com/BerriAI/litellm/commit/231c4302001b865a88495405b9944cf9cc41ae04) | Read only `key` when the normalized `base_url` matches the configured gateway; ignore `jwt_token` and fail closed on cross-origin values |
-| `lite claude`, `codex`, and `opencode` environment conventions | Feature commit [`20e453f`](https://github.com/BerriAI/litellm/commit/20e453f698dc0758a15a491818411372da041415) and [`agents.py`](https://github.com/BerriAI/litellm/blob/5d4c4d0fce45c73c4b56b48e46dfc4e56e8b0aa5/litellm/proxy/client/cli/commands/agents.py) | Persist merged, per-client, secret-free launch intent; reproduce the safe child boundary without a `lite` subprocess; expose selected LiteLLM search tools under non-reserved IDs; scrub ambient credential/control variables; never inject a Codex profile |
+| PKCE login and logout | [`auth.py`](https://github.com/BerriAI/litellm/blob/18243cd7af4c3325165ba68b21379e2719e051c7/litellm/proxy/client/cli/commands/auth.py#L838-L973) | Run `lite --base-url <origin> login --pkce` and `lite --base-url <origin> logout`; upstream owns browser/loopback authentication, revocation, and credential-store cleanup |
+| Exact-origin token resolution and renewal | [`get_api_key`](https://github.com/BerriAI/litellm/blob/18243cd7af4c3325165ba68b21379e2719e051c7/litellm/proxy/client/cli/commands/auth.py#L235-L263) and [`print_token`](https://github.com/BerriAI/litellm/blob/18243cd7af4c3325165ba68b21379e2719e051c7/litellm/proxy/client/cli/commands/auth.py#L976-L1034) | Capture `lite --base-url <origin> auth print-token` in memory; never substitute an ambient key for an explicitly selected SSO session |
+| Keyring and metadata storage | [`cli_token_utils.py`](https://github.com/BerriAI/litellm/blob/18243cd7af4c3325165ba68b21379e2719e051c7/litellm/litellm_core_utils/cli_token_utils.py#L1-L10) and [`save_cli_token`](https://github.com/BerriAI/litellm/blob/18243cd7af4c3325165ba68b21379e2719e051c7/litellm/litellm_core_utils/cli_token_utils.py#L149-L216) | Let upstream store secrets in the OS keyring and metadata in `~/.litellm/token.json`, with owner-only file fallback when a keyring is unavailable; do not bypass the native reader with a JSON `key` lookup |
+| Agent environment conventions | [`agents.py`](https://github.com/BerriAI/litellm/blob/18243cd7af4c3325165ba68b21379e2719e051c7/litellm/proxy/client/cli/commands/agents.py) | Keep secret-free per-client launch intent; resolve the selected credential at launch and supply gateway/OAuth/MCP admission only to the child process; no `launchctl setenv` |
 | Claude Max gateway admission | [`user_api_key_auth.py`](https://github.com/BerriAI/litellm/blob/5d4c4d0fce45c73c4b56b48e46dfc4e56e8b0aa5/litellm/proxy/auth/user_api_key_auth.py#L121-L126) and its [scheme normalizer](https://github.com/BerriAI/litellm/blob/5d4c4d0fce45c73c4b56b48e46dfc4e56e8b0aa5/litellm/proxy/auth/user_api_key_auth.py#L260-L281) | Send `x-litellm-api-key: Bearer <key>`; the configured generic pass-through route authenticates through `user_api_key_auth`, which removes the scheme before key validation while preserving Claude OAuth in `Authorization` |
+
+Manual API-key storage is a separate toolkit contract: `--auth env` accepts
+the configured environment variable first, then an exact-origin saved key
+from `~/.config/opencode-litellm/api-key.json`, or
+`$XDG_CONFIG_HOME/opencode-litellm/api-key.json` when configured. The record
+contains only `base_url` and `key`, with mode `0600` on POSIX. The official
+CLI owns `~/.litellm/token.json` and its keyring entries; it may migrate
+plaintext secrets from that file into the keyring. Manual API keys therefore
+use a different file, not a marker in the SSO record.
+
+Old manually entered keys require explicit re-entry with `--auth env`;
+neither a `user_role` label nor the visible model list proves the credential
+source. The toolkit does not infer or copy keys from the old shared store.
+Official SSO records are resolved by `lite` instead.
+Logout retains `launchctl unsetenv` cleanup for the selected legacy variable;
+already running processes keep their inherited environment until restarted.
 
 ### Optional Auto Router boundary
 
-The toolkit pins PyPI requirement `litellm[proxy]==1.98.0`, corresponding to
-the `v1.98.0` source baseline above. It requires `uv >= 0.10.9`, runs the
+The optional Auto Router keeps its separate PyPI pin `litellm[proxy]==1.98.0`,
+source commit [`d8f71d7b`](https://github.com/BerriAI/litellm/tree/d8f71d7bdbd7c9873d98293f83d64c6db72847e6).
+It requires `uv >= 0.10.9`, runs the
 artifact with `uv tool run --isolated --from`, and verifies the CLI version and
 `autoroute configure` subcommand before committing client files.
 The checked [PyPI 1.98.0 artifact](https://pypi.org/project/litellm/1.98.0/#files)
@@ -166,6 +180,17 @@ rather than written to JSON or TOML.
 
 ## OpenCode contract
 
+The SDK and plugin packages are pinned to `1.18.31`, matching the official
+release source [`014614d3`](https://github.com/anomalyco/opencode/tree/014614d35b397775e5d397a490fc72368c894ec2).
+The native [`provider.models` hook](https://github.com/anomalyco/opencode/blob/014614d35b397775e5d397a490fc72368c894ec2/packages/plugin/src/index.ts#L210-L230)
+exists, but the stable runtime calls it for providers already in its database
+and skips unknown IDs. Config-only providers are registered afterward
+([initialization order](https://github.com/anomalyco/opencode/blob/014614d35b397775e5d397a490fc72368c894ec2/packages/opencode/src/provider/provider.ts#L1454-L1481)).
+Therefore custom `litellm` registration/discovery remains in the config hook.
+The SDK's native `provider.list` and `config.providers` expose the registered
+inventory; they do not discover an arbitrary LiteLLM gateway themselves.
+See the [SDK reference](https://opencode.ai/docs/sdk/).
+
 | Surface | Official documentation | Toolkit use |
 |---|---|---|
 | Local and npm plugins | [Plugins](https://opencode.ai/docs/plugins/) | Load a detached Git checkout through a `file://` entry; verify origin and full SHA before install |
@@ -180,7 +205,9 @@ client after installation or after a gateway model/MCP catalog change. The
 exact `alibaba-token/qwen3.8-max-preview` identifier is displayed as
 `Qwen3.8 Max Preview`; generic models retain deterministic formatting.
 Static installation is additive: existing curated model rows win on ID
-collisions and stale existing rows are not automatically deleted. The exact
+collisions. Startup discovery prunes revoked LiteLLM rows when it obtains a
+nonempty authorized list, while preserving explicit other-provider defaults.
+The exact
 legacy toolkit whitelist of six `alibaba-token/*` IDs is removed so all
 discovered chat IDs can appear. Any other whitelist and every blacklist are
 treated as user-owned and preserved.
@@ -207,8 +234,17 @@ The registry `gitHead` and GitHub `v4.19.0` tag both resolve to immutable commit
 The published npm artifact has integrity
 `sha512-Ov1a/V750SYoLHy6e6PHyUPaWyRGukjUDe5HzHqFMSKEx8IS0DUeT0EXGQIOO28/DSXE7TE4g82wVAi/UVX0zA==`.
 
-The OpenCode integration retains this compatible pin for native OpenCode
-`1.18.29`; OMO `4.19.4` changes the plugin export and configuration contract.
+The OpenCode integration retains this consumer pin with OpenCode SDK/plugin
+`1.18.31`. The native startup test passes with `4.19.0`, including changed server
+assignments and profile preservation after HTTP 401/503. The same test against
+[`4.19.4`](https://github.com/code-yeongyu/oh-my-openagent/releases/tag/v4.19.4)
+fails: the effective `explore` model is `litellm/student-auto` instead of the
+server-assigned `litellm/gpt-5.6-luna`. The registry `gitHead` and release tag both
+resolve to [`b072d279`](https://github.com/code-yeongyu/oh-my-openagent/tree/b072d279110bdda2c6ac2525d0d24dc54d16148a),
+whose [plugin entry](https://github.com/code-yeongyu/oh-my-openagent/blob/b072d279110bdda2c6ac2525d0d24dc54d16148a/packages/omo-opencode/src/index.ts)
+and [configuration loader](https://github.com/code-yeongyu/oh-my-openagent/blob/b072d279110bdda2c6ac2525d0d24dc54d16148a/packages/omo-opencode/src/plugin-config/omo-config-chain.ts)
+use the newer module and unified OMO configuration contracts. A version-only
+upgrade does not pass the toolkit's policy integration gate.
 This does not change the separately installed Codex OMO version. The managed
 OpenCode profile remains `oh-my-openagent.jsonc` / `oh-my-openagent.json`
 (or the existing legacy `oh-my-opencode` filename), not a unified OMO config.
@@ -234,23 +270,32 @@ recovery model switching to Sol/Luna is retired; gateway routing owns model
 fallback decisions. MCP collision handling remains independent of model policy
 and LiteLLM search selection.
 
+Legacy OMO files have no per-field ownership receipt. If a later login has no
+OMO policy, the toolkit preserves ambiguous existing assignments rather than
+guessing which manual values to delete. A `litellm/` prefix alone does not prove
+that the toolkit owns an assignment.
+
 ## Codex contract
 
-The latest stable Codex CLI checked for this release is
-[`0.150.1`](https://github.com/openai/codex/releases/tag/rust-v0.150.1). The
-generated gateway catalog is parsed end-to-end by both the local `0.144.1`
-binary and a CI-pinned isolated `0.150.1` binary. Model rows inherit the selected
-bundled template's shell execution type, so `shell_command` and the newer
-`unified_exec` remain version-correct without a toolkit hard-code.
+The 0.8.0 release target is official Codex CLI
+[`0.154.0`](https://github.com/openai/codex/releases/tag/rust-v0.154.0).
+Every successful gateway launch refresh reads the installed CLI's current
+`codex debug models --bundled` output. Matching model slugs retain their own
+native fields, including reasoning choices, shell behavior, context limits,
+and modalities; gateway metadata overrides explicitly reported limits and
+modalities. Unknown gateway slugs use the existing conservative fallback
+profile. No previously generated catalog serves as the native template.
 
 | Surface | Official documentation | Toolkit use |
 |---|---|---|
 | `model_catalog_json`, `model_provider`, `requires_openai_auth`, `env_http_headers`, and `forced_login_method` | [Configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference) | Generate mutually exclusive gateway and ChatGPT OAuth provider auth sources plus startup catalogs |
 | Custom providers and profiles | [Advanced configuration](https://learn.chatgpt.com/docs/config-file/config-advanced) | Keep the gateway in `~/.codex/config.toml`; keep `codex-oauth` as a secondary profile in `both` mode |
 | ChatGPT login | [Authentication](https://learn.chatgpt.com/docs/auth) | Codex owns the OAuth `Authorization` header and login lifecycle |
-| Bundled model catalog | Codex CLI `codex debug models --bundled` | Copy the exact bundled catalog unchanged for OAuth; inherit its prompt/model template for gateway rows |
+| Bundled model catalog | Codex CLI `codex debug models --bundled` | Copy the bundled catalog unchanged for OAuth; use a matching native model row for gateway models when available |
+| Runtime inventory and account state | [App-server API](https://learn.chatgpt.com/docs/app-server) | Native `model/list` reports loaded models/capabilities; `account/read` and `account/login/start` own account inspection/login. Custom gateway catalogs still use the documented startup `model_catalog_json` setting |
+| Command-backed provider authentication | [Configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference) | Gateway SSO directly invokes `lite` with `auth.args` for exact-origin `auth print-token`; only saved manual keys use the toolkit file reader. Do not combine provider command auth with `env_key` or `requires_openai_auth` |
 | Native web search | [Configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference) and [developer commands](https://learn.chatgpt.com/docs/developer-commands?surface=cli) | Mark gateway catalog rows `supports_search_tool: true`, set `web_search = "live"`, and send Codex's native Responses `web_search` tool through LiteLLM |
-| Native OAuth request compression | Codex 0.144.1 [`EnableRequestCompression` default](https://github.com/openai/codex/blob/44918ea10c0f99151c6710411b4322c2f5c96bea/codex-rs/features/src/lib.rs#L1013-L1018) and [OAuth/OpenAI zstd selector](https://github.com/openai/codex/blob/44918ea10c0f99151c6710411b4322c2f5c96bea/codex-rs/core/src/client.rs#L1368-L1376); LiteLLM `1.98.0` [JSON body parser](https://github.com/BerriAI/litellm/blob/d8f71d7bdbd7c9873d98293f83d64c6db72847e6/litellm/proxy/common_utils/http_parsing_utils.py#L85-L141) | Disable zstd only in OAuth-active config layers, preserve other feature keys, and restore a pre-existing user value when the main config returns to gateway mode |
+| Native OAuth request compression | Codex `0.154.0` [`EnableRequestCompression` default](https://github.com/openai/codex/blob/6b9826e3aa83b1a5947db50f4332cb9c65f1b340/codex-rs/features/src/lib.rs#L1220-L1225) and [zstd selector](https://github.com/openai/codex/blob/6b9826e3aa83b1a5947db50f4332cb9c65f1b340/codex-rs/core/src/client.rs#L1534-L1542); LiteLLM `1.101.0` [JSON body parser](https://github.com/BerriAI/litellm/blob/18243cd7af4c3325165ba68b21379e2719e051c7/litellm/proxy/common_utils/http_parsing_utils.py#L156-L182) | Retain the gateway compatibility override only in OAuth-active config layers, preserve other feature keys, and restore a pre-existing user value when the main config returns to gateway mode |
 | Shared skills | [Build skills](https://learn.chatgpt.com/docs/build-skills) | Install the same global research skill directory for every selected target |
 
 The OAuth provider is deliberately:
@@ -270,31 +315,55 @@ The same OAuth-active config layer also contains:
 enable_request_compression = false
 ```
 
-Codex 0.144.1 otherwise selects zstd for a streaming request when the stable
+Codex 0.154.0 selects zstd for a streaming request when the stable
 feature is enabled, the current ChatGPT authentication uses the Codex backend,
-and the provider identifies as OpenAI. The pinned LiteLLM parser reads the body
-directly as JSON and returns an empty object for unexpected decode failures; it
-does not decode zstd first. The managed override is removed from gateway-only
+and the provider identifies as OpenAI. The cited LiteLLM body parser consumes
+JSON bytes, so the toolkit retains its OAuth gateway compatibility override.
+The managed override is removed from gateway-only
 layers, with any displaced user assignment restored byte-for-byte.
-The gateway SSO provider uses the stable generated helper path and a separate
+The gateway SSO provider uses native command authentication directly:
+
+```toml
+[model_providers.litellm-gateway-sso.auth]
+command = "lite"
+args = ["--base-url", "https://gateway.example", "auth", "print-token"]
+timeout_ms = 35000
+```
+
+Only saved manual-key mode installs the exact-file reader at
+`~/.codex/libexec/litellm-auth-token.mjs`. Both modes use a separate
 `GET /v1/models` catalog. In `both` mode, the launcher preserves the main
 gateway config and never injects a profile; OAuth pass-through is explicit as
 `opencode-litellm codex --profile codex-oauth`. In `oauth` mode the OAuth
 provider is already the main config.
 
-Gateway catalog generation inherits the prompt/model metadata template from the
-listed, API-supported bundled row with the smallest numeric `priority` (lower
-numbers win). It forces `use_responses_lite = false` on every generated gateway
-row. OAuth catalog JSON is copied from `codex debug models --bundled` without
-rewriting its fields.
+OAuth and authenticated MCP entries rely on the launcher's child-only gateway
+admission environment. The toolkit does not export a key into launchd or the
+user's shell configuration. Opening the desktop app icon does not execute this
+launcher or supply its variables. Direct desktop gateway SSO can use native
+command auth when `lite` is available to the app process.
+
+The fallback for an unknown gateway model starts with the listed,
+API-supported bundled row with the smallest numeric `priority`. Known native
+models use their own rows. Generation forces `use_responses_lite = false` and
+removes native service-tier/upgrade offers from gateway rows. OAuth catalog
+JSON is copied from `codex debug models --bundled` without rewriting its fields.
+
+Gateway launch refresh fails closed on authentication errors, empty/invalid
+model lists, network errors, rate limits, server failures, or an unreadable
+native catalog. It neither starts Codex with a stale list nor uses an old
+account's generated fields. The previous file can remain on disk for recovery,
+but a failed toolkit launch does not consume it. Already running clients and
+desktop launches need a fresh install/restart to load a changed catalog.
 
 Gateway catalog generation excludes models whose authoritative metadata marks
 them as embedding, image-generation, or audio-only while retaining chat rows,
 including multimodal chat rows. The exact Qwen preview row receives the
 canonical `Qwen3.8 Max Preview` label, one-million-token context, and text/image
 input modalities. Capabilities not verified for this route remain conservative:
-reasoning levels are empty, while parallel-tool, search-tool, and
-original-image-detail flags are `false`. Qwen remains below the reliable coding
+reasoning levels are empty, while parallel-tool and
+original-image-detail flags are `false`; search uses the gateway's native
+interception path. Qwen remains below the reliable coding
 default in priority.
 
 ## Cross-client assets
@@ -327,16 +396,16 @@ gateway `/v1` is stripped before `/claude-code/marketplace.json` is appended.
 
 | Component | Supported boundary | Notes |
 |---|---|---|
-| Node.js | `^22.22.2 || ^24.12.0 || >=26.0.0` | Required by both package manifests. The pinned OpenCode plugin dependency graph (`@opencode-ai/plugin@1.18.4` → `effect@4.0.0-beta.83` → `ini@7.0.0`) requires `^24.15.0` on the 24.x line; Node 24.12–24.14 users will see an npm engine warning but the toolkit itself runs correctly |
-| Python / `lite` | Optional for normal installs | `--auto-router configure` delegates to the pinned official `litellm[proxy]==1.98.0` CLI through an isolated `uv tool` environment |
-| `uv` | `>=0.10.9` for Auto Router only | Runtime, exact CLI version, and `autoroute configure` are checked before client mutation |
+| Node.js | `^22.22.2 || ^24.12.0 || >=26.0.0` | Required by both package manifests; also observe installed dependency engine requirements |
+| Python / `lite` | Required for SSO | Install official `litellm[cli]==1.101.0`; upstream requires Python `>=3.10,<3.15`. API-key mode remains explicit and separate |
+| `uv` | Recommended for official CLI installation; `>=0.10.9` for Auto Router | Persistent `uv tool install` makes `lite` available to clients. Auto Router retains its separate isolated `litellm[proxy]==1.98.0` pin |
 | LiteLLM gateway | Authenticated `/v1/models`, permission-filtered `/search_tools/list` with `/v1/search/tools` fallback, and optional MCP/toolset endpoints | Model discovery is required; optional surfaces degrade to warnings |
 | Launch state | Schema-versioned, merged per-client state at `$XDG_CONFIG_HOME/opencode-litellm/launch.json` | Atomic `0600`; gateway/auth/config/search/mode metadata only; never a key or OAuth token |
-| OpenCode | Releases supporting TypeScript `file://` plugins and documented provider/MCP/skill schemas | Restart after installation |
-| Codex | Verified with 0.144.1 and current stable 0.150.1 | Generated gateway and exact OAuth catalogs pass `codex debug models`; re-run setup after upgrades |
-| macOS | Full installer path | Uses current-user `launchctl setenv` for OAuth mode; lifecycle logout uses `unsetenv` for the selected auth environment |
-| Linux / WSL | Installer, discovery, and shell-based auth references | Export the selected gateway-key environment variable for OAuth mode |
-| Native Windows | Installer, discovery, launcher, and checked `.bat` bootstrap | CI runs fixed-SHA npm installation and the batch help path on `windows-latest`; LiteLLM 1.98.0 publishes a Windows wheel and no Rust preflight is used |
+| OpenCode | SDK/plugin `1.18.31` | Config-hook registration preserves custom providers; restart after installation |
+| Codex | Release target `0.154.0` | Native per-model catalog fields are refreshed before gateway CLI launch; re-run setup for desktop catalog updates |
+| macOS | Native CLI/keyring and toolkit child environment | No `launchctl setenv`; logout clears the selected legacy launchd variable |
+| Linux / WSL | Native CLI storage and toolkit child environment | Usable keyrings are preferred; official CLI reports owner-only file fallback when unavailable |
+| Native Windows | Installer, native CLI, launcher, and `.bat` bootstrap | Install `lite` in the same Windows environment; WSL has separate credentials and paths |
 
 The credential variable selected by `--auth-env` must be shell-compatible and
 must not collide with launcher, provider-authentication, or process controls.
@@ -346,29 +415,25 @@ The installer rejects `CODEX_HOME`, `OPENCODE_CONFIG`, `OPENCODE_CONFIG_DIR`,
 `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`, `ANTHROPIC_CUSTOM_HEADERS`,
 `OPENAI_BASE_URL`, `HOME`, `XDG_CONFIG_HOME`, `PATH`, and `NODE_OPTIONS` before
 any client or launch-state write. `LITELLM_API_KEY` remains an explicitly
-allowed neutral gateway variable. At child launch, ambient
-`LITELLM_MASTER_KEY`, `LITELLM_API_KEY`, `LITELLM_PROXY_API_KEY`,
-`OPENCODE_LITELLM_API_KEY`, `OPENAI_API_KEY`, `CODEX_API_KEY`,
-`ANTHROPIC_API_KEY`, and `ANTHROPIC_AUTH_TOKEN` are scrubbed before the
-selected transient credential is mapped to the target client.
+allowed neutral gateway variable. At child launch, the launcher clears its
+ambient LiteLLM credential variables before mapping the selected credential.
+Client-specific cleanup preserves the native authentication required by that
+client; it is not a machine-wide deletion of unrelated provider credentials.
 
 | Client path | Gateway authentication | Upstream authentication | Persisted secret by this toolkit |
 |---|---|---|---|
-| OpenCode | In-memory exact-origin SSO `key` or selected environment variable | LiteLLM routing | None |
-| Codex gateway | Command-backed SSO helper or selected environment variable | LiteLLM routing | None |
-| Codex OAuth | `x-litellm-api-key` from an environment variable | Codex ChatGPT OAuth owns `Authorization` | None |
+| OpenCode | Official exact-origin SSO token or explicitly selected API key | LiteLLM routing | No SSO secret; manually entered keys use the separate owner-only `api-key.json` |
+| Codex gateway | Direct native `lite` SSO command, manual-key reader, or selected environment variable | LiteLLM routing | No SSO secret; manually entered keys use the separate owner-only `api-key.json` |
+| Codex OAuth | `x-litellm-api-key` from the toolkit child environment | Codex ChatGPT OAuth owns `Authorization` | No key in client config or launchd |
 | Claude Code Max launcher | LiteLLM `/claude-max` admission header | Claude Code subscription OAuth | None; this is LiteLLM-documented, not an Anthropic-endorsed OAuth proxy |
 | Official Auto Router wizard | Child-only `LITELLM_PROXY_URL` and `LITELLM_PROXY_API_KEY` | LiteLLM local proxy for Claude Code | None by this toolkit; the official CLI persists the provider key in `~/.litellm/autorouter/config.yaml` as `0600` |
 
 ## Managed fork and package status
 
-The managed OpenCode checkout pin lives only in
-`src/cli/managed-plugin-types.ts`. It points at the release-qualified runtime
-commit:
-
-```text
-f97a800d7ce1dd204a2cfe0c51b7149428ecdff4
-```
+The managed OpenCode checkout pin lives in
+[`src/cli/managed-plugin-types.ts`](../src/cli/managed-plugin-types.ts).
+Read that release's full SHA for its qualified runtime revision; a second copy
+in this document would drift when the package is released.
 
 Installation stages a clone/fetch/checkout at the full SHA, runs
 `npm ci --ignore-scripts`, verifies origin/worktree/detached `HEAD`, and

@@ -6,6 +6,15 @@ PowerShell 또는 CMD에서 사용할 수 있습니다. Node.js 지원 버전은
 
 실행 정책 때문에 `npx.ps1`이 차단되는 경우를 피하도록 `npm.cmd`와 `npx.cmd`를 사용합니다.
 
+SSO에는 Python 기반 공식 LiteLLM CLI가 필요합니다. [uv를 설치](https://docs.astral.sh/uv/getting-started/installation/)하고 같은 Windows 환경에 설치합니다.
+
+```powershell
+uv tool install "litellm[cli]==1.101.0"
+lite --version
+```
+
+`lite`를 찾지 못하면 `uv tool update-shell` 후 터미널을 다시 엽니다. 공식 CLI는 사용 가능한 OS 키링에 비밀 정보를 저장하고 사용자 프로필의 `token.json`에는 메타데이터를 저장합니다. 키링을 사용할 수 없는 경우에는 공식 CLI가 안내하는 파일 저장을 사용합니다.
+
 ```powershell
 node --version
 npm.cmd --version
@@ -29,6 +38,10 @@ npx.cmd --yes @happycastle/opencode-litellm@latest install --target both --base-
 
 설치 화면에서 SSO로 로그인합니다. 키를 전달받았다면 `--auth env`를 추가하고 대화형 입력을 사용합니다. 키를 README, 배치 파일, 공유 명령에 붙여 넣지 않습니다.
 
+이전 버전에서 수동 입력한 키는 `install --auth env`로 다시 입력해야 합니다. 별도 툴킷 파일에 저장하며 공식 SSO 저장소에서 키를 자동 추정·복사하지 않습니다. SSO는 공식 `lite login --pkce`를 사용하며 키 조회·갱신과 로그아웃도 공식 CLI가 처리합니다. Codex SSO는 `lite auth print-token`을 네이티브 명령 인증으로 직접 호출합니다.
+
+OAuth 프록시와 인증이 필요한 MCP는 툴킷 런처가 게이트웨이 입장 키를 자식 프로세스에 전달합니다. `both` 모드의 OAuth는 `npx.cmd --yes @happycastle/codex-litellm@latest codex --profile codex-oauth`로 실행합니다. 키를 사용자 전체 환경변수로 설정할 필요가 없습니다.
+
 ## CMD / 배치 파일
 
 위 명령의 `npx.cmd`는 CMD에서도 사용할 수 있습니다. 저장소를 내려받았다면 기존 진입점도 사용할 수 있습니다.
@@ -45,11 +58,14 @@ scripts\setup-windows.bat
 
 - OpenCode: `%USERPROFILE%\.config\opencode\opencode.jsonc` 또는 기존 `opencode.json`
 - Codex: `%USERPROFILE%\.codex\config.toml`, `litellm-models.json`
-- 로그인 토큰: `%USERPROFILE%\.litellm\token.json`
+- 공식 SSO 메타데이터: `%USERPROFILE%\.litellm\token.json`
+- 수동 API 키: `%USERPROFILE%\.config\opencode-litellm\api-key.json` (`XDG_CONFIG_HOME`을 지정하면 그 아래 `opencode-litellm\api-key.json`)
 - 런처 설정: `%USERPROFILE%\.config\opencode-litellm\launch.json`
 
 업데이트는 설치 명령을 다시 실행한 뒤 클라이언트를 다시 엽니다. `401`은 로그인/키 갱신, `403`은 모델 권한 확인이 필요합니다. `codex debug models --bundled`는 게이트웨이 권한 목록이 아니므로 Codex 안의 `/model`에서 확인합니다.
 
+릴리스 대상은 Codex CLI `0.154.0`과 OpenCode SDK/plugin `1.18.31`입니다. 툴킷의 Codex gateway 런처는 현재 허용 목록과 네이티브 카탈로그 조회에 실패하면 실행을 중단합니다. 데스크톱 앱 아이콘 실행은 런처의 목록 갱신과 환경변수 전달을 수행하지 않습니다.
+
 [공통 로그인·모델 갱신·문제 해결](client-setup.md) · [전체 README](../README.md)
 
-공식 안내: [Codex CLI](https://developers.openai.com/codex/cli), [Codex Windows](https://developers.openai.com/codex/windows), [LiteLLM CLI](https://docs.litellm.ai/docs/proxy/cli).
+공식 안내: [Codex CLI](https://developers.openai.com/codex/cli), [Codex Windows](https://developers.openai.com/codex/windows), [고정 버전의 LiteLLM 인증 명령](https://github.com/BerriAI/litellm/blob/18243cd7af4c3325165ba68b21379e2719e051c7/litellm/proxy/client/cli/commands/auth.py).
