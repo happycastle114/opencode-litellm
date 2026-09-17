@@ -11,6 +11,7 @@ import {
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { installPreparedClients } from '../src/cli/client-installer'
+import { parse as parseToml } from 'smol-toml'
 import { readBundledCodexCatalog } from '../src/cli/codex-discovery'
 import type { PreparedInstall } from '../src/cli/install-preparation'
 import { CodexMode, InstallAuth, InstallTarget, ToolkitDefault } from '../src/cli/install-intent'
@@ -149,7 +150,7 @@ describe('client installer preflight', () => {
     ['MCP', { mcp: ['mcp-visible'] }],
     ['toolset', { toolsets: ['toolset-visible'] }],
   ] as const)(
-    'syncs the SSO environment when gateway mode renders %s bearer auth',
+    'keeps %s bearer auth scoped to the launched Codex process',
     async (_resource, resourceOptions) => {
       // Given: a native macOS Codex gateway install with a bearer-token reference
       const calls: Array<{ readonly file: string; readonly args: readonly string[] }> = []
@@ -177,15 +178,14 @@ describe('client installer preflight', () => {
         },
       })
 
-      // Then: launchd receives the exact helper and bearer environment name
-      expect(calls).toEqual([{
-        file: process.execPath,
-        args: [
-          join(homeDirectory, '.codex', 'libexec', 'litellm-auth-token.mjs'),
-          '--launchctl-setenv',
-          VALUE.AuthEnvironment,
-        ],
-      }])
+      // Then: the config references the key without exporting it to other apps
+      expect(readFileSync(configPath, 'utf8')).toContain(VALUE.AuthEnvironment)
+      expect(readFileSync(configPath, 'utf8')).not.toContain(VALUE.ApiKey)
+      expect(calls).toEqual([])
+      const config = parseToml(readFileSync(configPath, 'utf8'))
+      expect(config.model_providers?.['litellm-gateway-sso'].auth).toMatchObject({
+        command: 'lite', args: ['--base-url', VALUE.GatewayOrigin, 'auth', 'print-token'], timeout_ms: 35_000,
+      })
     },
   )
 })

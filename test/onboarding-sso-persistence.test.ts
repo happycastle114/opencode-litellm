@@ -1,69 +1,52 @@
 import { afterEach, describe, expect, test } from 'bun:test'
-import { SsoTokenPersistence, onboardLiteLLMSso } from '../src/cli/onboarding-sso'
-import {
-  PLATFORM,
-  SECRET,
-  START,
-  URL,
-  cleanupSsoFixtures,
-  createFixture,
-  existsSync,
-  jsonResponse,
-  join,
-  mkdirSync,
-  readFileSync,
-  readdirSync,
-  statSync,
-  writeFileSync,
-} from './onboarding-sso-test-support'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { SsoOnboardingError, onboardLiteLLMSso } from '../src/cli/onboarding-sso'
 
-describe('LiteLLM built-in SSO onboarding', () => {
-  test('returns a deferred credential without persisting the token destination', async () => {
-    // Given: install-scoped SSO requests deferred token persistence
-    const fixture = createFixture([
-      jsonResponse(START),
-      jsonResponse({ status: 'ready', key: SECRET.Key }),
-    ])
+const homes: string[] = []
+const NATIVE_COMMAND = { Auth: 'auth' } as const
+afterEach(() => { for (const home of homes.splice(0)) rmSync(home, { recursive: true, force: true }) })
 
-    // When: authentication completes with the defer policy
-    const result = await onboardLiteLLMSso({
-      ...fixture.input,
-      tokenPersistence: SsoTokenPersistence.Defer,
-    })
-
-    // Then: the credential is returned in memory and no token file is exposed
-    expect(result.token).toMatchObject({ base_url: URL.Base, key: SECRET.Key })
-    expect(existsSync(fixture.tokenPath)).toBe(false)
+describe('official LiteLLM login ownership', () => {
+  test('lets native PKCE login own persistence and returns no credential copy', async () => {
+    // Given: the native CLI writes metadata while keeping the key in its keychain.
+    const home = mkdtempSync(join(tmpdir(), 'native-login-'))
+    homes.push(home)
+    const tokenFilePath = join(home, '.litellm', 'token.json')
+    const metadata = JSON.stringify({ base_url: 'https://gateway.example.test', credential_storage: 'keyring' })
+    // When: the wrapper delegates login to lite using the real terminal.
+    const result = await onboardLiteLLMSso({ baseUrl: 'https://gateway.example.test/', tokenFilePath, boundaries: {
+      spawn: (file, args, options) => {
+        expect(file).toBe('lite')
+        if (args[2] === NATIVE_COMMAND.Auth) {
+          expect(args).toEqual(['--base-url', 'https://gateway.example.test', 'auth', 'print-token'])
+          return { status: 0, stdout: 'sk-native-login-test-key\n', stderr: '' }
+        }
+        expect(args).toEqual(['--base-url', 'https://gateway.example.test', 'login', '--pkce'])
+        expect(options.stdio).toBe('inherit')
+        expect(options.env.HOME).toBe(home)
+        mkdirSync(join(home, '.litellm'))
+        writeFileSync(tokenFilePath, metadata)
+        return { status: 0, stdout: null, stderr: null }
+      },
+    } })
+    // Then: native state survives unchanged and no duplicate token is staged.
+    expect(result).toEqual({ status: 'authenticated' })
+    expect(readFileSync(tokenFilePath, 'utf8')).toBe(metadata)
   })
 
-  test('opens the server verification URL and atomically persists only the official token schema', async () => {
-    // Given
-    const fixture = createFixture([
-      jsonResponse({ ...START, verification_uri_complete: URL.Verification }),
-      jsonResponse({ status: 'ready', key: SECRET.Key, user_id: 'user@example.test' }),
-    ])
-    mkdirSync(join(fixture.home, '.litellm'))
-    writeFileSync(fixture.tokenPath, '{"stale":true}', { mode: 0o644 })
-
-    // When
-    const result = await onboardLiteLLMSso(fixture.input)
-
-    // Then
-    expect(result).toEqual({ status: 'authenticated' })
-    expect(fixture.verifications).toEqual([{ url: URL.Verification, userCode: START.user_code }])
-    expect(JSON.parse(readFileSync(fixture.tokenPath, 'utf8'))).toEqual({
-      base_url: URL.Base,
-      key: SECRET.Key,
-      user_id: 'user@example.test',
-      user_email: 'unknown',
-      user_role: 'cli',
-      auth_header_name: 'Authorization',
-      jwt_token: '',
-      timestamp: 1234.5,
-    })
-    expect(readdirSync(join(fixture.home, '.litellm'))).toEqual(['token.json'])
-    if (process.platform !== PLATFORM.Windows) expect(statSync(fixture.tokenPath).mode & 0o777).toBe(0o600)
+  test('does not claim login success when native lite exits zero without credentials', async () => {
+    // Given: native lite may return zero after a cancelled or interrupted login.
+    const home = mkdtempSync(join(tmpdir(), 'native-login-'))
+    homes.push(home)
+    const tokenFilePath = join(home, '.litellm', 'token.json')
+    // When: native login returns without writing a usable credential.
+    const result = onboardLiteLLMSso({ baseUrl: 'https://gateway.example.test', tokenFilePath, boundaries: {
+      spawn: () => ({ status: 0, stdout: null, stderr: null }),
+    } })
+    // Then: the wrapper neither reports authentication nor invents its own token file.
+    await expect(result).rejects.toBeInstanceOf(SsoOnboardingError)
+    expect(existsSync(tokenFilePath)).toBe(false)
   })
 })
-
-afterEach(cleanupSsoFixtures)

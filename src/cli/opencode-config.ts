@@ -8,6 +8,7 @@ import {
   type ParseError,
 } from 'jsonc-parser'
 import { ConfigurationError } from './errors'
+import type { InstallAuth } from './install-intent'
 import { isManagedOpenCodePluginSpec } from './managed-plugin'
 import { version as CURRENT_PACKAGE_VERSION } from '../version'
 import {
@@ -27,6 +28,7 @@ const PRIMARY_SEARCH_TOOL_NAME = 'litellm_search'
 const SEARCH_TOOL_NAME_PREFIX = 'litellm_'
 const RESERVED_SEARCH_TOOL_NAME = 'websearch'
 const MANAGED_PLUGIN_OPTION_NAMES = new Set([
+  'auth',
   'searchTools',
   'toolsets',
   'mcpDiscovery',
@@ -34,6 +36,7 @@ const MANAGED_PLUGIN_OPTION_NAMES = new Set([
 const FORMATTING: FormattingOptions = { insertSpaces: true, tabSize: 2 }
 
 export type OpenCodeEditIntent = OpenCodeProviderIntent & {
+  readonly auth?: InstallAuth
   readonly mcpDiscoveryEnabled?: boolean
   readonly search: readonly string[]
   readonly mcp: readonly string[]
@@ -50,6 +53,7 @@ type SearchToolEntry = {
 type McpServerEntry = { readonly serverName: string; readonly enabled: boolean }
 
 type PluginOptions = Readonly<Record<string, unknown>> & {
+  readonly auth?: InstallAuth
   readonly searchTools?: readonly SearchToolEntry[]
   readonly toolsets?: readonly string[]
   readonly mcpDiscovery?: {
@@ -78,10 +82,18 @@ export function planOpenCodeEdits(
       formattingOptions: FORMATTING,
     }),
   )
-  const withDefault = isStudentCatalog(intent.models ?? [])
+  const studentCatalog = isStudentCatalog(intent.models ?? [])
+  const authorized = new Set((intent.models ?? []).map((model) => model.id))
+  const selected = isRecord(config) && typeof config.model === 'string' ? config.model : undefined
+  const small = isRecord(config) && typeof config.small_model === 'string' ? config.small_model : undefined
+  const usesLiteLLMDefault = selected === undefined || selected.startsWith(STUDENT_AUTO.OpenCodePrefix)
+  const replaceDefault = studentCatalog && (selected === undefined ||
+    (selected.startsWith(STUDENT_AUTO.OpenCodePrefix) && !authorized.has(selected.slice(STUDENT_AUTO.OpenCodePrefix.length))))
+  const withDefault = replaceDefault
     ? applyEdits(updated, modify(updated, ['model'], STUDENT_AUTO.OpenCodeId, { formattingOptions: FORMATTING }))
     : updated
-  const withSmallModel = isStudentCatalog(intent.models ?? [])
+  const withSmallModel = studentCatalog && (small?.startsWith(STUDENT_AUTO.OpenCodePrefix) ||
+    (small === undefined && usesLiteLLMDefault))
     ? applyEdits(withDefault, modify(withDefault, ['small_model'], STUDENT_AUTO.SmallModel, { formattingOptions: FORMATTING }))
     : withDefault
   if (withSmallModel === source) return []
@@ -212,6 +224,7 @@ function buildPluginOptions(
   )
   const options = {
     ...preserved,
+    ...(intent.auth === undefined ? {} : { auth: intent.auth }),
     ...(searchTools === undefined ? {} : { searchTools }),
     ...(toolsets === undefined ? {} : { toolsets }),
     ...(mcpDiscovery === undefined ? {} : { mcpDiscovery }),

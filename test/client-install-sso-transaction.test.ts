@@ -16,6 +16,7 @@ import { dirname, join } from 'node:path'
 import { resolveLaunchConfigPath } from '../src/cli/launch-config'
 import type { SsoOnboardingInput } from '../src/cli/onboarding-sso'
 import { runCliProgram, type ProgramContext } from '../src/cli/program'
+import { nativeTokenBoundary } from './native-lite-test-support'
 
 const VALUE = {
   OriginA: 'https://a.example.test',
@@ -35,8 +36,8 @@ afterEach(() => {
 })
 
 describe('install SSO token transaction', () => {
-  test('keeps origin-A token and clients when origin-B confirmation is cancelled', async () => {
-    // Given: origin A is fully installed and origin B authentication is deferred
+  test('keeps client configuration when installation is cancelled after native origin-B login', async () => {
+    // Given: origin A is installed and native login owns the new B credential.
     await installOriginA()
     const before = installedState()
     const fresh = freshSso(VALUE.OriginB, VALUE.KeyB, 'n')
@@ -44,11 +45,11 @@ describe('install SSO token transaction', () => {
     // When: the user rejects the B plan after authenticated resource discovery
     const result = await runOriginB(fresh)
 
-    // Then: cancellation leaves every A byte and inode unchanged
+    // Then: cancellation preserves client assets while native login remains authenticated.
     expect(result.exitCode).toBe(1)
     expect(result.stderr).toContain('cancelled')
     expect(installedState()).toEqual(before)
-    expectDeferredTokenCleaned(fresh)
+    expectNativeTokenPersisted(fresh)
   })
 
   test('keeps origin-A state when origin-B managed plugin preparation is interrupted', async () => {
@@ -65,14 +66,14 @@ describe('install SSO token transaction', () => {
       }),
     })
 
-    // Then: the deferred B token and all client changes are discarded
+    // Then: native authentication survives while client changes are discarded.
     expect(result.exitCode).toBe(1)
     expect(result.stderr).toContain('interrupted')
     expect(installedState()).toEqual(before)
-    expectDeferredTokenCleaned(fresh)
+    expectNativeTokenPersisted(fresh)
   })
 
-  test('leaves no token when a first SSO install fails during plugin preparation', async () => {
+  test('preserves native login when a first install fails during plugin preparation', async () => {
     // Given: no persisted token or client state exists before origin B onboarding
     const fresh = freshSso(VALUE.OriginB, VALUE.KeyB, 'y')
 
@@ -80,20 +81,20 @@ describe('install SSO token transaction', () => {
     const result = await runOriginB(fresh, {
       externalSetup: true,
       managedPluginBoundary: interruptedPluginBoundary(() => {
-        expect(existsSync(tokenPath())).toBe(false)
+        expect(existsSync(tokenPath())).toBe(true)
       }),
     })
 
-    // Then: neither the new credential nor mutable client state is published
+    // Then: only the separately completed native login remains.
     expect(result.exitCode).toBe(1)
-    expect(existsSync(tokenPath())).toBe(false)
+    expect(existsSync(tokenPath())).toBe(true)
     expect(existsSync(launchPath())).toBe(false)
     expect(existsSync(openCodePath())).toBe(false)
-    expectDeferredTokenCleaned(fresh)
+    expectNativeTokenPersisted(fresh)
   })
 
-  test('restores origin-A token when origin-B launch promotion fails', async () => {
-    // Given: origin A state and a transaction containing a deferred B token
+  test('restores client assets without rolling back native login when promotion fails', async () => {
+    // Given: origin A client state and a separately completed native B login.
     await installOriginA()
     const before = installedState()
     const fresh = freshSso(VALUE.OriginB, VALUE.KeyB, 'y')
@@ -103,13 +104,13 @@ describe('install SSO token transaction', () => {
       clientInstallCommitBoundary: failingLaunchPromotion(),
     })
 
-    // Then: transaction rollback restores the exact A token and client state
+    // Then: transaction rollback restores client state without touching the native credential.
     expect(result.exitCode).toBe(1)
     expect(installedState()).toEqual(before)
-    expectDeferredTokenCleaned(fresh)
+    expectNativeTokenPersisted(fresh)
   })
 
-  test('removes a fresh token when a first install fails after token promotion', async () => {
+  test('preserves native login when a first install rolls back client promotion', async () => {
     // Given: a first origin B install with no previous token
     const fresh = freshSso(VALUE.OriginB, VALUE.KeyB, 'y')
 
@@ -118,13 +119,13 @@ describe('install SSO token transaction', () => {
       clientInstallCommitBoundary: failingLaunchPromotion(),
     })
 
-    // Then: rollback returns token and client destinations to absence
+    // Then: client destinations return to absence while native login remains complete.
     expect(result.exitCode).toBe(1)
-    expect(existsSync(tokenPath())).toBe(false)
+    expect(existsSync(tokenPath())).toBe(true)
     expect(existsSync(launchPath())).toBe(false)
     expect(existsSync(openCodePath())).toBe(false)
     expect(homeArtifacts()).not.toContain('.rollback.tmp')
-    expectDeferredTokenCleaned(fresh)
+    expectNativeTokenPersisted(fresh)
   })
 })
 
@@ -134,28 +135,29 @@ async function installOriginA(): Promise<void> {
     env: { HOME: homeDirectory },
     now: () => new Date(0),
     gatewayDiscovery: successfulDiscovery,
+    ssoBoundaries: nativeTokenBoundary(tokenPath()),
   })
   expect(result.exitCode).toBe(0)
 }
 
 type FreshSsoFixture = {
   readonly context: ProgramContext
-  readonly deferredPaths: string[]
+  readonly nativePaths: string[]
 }
 
 function freshSso(origin: string, key: string, confirmation: 'y' | 'n'): FreshSsoFixture {
-  const deferredPaths: string[] = []
+  const nativePaths: string[] = []
   return {
-    deferredPaths,
+    nativePaths,
     context: {
       env: { HOME: homeDirectory },
       now: () => new Date(0),
       onboardingIO: { isTTY: true, prompt: promptFrom(['', '', '', '', confirmation]), write: () => undefined },
-      ssoBoundaries: { open: async () => undefined, selectTeam: async () => undefined },
+      ssoBoundaries: nativeTokenBoundary(tokenPath()),
       ssoOnboarding: async (input: SsoOnboardingInput) => {
         const path = input.tokenFilePath
-        if (path === undefined) throw new Error('Deferred token path is missing.')
-        deferredPaths.push(path)
+        if (path === undefined) throw new Error('Native token path is missing.')
+        nativePaths.push(path)
         mkdirSync(dirname(path), { recursive: true })
         writeFileSync(path, tokenSource(origin, key))
         return { status: 'authenticated' }
@@ -201,7 +203,7 @@ function failingLaunchPromotion() {
 }
 
 function installedState() {
-  return [tokenPath(), launchPath(), openCodePath()].map((path) => ({
+  return [launchPath(), openCodePath()].map((path) => ({
     path,
     contents: readFileSync(path),
     mode: statSync(path).mode & 0o777,
@@ -232,11 +234,12 @@ function launchPath(): string { return resolveLaunchConfigPath({ HOME: homeDirec
 function openCodePath(): string { return join(homeDirectory, '.config', 'opencode', 'opencode.jsonc') }
 function homeArtifacts(): string { return readdirSync(homeDirectory, { recursive: true }).join('\n') }
 
-function expectDeferredTokenCleaned(fresh: FreshSsoFixture): void {
-  expect(fresh.deferredPaths).toHaveLength(1)
-  const deferredPath = fresh.deferredPaths[0]
-  if (deferredPath === undefined) throw new Error('Expected a deferred token path.')
-  expect(existsSync(deferredPath)).toBe(false)
+function expectNativeTokenPersisted(fresh: FreshSsoFixture): void {
+  expect(fresh.nativePaths).toHaveLength(1)
+  const nativePath = fresh.nativePaths[0]
+  if (nativePath === undefined) throw new Error('Expected the native token path.')
+  expect(nativePath).toBe(tokenPath())
+  expect(JSON.parse(readFileSync(nativePath, 'utf8'))).toMatchObject({ base_url: VALUE.OriginB, key: VALUE.KeyB })
 }
 
 function promptFrom(answers: string[]): () => Promise<string> {

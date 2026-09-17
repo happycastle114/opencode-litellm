@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { nativeTokenBoundary } from './native-lite-test-support'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { parse as parseJsonc } from 'jsonc-parser'
@@ -212,7 +213,7 @@ describe('CLI program', () => {
     expect(unconfiguredCodex.stderr).toContain('Codex launch is not configured')
   })
 
-  test('preflights the launch-state destination before mutating client files', async () => {
+  test('preflights the shared credential and launch directory before discovery or client writes', async () => {
     const xdgConfigFile = join(dir, 'xdg-config-file')
     const opencodePath = join(dir, 'opencode.jsonc')
     writeFileSync(xdgConfigFile, 'not-a-directory\n')
@@ -228,9 +229,9 @@ describe('CLI program', () => {
       gatewayDiscovery: async () => { discoveryCalls += 1; return DISCOVERY },
     })
     expect(result.exitCode).toBe(1)
-    expect(result.stderr).toContain('launch configuration cannot be written')
+    expect(result.stderr).toContain('regular file or absent')
     expect(readFileSync(opencodePath, 'utf8')).toBe('{"keep":true}\n')
-    expect(discoveryCalls).toBe(1)
+    expect(discoveryCalls).toBe(0)
   })
 
   test('refuses direct Codex launch for a non-config.toml override', async () => {
@@ -276,6 +277,7 @@ describe('CLI program', () => {
       '--no-search', '--no-mcp', '--no-toolsets', '--non-interactive',
     ], {
       env: { HOME: dir },
+      ssoBoundaries: nativeTokenBoundary(tokenPath),
       now: () => new Date(0),
       gatewayDiscovery: async () => DISCOVERY,
     })
@@ -286,6 +288,7 @@ describe('CLI program', () => {
       '--no-search', '--no-mcp', '--no-toolsets', '--non-interactive',
     ], {
       env: { HOME: dir },
+      ssoBoundaries: nativeTokenBoundary(tokenPath),
       now: () => new Date(0),
       gatewayDiscovery: async () => DISCOVERY,
       codexSpawnBoundary: bundledCodexCatalogBoundary(),

@@ -1,83 +1,96 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { loadOfficialLiteLLMApiKey } from '../src/cli/official-token'
+import { dirname, join } from 'node:path'
+import { loadEnvKey, loadOfficialLiteLLMApiKey, resolveManualLiteLLMApiKeyPath } from '../src/cli/official-token'
+import type { NativeLiteBoundary } from '../src/cli/native-lite'
 
-const URL = {
-  gatewayOrigin: 'https://llm.example.test',
-  crossOrigin: 'https://attacker.example.test',
-} as const
-const TOKEN = {
-  gatewayKey: 'sk-official-gateway-key',
-  jwtDecoy: 'jwt-must-never-be-returned',
-} as const
-const MALFORMED_JSON = '{"base_url":' as const
-
+const ORIGIN = 'https://gateway.example.test'
+const KEY = 'sk-native-gateway-test'
 let directory: string
 let tokenFilePath: string
+let manualKeyPath: string
 
 beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'opencode-litellm-token-'))
-  tokenFilePath = join(directory, 'token.json')
+  mkdirSync(join(directory, '.litellm'))
+  tokenFilePath = join(directory, '.litellm', 'token.json')
+  manualKeyPath = resolveManualLiteLLMApiKeyPath({ HOME: directory })
+  mkdirSync(dirname(manualKeyPath), { recursive: true })
 })
+afterEach(() => { rmSync(directory, { recursive: true, force: true }) })
 
-afterEach(() => {
-  rmSync(directory, { recursive: true, force: true })
-})
-
-describe('official LiteLLM token.json loader', () => {
-  test('returns key when the stored base_url matches the trailing-slash-normalized origin', () => {
-    // Given: the official CLI token shape for the target gateway
-    writeFileSync(tokenFilePath, JSON.stringify({
-      base_url: URL.gatewayOrigin,
-      key: TOKEN.gatewayKey,
-      jwt_token: TOKEN.jwtDecoy,
-    }))
-
-    // When: the caller supplies the same credential origin with a trailing slash
-    const key = loadOfficialLiteLLMApiKey({
-      tokenFilePath,
-      expectedBaseURL: `${URL.gatewayOrigin}/`,
-    })
-
-    // Then: only the official key field is returned
-    expect(key).toBe(TOKEN.gatewayKey)
-    expect(key).not.toBe(TOKEN.jwtDecoy)
+describe('official LiteLLM credential resolution', () => {
+  test('uses the official CLI for a credential kept in the OS keychain', () => {
+    writeFileSync(tokenFilePath, JSON.stringify({ base_url: ORIGIN }))
+    writeFileSync(manualKeyPath, JSON.stringify({ base_url: ORIGIN, key: 'sk-separate-manual-key' }))
+    const calls: { file: string; args: readonly string[] }[] = []
+    const native: NativeLiteBoundary = {
+      spawn: (file, args) => {
+        calls.push({ file, args })
+        return { status: 0, stdout: `${KEY}\n`, stderr: '' }
+      },
+    }
+    const key = loadOfficialLiteLLMApiKey({ tokenFilePath, expectedBaseURL: `${ORIGIN}/`, native })
+    expect(key).toBe(KEY)
+    expect(calls).toEqual([{ file: 'lite', args: ['--base-url', ORIGIN, 'auth', 'print-token'] }])
   })
 
   test.each([
-    ['malformed JSON', MALFORMED_JSON],
-    ['missing key', JSON.stringify({ base_url: URL.gatewayOrigin })],
-    ['missing base_url', JSON.stringify({ key: TOKEN.gatewayKey })],
-    ['CR key', JSON.stringify({ base_url: URL.gatewayOrigin, key: `${TOKEN.gatewayKey}\r` })],
-    ['LF key', JSON.stringify({ base_url: URL.gatewayOrigin, key: `${TOKEN.gatewayKey}\n` })],
-    ['cross-origin token', JSON.stringify({ base_url: URL.crossOrigin, key: TOKEN.gatewayKey })],
-    ['API-path token', JSON.stringify({ base_url: `${URL.gatewayOrigin}/v1`, key: TOKEN.gatewayKey })],
-    ['jwt_token without key', JSON.stringify({ base_url: URL.gatewayOrigin, jwt_token: TOKEN.jwtDecoy })],
-  ] as const)('rejects %s', (_label, contents) => {
-    // Given: an unusable or origin-mismatched official token file
-    writeFileSync(tokenFilePath, contents)
-
-    // When: the gateway credential is resolved
+    undefined,
+    '{"base_url":',
+    JSON.stringify({ base_url: 'https://other.example.test', key: KEY }),
+    JSON.stringify({ base_url: `${ORIGIN}/`, key: KEY }),
+    JSON.stringify({ base_url: `${ORIGIN}/v1`, key: KEY }),
+  ])('rejects absent, malformed and mismatched records before invoking lite', (contents) => {
+    if (contents !== undefined) writeFileSync(tokenFilePath, contents)
+    let calls = 0
     const key = loadOfficialLiteLLMApiKey({
-      tokenFilePath,
-      expectedBaseURL: URL.gatewayOrigin,
+      tokenFilePath, expectedBaseURL: ORIGIN,
+      native: { spawn: () => { calls += 1; return { status: 0, stdout: KEY, stderr: '' } } },
     })
-
-    // Then: no credential is returned
     expect(key).toBeUndefined()
+    expect(calls).toBe(0)
   })
 
-  test('returns undefined when token.json is missing', () => {
-    // Given: no official LiteLLM token file
-    // When: the gateway credential is resolved
-    const key = loadOfficialLiteLLMApiKey({
-      tokenFilePath,
-      expectedBaseURL: URL.gatewayOrigin,
-    })
-
-    // Then: the loader fails closed
+  test('never falls back to a plaintext token or separate manual key when native renewal fails', () => {
+    writeFileSync(tokenFilePath, JSON.stringify({ base_url: ORIGIN, key: KEY, user_role: 'cli' }))
+    writeFileSync(manualKeyPath, JSON.stringify({ base_url: ORIGIN, key: 'sk-separate-manual-key' }))
+    const key = loadOfficialLiteLLMApiKey({ tokenFilePath, expectedBaseURL: ORIGIN, native: {
+      spawn: () => ({ status: 1, stdout: KEY, stderr: KEY }),
+    } })
     expect(key).toBeUndefined()
+  })
+})
+
+describe('dedicated manual API key storage', () => {
+  test('uses XDG_CONFIG_HOME and otherwise the home config directory', () => {
+    expect(resolveManualLiteLLMApiKeyPath({ HOME: directory })).toBe(join(directory, '.config', 'opencode-litellm', 'api-key.json'))
+    expect(resolveManualLiteLLMApiKeyPath({ XDG_CONFIG_HOME: join(directory, 'xdg') })).toBe(join(directory, 'xdg', 'opencode-litellm', 'api-key.json'))
+    expect(resolveManualLiteLLMApiKeyPath({ HOME: directory, XDG_CONFIG_HOME: '' })).toBe(manualKeyPath)
+    expect(() => resolveManualLiteLLMApiKeyPath({})).toThrow(/HOME|XDG_CONFIG_HOME/)
+  })
+
+  test('loads an exact-origin key independently of native metadata', () => {
+    writeFileSync(manualKeyPath, JSON.stringify({ base_url: ORIGIN, key: KEY }))
+    writeFileSync(tokenFilePath, JSON.stringify({ base_url: 'https://native.example.test' }))
+    expect(loadEnvKey(manualKeyPath, `${ORIGIN}/`)).toBe(KEY)
+    expect(loadEnvKey(manualKeyPath, `${ORIGIN}/v1`)).toBeUndefined()
+  })
+
+  test('does not migrate or reuse a legacy key in the official token file', () => {
+    writeFileSync(tokenFilePath, JSON.stringify({ base_url: ORIGIN, key: KEY, user_role: 'cli' }))
+    expect(loadEnvKey(manualKeyPath, ORIGIN)).toBeUndefined()
+  })
+
+  test.each([
+    { base_url: ORIGIN, key: `${KEY}\n` },
+    { base_url: ORIGIN, jwt_token: KEY },
+    { base_url: ORIGIN, key: '' },
+    { base_url: 'https://other.example.test', key: KEY },
+    { base_url: `${ORIGIN}/`, key: KEY },
+  ])('rejects malformed and mismatched manual records', (record) => {
+    writeFileSync(manualKeyPath, JSON.stringify(record))
+    expect(loadEnvKey(manualKeyPath, ORIGIN)).toBeUndefined()
   })
 })

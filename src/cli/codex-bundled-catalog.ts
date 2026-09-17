@@ -37,6 +37,7 @@ export type BundledCodexCatalog = {
   readonly json: string
   readonly defaultModel: string
   readonly template: CodexModelTemplate
+  readonly templates: readonly CodexModelTemplate[]
 }
 
 export class CodexCatalogError extends Error {
@@ -89,7 +90,7 @@ export function readBundledCodexCatalog(
   if (template === undefined || !hasPromptTemplate(template)) throw invalidCatalog()
   const defaultModel = template[CATALOG_FIELD.Slug]
   if (typeof defaultModel !== 'string') throw invalidCatalog()
-  return { json: normalized, defaultModel, template }
+  return { json: normalized, defaultModel, template, templates: models.filter(hasPromptTemplate) }
 }
 
 export function assertBundledCodexOAuthCatalog(catalog: BundledCodexCatalog): void {

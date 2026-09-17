@@ -24,7 +24,8 @@ describe('Codex model catalog binary compatibility', () => {
       { id: 'coding-fast' },
       { id: QWEN_GATEWAY_MODEL },
       { id: STUDENT_AUTO.Id },
-    ], bundled.template)
+      { id: bundled.defaultModel },
+    ], bundled)
     writeFileSync(catalogPath, catalog.json)
     writeFileSync(
       join(codexHome, 'config.toml'),
@@ -47,8 +48,7 @@ describe('Codex model catalog binary compatibility', () => {
       const expected = JSON.parse(catalog.json)
       expect(payload.models.map((model: { readonly slug: string }) => model.slug)).toEqual([
         'coding-fast',
-        QWEN_GATEWAY_MODEL,
-        STUDENT_AUTO.Id,
+        ...[QWEN_GATEWAY_MODEL, STUDENT_AUTO.Id, bundled.defaultModel].sort(),
       ])
       expect(payload.models.map(normalizeParsedModel)).toEqual(
         expected.models.map(normalizeParsedModel),

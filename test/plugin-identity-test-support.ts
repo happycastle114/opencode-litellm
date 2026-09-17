@@ -1,7 +1,10 @@
 import type { Config } from '@opencode-ai/plugin'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { resolveManualLiteLLMApiKeyPath } from '../src/cli/official-token'
+import type { InstallAuth } from '../src/cli/install-intent'
+import { nativeTokenSpy } from './native-lite-spy'
 import { LiteLLMPlugin } from '../src/index'
 import { createContext, restoreEnv, startServer } from './search-test-helpers'
 
@@ -11,7 +14,9 @@ export const ENV = {
   opencode: 'OPENCODE_LITELLM_API_KEY',
   litellm: 'LITELLM_API_KEY',
   master: 'LITELLM_MASTER_KEY',
+  proxy: 'LITELLM_PROXY_API_KEY',
   home: 'HOME',
+  configHome: 'XDG_CONFIG_HOME',
 } as const
 
 export const ROUTE = {
@@ -25,18 +30,25 @@ const originalEnv = Object.fromEntries(
 ) as Record<string, string | undefined>
 const servers: Array<{ close: () => Promise<void> }> = []
 let homeDirectory = ''
+let native: ReturnType<typeof nativeTokenSpy> | undefined
 
-export function setupIdentityTest(): void {
+export function setupIdentityTest(): ReturnType<typeof nativeTokenSpy> {
   homeDirectory = mkdtempSync(join(tmpdir(), 'opencode-litellm-identity-'))
   process.env[ENV.home] = homeDirectory
+  process.env[ENV.configHome] = join(homeDirectory, 'custom-config')
+  native = nativeTokenSpy(join(homeDirectory, '.litellm', 'token.json'))
   delete process.env[ENV.configured]
   delete process.env[ENV.missing]
   delete process.env[ENV.opencode]
   delete process.env[ENV.litellm]
   delete process.env[ENV.master]
+  delete process.env[ENV.proxy]
+  return native
 }
 
 export async function teardownIdentityTest(): Promise<void> {
+  native?.mockRestore()
+  native = undefined
   for (const [name, value] of Object.entries(originalEnv)) restoreEnv(name, value)
   rmSync(homeDirectory, { recursive: true, force: true })
   await Promise.all(servers.splice(0).map((server) => server.close()))
@@ -63,6 +75,13 @@ export function writeOfficialToken(baseURL: string, key = 'official-key'): void 
   }))
 }
 
+export function writeManualApiKey(baseURL: string, key = 'manual-key'): string {
+  const path = resolveManualLiteLLMApiKeyPath(process.env)
+  mkdirSync(dirname(path), { recursive: true })
+  writeFileSync(path, JSON.stringify({ base_url: baseURL, key }))
+  return path
+}
+
 export function expectAuthorization(
   values: ReadonlyMap<string, string | undefined>,
   key: string,
@@ -72,8 +91,9 @@ export function expectAuthorization(
   }
 }
 
-export async function plugin(toolsets: readonly string[] = []) {
+export async function plugin(toolsets: readonly string[] = [], auth?: InstallAuth) {
   return LiteLLMPlugin({}, {
+    ...(auth === undefined ? {} : { auth }),
     searchTools: [{ toolName: 'litellm_search', searchToolName: 'agy-search' }],
     mcpDiscovery: { enabled: true, include: ['zread'] },
     ...(toolsets.length === 0 ? {} : { toolsets }),

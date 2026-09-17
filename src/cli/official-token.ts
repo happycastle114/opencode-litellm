@@ -1,102 +1,57 @@
 import { readFileSync } from 'node:fs'
-import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { isHeaderSafeApiKey } from '../utils/api-key'
+import { PathResolutionError, type PathEnv } from './paths'
+import {
+  NativeLiteCommand,
+  NativeLiteError,
+  nativeLiteTokenPath,
+  runNativeLite,
+  type NativeLiteBoundary,
+} from './native-lite'
 
 const TOKEN_FIELD = {
   baseURL: 'base_url',
   key: 'key',
-  userRole: 'user_role',
 } as const
-const TOKEN_USER_ROLE = {
-  Cli: 'cli',
-} as const
-const TOKEN_FILE_RELATIVE_PATH = ['.litellm', 'token.json'] as const
+const MANUAL_KEY_PATH = ['opencode-litellm', 'api-key.json'] as const
 
 export type OfficialLiteLLMTokenOptions = {
   readonly tokenFilePath?: string
   readonly expectedBaseURL?: string
+  readonly native?: NativeLiteBoundary
 }
 
-/**
- * Read the credential written by LiteLLM's official `lite login` flow.
- *
- * LiteLLM compares the stored URL with the caller's URL after applying
- * `rstrip("/")` to the caller value only. Keeping that asymmetry matters:
- * normalising the stored value could make a credential issued for a different
- * path appear valid. The CLI stores the API credential in `key`; the
- * `jwt_token` field is deliberately ignored.
- */
 export function loadOfficialLiteLLMApiKey(
   options: OfficialLiteLLMTokenOptions,
 ): string | undefined {
-  const tokenFilePath =
-    options.tokenFilePath ??
-    join(process.env.HOME ?? homedir(), ...TOKEN_FILE_RELATIVE_PATH)
-  let raw: string
+  if (options.expectedBaseURL === undefined) return undefined
+  const metadata = readTokenRecord(options.tokenFilePath ?? nativeLiteTokenPath())
+  if (metadata === undefined ||
+    metadata[TOKEN_FIELD.baseURL] !== options.expectedBaseURL.replace(/\/+$/, '')) return undefined
   try {
-    raw = readFileSync(tokenFilePath, 'utf8')
-  } catch {
-    return undefined
+    return runNativeLite({
+      command: NativeLiteCommand.Token,
+      baseUrl: options.expectedBaseURL,
+      tokenFilePath: options.tokenFilePath,
+    }, options.native)
+  } catch (error) {
+    if (error instanceof NativeLiteError) return undefined
+    throw error
   }
+}
 
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(raw)
-  } catch {
-    return undefined
-  }
-  if (!isRecord(parsed)) return undefined
-
+export function loadEnvKey(
+  tokenFilePath: string,
+  expectedBaseURL: string,
+): string | undefined {
+  const parsed = readTokenRecord(tokenFilePath)
+  if (parsed === undefined) return undefined
   const storedBaseURL = parsed[TOKEN_FIELD.baseURL]
   const key = parsed[TOKEN_FIELD.key]
   if (
     typeof storedBaseURL !== 'string' ||
     !isHeaderSafeApiKey(key)
-  ) {
-    return undefined
-  }
-
-  if (
-    options.expectedBaseURL !== undefined &&
-    storedBaseURL !== options.expectedBaseURL.replace(/\/+$/, '')
-  ) {
-    return undefined
-  }
-
-  return key
-}
-
-/**
- * Load only CLI-entered keys (user_role === 'cli'), not SSO keys.
- * This prevents SSO credentials from being used in env auth mode.
- */
-export function loadEnvKey(
-  tokenFilePath: string,
-  expectedBaseURL: string,
-): string | undefined {
-  let raw: string
-  try {
-    raw = readFileSync(tokenFilePath, 'utf8')
-  } catch {
-    return undefined
-  }
-
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(raw)
-  } catch {
-    return undefined
-  }
-  if (!isRecord(parsed)) return undefined
-
-  const storedBaseURL = parsed[TOKEN_FIELD.baseURL]
-  const key = parsed[TOKEN_FIELD.key]
-  const userRole = parsed[TOKEN_FIELD.userRole]
-  if (
-    typeof storedBaseURL !== 'string' ||
-    !isHeaderSafeApiKey(key) ||
-    userRole !== TOKEN_USER_ROLE.Cli
   ) {
     return undefined
   }
@@ -107,6 +62,28 @@ export function loadEnvKey(
 
   return key
 }
+
+export function resolveManualLiteLLMApiKeyPath(env: PathEnv): string {
+  if (env.XDG_CONFIG_HOME !== undefined && env.XDG_CONFIG_HOME !== '') {
+    return join(env.XDG_CONFIG_HOME, ...MANUAL_KEY_PATH)
+  }
+  if (env.HOME !== undefined && env.HOME !== '') {
+    return join(env.HOME, '.config', ...MANUAL_KEY_PATH)
+  }
+  throw new PathResolutionError('Unable to resolve the manual LiteLLM API-key path: set HOME or XDG_CONFIG_HOME.')
+}
+
+function readTokenRecord(path: string): Record<string, unknown> | undefined {
+  try {
+    const parsed: unknown = JSON.parse(readFileSync(path, 'utf8'))
+    return isRecord(parsed) ? parsed : undefined
+  } catch (error) {
+    if (error instanceof SyntaxError ||
+      error instanceof Error && 'code' in error) return undefined
+    throw error
+  }
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

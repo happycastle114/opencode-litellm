@@ -6,7 +6,6 @@ import {
 } from './cli/command'
 import {
   createNodeOnboardingIO,
-  createNodeSsoOnboardingBoundaries,
 } from './cli/node-onboarding-boundaries'
 import { runCliProgram } from './cli/program'
 import { normalizeCliEnvironment } from './cli/environment'
@@ -28,7 +27,6 @@ try {
         : {
             onboardingIO,
             releaseOnboardingTerminal: () => onboardingIO.close(),
-            ssoBoundaries: createNodeSsoOnboardingBoundaries(onboardingIO),
           }),
     },
   )

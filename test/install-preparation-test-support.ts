@@ -7,6 +7,7 @@ import {
 } from '../src/cli/install-preparation'
 import { CodexMode, InstallAuth, InstallTarget, ToolkitDefault, type InstallOptions } from '../src/cli/install-intent'
 import { join } from 'node:path'
+import { nativeTokenBoundary } from './native-lite-test-support'
 
 export const VALUE = {
   defaultOrigin: 'https://default.example.test',
@@ -57,7 +58,7 @@ export function boundary(
     env: {},
     home: () => homeDirectory,
     now: () => 123_000,
-    ssoBoundaries: { open: async () => undefined, selectTeam: async () => undefined },
+    ssoBoundaries: nativeTokenBoundary(join(homeDirectory, '.litellm', 'token.json')),
     ...overrides,
   }
 }

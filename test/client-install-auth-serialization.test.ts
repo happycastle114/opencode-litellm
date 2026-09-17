@@ -90,7 +90,7 @@ describe('shared client auth writer lease', () => {
     // When: logout contends while install is paused
     await delay(100)
     expect(existsSync(marker('logout-completed'))).toBe(false)
-    expect(existsSync(join(homeDirectory, '.litellm', 'token.json'))).toBe(false)
+    expect(existsSync(join(homeDirectory, '.litellm', 'token.json'))).toBe(true)
     writeFileSync(marker('install-allow'), 'continue\n')
     expect((await waitForExit(install)).code).toBe(0)
     expect((await waitForExit(logout)).code).toBe(0)

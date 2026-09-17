@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test'
 import { buildCodexCatalog } from '../src/cli/codex-catalog'
+import { BUNDLED_CATALOG } from './client-installer-test-support'
 import { toOpenCodeProviderModel } from '../src/cli/opencode-provider-model'
 
 const ASTRA = 'gpt-6-astra'
@@ -10,7 +11,7 @@ test('exposes Astra capabilities in both client selectors when discovery only re
   const model = { id: ASTRA, object: 'model' }
   // When: both client selectors are built
   const openCode = toOpenCodeProviderModel(model)
-  const codex = JSON.parse(buildCodexCatalog([model], {}).json).models[0]
+  const codex = JSON.parse(buildCodexCatalog([model], BUNDLED_CATALOG).json).models[0]
   // Then: documented limits, image input and reasoning levels are selectable
   expect(openCode).toMatchObject({ limit: { context: 1_050_000, output: 128_000 }, attachment: true, tool_call: true, reasoning: true, modalities: { input: ['text', 'image'], output: ['text'] } })
   expect(Object.keys(openCode?.variants ?? {})).toEqual(EFFORTS)
@@ -22,8 +23,8 @@ test('preserves explicit selection and the established gateway default when Astr
   // Given: existing default and Astra are both available
   const models = [{ id: 'coding-fast' }, { id: ASTRA }]
   // When: selection is automatic or explicitly supplied
-  const automatic = buildCodexCatalog(models, {})
-  const explicit = buildCodexCatalog(models, {}, ASTRA)
+  const automatic = buildCodexCatalog(models, BUNDLED_CATALOG)
+  const explicit = buildCodexCatalog(models, BUNDLED_CATALOG, ASTRA)
   // Then: the existing policy and explicit user selection are preserved
   expect(automatic.defaultModel).toBe('coding-fast')
   expect(explicit.defaultModel).toBe(ASTRA)
@@ -33,8 +34,8 @@ test('selects Astra ahead of legacy routes when retired router defaults are abse
   // Given: only current named routes remain
   const models = [{ id: 'gpt-5.6-sol' }, { id: ASTRA }]
   // When: a new catalogue needs a default
-  const catalog = buildCodexCatalog(models, {})
+  const catalog = buildCodexCatalog(models, BUNDLED_CATALOG)
   // Then: Astra is default while an explicit Sol choice still wins
   expect(catalog.defaultModel).toBe(ASTRA)
-  expect(buildCodexCatalog(models, {}, 'gpt-5.6-sol').defaultModel).toBe('gpt-5.6-sol')
+  expect(buildCodexCatalog(models, BUNDLED_CATALOG, 'gpt-5.6-sol').defaultModel).toBe('gpt-5.6-sol')
 })

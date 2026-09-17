@@ -1,13 +1,18 @@
-import { readFileSync, unlinkSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { isHeaderSafeApiKey } from '../utils/api-key'
+import { loadOfficialLiteLLMApiKey } from './official-token'
+import {
+  NativeLiteCommand,
+  NativeLiteError,
+  runNativeLite,
+  type NativeLiteBoundary,
+} from './native-lite'
 
 const TOKEN_FILE = {
   directory: '.litellm',
   name: 'token.json',
   baseUrl: 'base_url',
-  key: 'key',
   userId: 'user_id',
   userEmail: 'user_email',
   userRole: 'user_role',
@@ -29,6 +34,12 @@ const LOGOUT_STATUS = {
 const ERROR_CODE = {
   ReadFailed: 'read-failed',
   DeleteFailed: 'delete-failed',
+  Mismatch: 'mismatch',
+} as const
+
+const NATIVE_LOGOUT = {
+  // LiteLLM 1.101.0 auth.py:937-972 can exit zero after a failed keychain erase.
+  Success: 'Logged out successfully. Authentication token cleared.',
 } as const
 
 export const AuthInspectionStatus = INSPECTION_STATUS
@@ -42,6 +53,7 @@ export type AuthLifecycleErrorCode = (typeof ERROR_CODE)[keyof typeof ERROR_CODE
 export type LiteLLMAuthInspectionInput = {
   readonly baseUrl: string
   readonly tokenFilePath?: string
+  readonly native?: NativeLiteBoundary
 }
 
 export type LiteLLMAuthInspection = {
@@ -55,7 +67,9 @@ export type LiteLLMAuthInspection = {
 }
 
 export type LiteLLMAuthLogoutInput = {
+  readonly baseUrl: string
   readonly tokenFilePath?: string
+  readonly native?: NativeLiteBoundary
 }
 
 export type LiteLLMAuthLogoutResult = {
@@ -66,7 +80,8 @@ export class LiteLLMAuthLifecycleError extends Error {
   readonly name = 'LiteLLMAuthLifecycleError'
 
   constructor(readonly code: AuthLifecycleErrorCode) {
-    super(`LiteLLM auth lifecycle failed (${code}).`)
+    super(`LiteLLM auth lifecycle failed (${code}).` +
+      (code === ERROR_CODE.DeleteFailed ? ' Run lite logout to inspect the native credential-store diagnostic.' : ''))
   }
 }
 
@@ -94,32 +109,57 @@ export function inspectLiteLLMAuth(
     return { status: INSPECTION_STATUS.Malformed, tokenPresent: false }
   }
 
-  const tokenPresent = isHeaderSafeApiKey(parsed[TOKEN_FILE.key])
   const baseUrl = parsed[TOKEN_FILE.baseUrl]
   if (!isNonEmptyString(baseUrl)) {
-    return { status: INSPECTION_STATUS.Malformed, tokenPresent }
+    return { status: INSPECTION_STATUS.Malformed, tokenPresent: false }
   }
 
-  const metadata = readSafeMetadata(parsed, baseUrl, tokenPresent)
+  const metadata = readSafeMetadata(parsed, baseUrl, false)
   if (metadata === undefined) {
-    return { status: INSPECTION_STATUS.Malformed, tokenPresent }
+    return { status: INSPECTION_STATUS.Malformed, tokenPresent: false }
   }
 
   const expectedBaseUrl = input.baseUrl.replace(/\/+$/, '')
-  return baseUrl === expectedBaseUrl
-    ? { status: INSPECTION_STATUS.Authenticated, ...metadata }
-    : { status: INSPECTION_STATUS.Mismatch, ...metadata }
+  if (baseUrl !== expectedBaseUrl) return { status: INSPECTION_STATUS.Mismatch, ...metadata }
+  const tokenPresent = loadOfficialLiteLLMApiKey({
+    tokenFilePath: path, expectedBaseURL: expectedBaseUrl, native: input.native,
+  }) !== undefined
+  return {
+    status: tokenPresent ? INSPECTION_STATUS.Authenticated : INSPECTION_STATUS.Missing,
+    ...metadata,
+    tokenPresent,
+  }
 }
 
 export function logoutLiteLLMAuth(
-  input: LiteLLMAuthLogoutInput = {},
+  input: LiteLLMAuthLogoutInput,
 ): LiteLLMAuthLogoutResult {
   const path = resolveTokenFilePath(input.tokenFilePath)
+  let stored: unknown
   try {
-    unlinkSync(path)
-    return { status: LOGOUT_STATUS.Removed }
+    stored = JSON.parse(readFileSync(path, 'utf8'))
   } catch (error: unknown) {
     if (isMissingFile(error)) return { status: LOGOUT_STATUS.Absent }
+    if (error instanceof SyntaxError || isNodeError(error)) {
+      throw new LiteLLMAuthLifecycleError(ERROR_CODE.ReadFailed)
+    }
+    throw error
+  }
+  if (!isRecord(stored) || stored[TOKEN_FILE.baseUrl] !== input.baseUrl.replace(/\/+$/, '')) {
+    throw new LiteLLMAuthLifecycleError(ERROR_CODE.Mismatch)
+  }
+  try {
+    const output = runNativeLite({
+      command: NativeLiteCommand.Logout,
+      baseUrl: input.baseUrl,
+      tokenFilePath: path,
+    }, input.native)
+    if (output.trim() !== NATIVE_LOGOUT.Success) {
+      throw new LiteLLMAuthLifecycleError(ERROR_CODE.DeleteFailed)
+    }
+    return { status: LOGOUT_STATUS.Removed }
+  } catch (error) {
+    if (!(error instanceof NativeLiteError)) throw error
     throw new LiteLLMAuthLifecycleError(ERROR_CODE.DeleteFailed)
   }
 }

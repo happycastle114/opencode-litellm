@@ -1,92 +1,31 @@
-import { afterEach, describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'bun:test'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 import { SsoOnboardingError, onboardLiteLLMSso } from '../src/cli/onboarding-sso'
-import {
-  SECRET,
-  START,
-  URL,
-  captureFailure,
-  cleanupSsoFixtures,
-  createFixture,
-  existsSync,
-  jsonResponse,
-  mkdirSync,
-  readFileSync,
-  readdirSync,
-  writeFileSync,
-} from './onboarding-sso-test-support'
 
-describe('LiteLLM built-in SSO onboarding', () => {
-  test('fails immediately on permanent HTTP errors without exposing response or credential details', async () => {
-    // Given
-    const fixture = createFixture([
-      jsonResponse(START),
-      new Response(JSON.stringify({ detail: SECRET.ServerDetail }), { status: 403 }),
-      jsonResponse({ status: 'ready', key: SECRET.Key }),
-    ])
+const TOKEN_PATH = join(tmpdir(), 'native-login-test', '.litellm', 'token.json')
 
-    // When
-    const failure = captureFailure(onboardLiteLLMSso(fixture.input))
-
-    // Then
-    expect(await failure).toMatchObject({ code: 'poll_http_permanent', status: 403 })
-    expect(fixture.requests).toHaveLength(2)
-    expect(String(await failure)).not.toContain(SECRET.ServerDetail)
-    expect(String(await failure)).not.toContain(SECRET.Poll)
+describe('official LiteLLM login errors', () => {
+  test('returns a sanitized error when native authentication fails', async () => {
+    // Given: the native process fails with sensitive server details.
+    const secret = 'never-expose-child-diagnostic'
+    // When: login is delegated.
+    const result = onboardLiteLLMSso({ baseUrl: 'https://gateway.example.test', tokenFilePath: TOKEN_PATH, boundaries: {
+      spawn: () => ({ status: 1, stdout: secret, stderr: secret }),
+    } })
+    // Then: login fails without leaking child output.
+    await expect(result).rejects.toBeInstanceOf(SsoOnboardingError)
+    await expect(result).rejects.not.toThrow(secret)
   })
 
-  test.each([
-    ['CR', '\r'],
-    ['LF', '\n'],
-    ['CRLF', '\r\n'],
-  ] as const)('rejects a poll API key containing %s without writing a token', async (_label, lineBreak) => {
-    // Given
-    const fixture = createFixture([
-      jsonResponse(START),
-      jsonResponse({ status: 'ready', key: `${SECRET.Key}${lineBreak}suffix` }),
-    ])
-    mkdirSync(`${fixture.home}/.litellm`)
-    writeFileSync(fixture.tokenPath, '{"stale":true}')
-
-    // When
-    const failure = captureFailure(onboardLiteLLMSso(fixture.input))
-
-    // Then
-    await expect(failure).resolves.toMatchObject({ code: 'invalid_poll_response' })
-    expect(readFileSync(fixture.tokenPath, 'utf8')).toBe('{"stale":true}')
-    expect(readdirSync(`${fixture.home}/.litellm`)).toEqual(['token.json'])
-  })
-
-  test.each([
-    ['malformed start response', jsonResponse({ ...START, poll_secret: 42 })],
-    ['cross-origin verification URL', jsonResponse({ ...START, verification_uri_complete: URL.Other })],
-  ] as const)('rejects %s before polling without leaking start values', async (_label, start) => {
-    // Given
-    const fixture = createFixture([start, jsonResponse({ status: 'ready', key: SECRET.Key })])
-
-    // When
-    const failure = captureFailure(onboardLiteLLMSso(fixture.input))
-
-    // Then
-    expect(await failure).toBeInstanceOf(SsoOnboardingError)
-    expect(fixture.requests).toHaveLength(1)
-    expect(String(await failure)).not.toContain(SECRET.Poll)
-    expect(existsSync(fixture.tokenPath)).toBe(false)
-  })
-
-  test('rejects a team id that was not offered without re-polling', async () => {
-    // Given
-    const fixture = createFixture([
-      jsonResponse(START),
-      jsonResponse({ status: 'ready', requires_team_selection: true, teams: ['team-a'] }),
-    ], URL.Base, async () => 'team-attacker')
-
-    // When
-    const failure = captureFailure(onboardLiteLLMSso(fixture.input))
-
-    // Then
-    expect(await failure).toMatchObject({ code: 'invalid_team_selection' })
-    expect(fixture.requests).toHaveLength(2)
+  test('provides the official installation command when lite is missing', async () => {
+    // Given: no native executable is available.
+    const error = Object.assign(new Error('missing'), { code: 'ENOENT' })
+    // When: a native login is requested.
+    const result = onboardLiteLLMSso({ baseUrl: 'https://gateway.example.test', tokenFilePath: TOKEN_PATH, boundaries: {
+      spawn: () => ({ status: null, stdout: null, stderr: null, error }),
+    } })
+    // Then: the user gets an actionable prerequisite rather than custom SSO fallback.
+    await expect(result).rejects.toThrow("uv tool install 'litellm[cli]'")
   })
 })
-
-afterEach(cleanupSsoFixtures)

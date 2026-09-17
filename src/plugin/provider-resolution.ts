@@ -8,8 +8,13 @@ import {
   resolveSearchApiKey,
   type LiteLLMSearchEndpoint,
 } from '../search/client'
-import { loadOfficialLiteLLMApiKey } from '../cli/official-token'
+import {
+  loadEnvKey,
+  loadOfficialLiteLLMApiKey,
+  resolveManualLiteLLMApiKeyPath,
+} from '../cli/official-token'
 import { resolveHeaderSafeApiKey } from '../utils/api-key'
+import { InstallAuth } from '../cli/install-intent'
 
 export type PublicPluginConfig = {
   model?: string
@@ -21,7 +26,7 @@ export type PublicPluginConfig = {
 export const CHAT_PROVIDER_ID = 'litellm' as const
 export const PROVIDER_NPM = '@ai-sdk/openai' as const
 export const OFFICIAL_TOKEN_PATH = ['.litellm', 'token.json'] as const
-export const ENV_REFERENCE_PATTERN = /^\{env:[A-Za-z_][A-Za-z0-9_]*\}$/
+export const ENV_REFERENCE_PATTERN = /^\{env:([A-Za-z_][A-Za-z0-9_]*)\}$/
 
 export const PROVIDER_RESOLUTION = {
   Resolved: 'resolved',
@@ -75,7 +80,10 @@ export function readCustomHeaders(
 
 export async function resolveProvider(
   config: PublicPluginConfig,
-  requestOptions: { readonly allowAmbientFallback?: boolean } = {},
+  requestOptions: {
+    readonly allowAmbientFallback?: boolean
+    readonly auth?: InstallAuth
+  } = {},
 ): Promise<ProviderResolution> {
   const providerConfig = isRecord(config.provider) ? config.provider : {}
   if (config.provider !== providerConfig) config.provider = providerConfig
@@ -94,23 +102,36 @@ export async function resolveProvider(
   const configuredApiKey = !configuredCredentialDeclared || configuredKey === undefined
     ? undefined
     : normalizeApiKey(resolveSearchApiKey(configuredKey))
-  const officialKey = configuredBase === undefined
+  const configuredVariable = configuredKey === undefined
+    ? undefined
+    : ENV_REFERENCE_PATTERN.exec(configuredKey)?.[1]
+  const storedFallbackAllowed = !configuredCredentialDeclared || configuredKey === '' ||
+    (configuredVariable !== undefined &&
+      (process.env[configuredVariable] === undefined || process.env[configuredVariable] === ''))
+  const configuredOrigin = configuredBase === undefined
+    ? undefined
+    : normalizeBaseURL(configuredBase)
+  const home = process.env.HOME || homedir()
+  const manualKey = requestOptions.auth !== InstallAuth.Environment ||
+      configuredApiKey !== undefined || !storedFallbackAllowed || configuredOrigin === undefined
+    ? undefined
+    : loadEnvKey(resolveManualLiteLLMApiKeyPath({ ...process.env, HOME: home }), configuredOrigin)
+  const officialKey = requestOptions.auth === InstallAuth.Environment ||
+      configuredApiKey !== undefined || manualKey !== undefined ||
+      !storedFallbackAllowed || configuredOrigin === undefined
     ? undefined
     : normalizeApiKey(loadOfficialLiteLLMApiKey({
-        tokenFilePath: join(process.env.HOME ?? homedir(), ...OFFICIAL_TOKEN_PATH),
-        expectedBaseURL: normalizeBaseURL(configuredBase),
+        tokenFilePath: join(home, ...OFFICIAL_TOKEN_PATH),
+        expectedBaseURL: configuredOrigin,
       }))
-  const officialFallbackAllowed = !configuredCredentialDeclared ||
-    configuredKey === '' ||
-    (configuredKey !== undefined && ENV_REFERENCE_PATTERN.test(configuredKey))
-  const ambientApiKey = requestOptions.allowAmbientFallback !== false && !configuredCredentialDeclared && officialKey === undefined
+  const ambientApiKey = requestOptions.auth === undefined &&
+      requestOptions.allowAmbientFallback !== false && !configuredCredentialDeclared &&
+      manualKey === undefined && officialKey === undefined
     ? normalizeApiKey(resolveSearchApiKey())
     : undefined
-  const apiKey = configuredApiKey ??
-    (officialFallbackAllowed ? officialKey : undefined) ??
-    ambientApiKey
+  const apiKey = configuredApiKey ?? manualKey ?? officialKey ?? ambientApiKey
 
-  if (configuredCredentialDeclared && apiKey === undefined) {
+  if ((configuredCredentialDeclared || requestOptions.auth !== undefined) && apiKey === undefined) {
     return { kind: PROVIDER_RESOLUTION.UnresolvedCredential }
   }
 

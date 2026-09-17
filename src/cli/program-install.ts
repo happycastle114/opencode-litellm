@@ -22,10 +22,10 @@ import {
 import { withClientInstallPlanningLock } from './client-install-planning-lock'
 import { installPreparedClients } from './client-installer'
 import {
-  createInstallSsoTokenContext,
-  planInstallSsoTokenAsset,
-  type InstallSsoTokenContext,
-} from './install-sso-token'
+  createInstallApiKeyContext,
+  planInstallApiKeyAsset,
+  type InstallApiKeyContext,
+} from './install-api-key'
 import {
   prepareInstall,
   type PreparedInstall,
@@ -52,7 +52,7 @@ type LockedInstallInput = {
   readonly prepared: PreparedInstall
   readonly context: ProgramContext
   readonly homeDirectory: string
-  readonly token: InstallSsoTokenContext
+  readonly token: InstallApiKeyContext
 }
 
 type CompleteAutoRouterInput = {
@@ -68,40 +68,29 @@ export async function runInstall(
 ): Promise<CliResult> {
   const homeDirectory = resolveHome(context)
   const boundary = context.autoRouterBoundary ?? createNodeAutoRouterBoundary()
-  const tokenState: { current: InstallSsoTokenContext | undefined } = {
-    current: undefined,
-  }
-  try {
-    const outcome = await withClientInstallPlanningLock(homeDirectory, async () => {
-      const token = createInstallSsoTokenContext(
-        homeDirectory,
-        context.ssoOnboarding,
-      )
-      tokenState.current = token
-      const prepared = await prepareInstall(options, {
-        env: context.env,
-        home: () => homeDirectory,
-        now: () => context.now().getTime(),
-        ...(context.onboardingIO === undefined ? {} : { onboardingIO: context.onboardingIO }),
-        ...(context.ssoBoundaries === undefined ? {} : { ssoBoundaries: context.ssoBoundaries }),
-        ...(context.gatewayDiscovery === undefined ? {} : { discover: context.gatewayDiscovery }),
-        ...(token.onboard === undefined ? {} : { onboard: token.onboard }),
-      })
-      const autoRouterPlan = planAutoRouter(prepared.options.autoRouter, homeDirectory)
-      const execution = autoRouterExecution(prepared, context)
-      preflightAutoRouter(autoRouterPlan, execution, boundary)
-      const result = await runLockedInstall({ prepared, context, homeDirectory, token })
-      return { prepared, autoRouterPlan, result }
+  const outcome = await withClientInstallPlanningLock(homeDirectory, async () => {
+    const token = createInstallApiKeyContext({ ...context.env, HOME: homeDirectory })
+    const prepared = await prepareInstall(options, {
+      env: context.env,
+      home: () => homeDirectory,
+      now: () => context.now().getTime(),
+      ...(context.onboardingIO === undefined ? {} : { onboardingIO: context.onboardingIO }),
+      ...(context.ssoBoundaries === undefined ? {} : { ssoBoundaries: context.ssoBoundaries }),
+      ...(context.gatewayDiscovery === undefined ? {} : { discover: context.gatewayDiscovery }),
+      ...(context.ssoOnboarding === undefined ? {} : { onboard: context.ssoOnboarding }),
     })
-    return completeAutoRouter({
-      outcome,
-      execution: autoRouterExecution(outcome.prepared, context),
-      boundary,
-      releaseTerminal: context.releaseOnboardingTerminal,
-    })
-  } finally {
-    tokenState.current?.cleanup()
-  }
+    const autoRouterPlan = planAutoRouter(prepared.options.autoRouter, homeDirectory)
+    const execution = autoRouterExecution(prepared, context)
+    preflightAutoRouter(autoRouterPlan, execution, boundary)
+    const result = await runLockedInstall({ prepared, context, homeDirectory, token })
+    return { prepared, autoRouterPlan, result }
+  })
+  return completeAutoRouter({
+    outcome,
+    execution: autoRouterExecution(outcome.prepared, context),
+    boundary,
+    releaseTerminal: context.releaseOnboardingTerminal,
+  })
 }
 
 function completeAutoRouter(input: CompleteAutoRouterInput): CliResult {
@@ -186,7 +175,7 @@ async function runLockedInstall(input: LockedInstallInput): Promise<CliResult> {
     gatewayOrigin: prepared.options.baseUrl,
     settingsPath: destinations.claudeSettings,
   })
-  const tokenAsset = planInstallSsoTokenAsset(prepared, token)
+  const tokenAsset = planInstallApiKeyAsset(prepared, token)
   const result = await installPreparedClients(prepared, context, [
     claudeMarketplaceAsset,
     ...(tokenAsset === undefined ? [] : [tokenAsset]),

@@ -6,13 +6,13 @@ import {
 import { InstallAuth, normalizeOrigin } from './install-intent'
 import {
   onboardLiteLLMSso,
-  SsoTokenPersistence,
+  SsoOnboardingError,
   type SsoOnboardingBoundaries,
   type SsoOnboardingInput,
   type SsoOnboardingResult,
 } from './onboarding-sso'
 import type { OnboardingConnection, OnboardingIO } from './onboarding'
-import { loadOfficialLiteLLMApiKey, loadEnvKey } from './official-token'
+import { resolveManualLiteLLMApiKeyPath, loadOfficialLiteLLMApiKey, loadEnvKey } from './official-token'
 import { isHeaderSafeApiKey } from '../utils/api-key'
 
 const TOKEN_PATH = ['.litellm', 'token.json'] as const
@@ -73,13 +73,13 @@ export type ConnectionLoadRequest = {
 }
 
 export type ResolvedCredential =
-  ({ readonly apiKey: string; readonly deferredSsoToken?: DeferredSsoToken }) & (
+  ({ readonly apiKey: string; readonly deferredApiKey?: DeferredApiKey }) & (
     | { readonly kind: typeof InstallCredentialKind.Environment }
     | { readonly kind: typeof InstallCredentialKind.StoredSso }
     | { readonly kind: typeof InstallCredentialKind.FreshSso }
   )
 
-export type DeferredSsoToken = {
+export type DeferredApiKey = {
   readonly contents: string
 }
 
@@ -121,34 +121,31 @@ async function environmentCredential(
   if (isHeaderSafeApiKey(envKey)) {
     return { kind: InstallCredentialKind.Environment, apiKey: envKey }
   }
-  const tokenFilePath = resolveTokenFilePath(request.boundary)
-  const stored = loadEnvKey(tokenFilePath, origin)
+  const keyFilePath = resolveManualLiteLLMApiKeyPath({ ...request.boundary.env, HOME: resolveHomeDirectory(request.boundary) })
+  const stored = loadEnvKey(keyFilePath, origin)
   if (stored !== undefined) {
     return { kind: InstallCredentialKind.Environment, apiKey: stored }
   }
   if (request.interactive && request.boundary.onboardingIO !== undefined) {
     const io = request.boundary.onboardingIO
     const entered = (await io.prompt(
-      `Enter your LiteLLM API key (stored in ~/.litellm/token.json for reuse): `,
+      `Enter your LiteLLM API key (stored in ${keyFilePath} for reuse): `,
     )).trim()
     if (isHeaderSafeApiKey(entered)) {
       const token = {
         base_url: origin,
         key: entered,
-        user_id: 'local',
-        user_role: 'cli',
-        timestamp: request.boundary.now(),
       }
       return {
         kind: InstallCredentialKind.Environment,
         apiKey: entered,
-        deferredSsoToken: { contents: `${JSON.stringify(token, null, 2)}\n` },
+        deferredApiKey: { contents: `${JSON.stringify(token, null, 2)}\n` },
       }
     }
   }
   throw preparationError(
     InstallPreparationErrorCode.MissingEnvironmentCredential,
-    `Environment variable '${request.authEnv}' is required for authenticated LiteLLM discovery.`,
+    `Set '${request.authEnv}' or rerun install interactively to enter an API key for this gateway.`,
   )
 }
 
@@ -157,7 +154,7 @@ async function ssoCredential(
   origin: string,
 ): Promise<ResolvedCredential> {
   const tokenFilePath = resolveTokenFilePath(request.boundary)
-  const existing = loadSsoKey(tokenFilePath, origin)
+  const existing = loadSsoKey(tokenFilePath, origin, request.boundary.ssoBoundaries)
   if (existing !== undefined) {
     return { kind: InstallCredentialKind.StoredSso, apiKey: existing }
   }
@@ -177,54 +174,38 @@ async function onboardSso(
   origin: string,
   tokenFilePath: string,
 ): Promise<ResolvedCredential> {
-  if (request.boundary.ssoBoundaries === undefined) {
-    throw preparationError(
-      InstallPreparationErrorCode.SsoBoundariesUnavailable,
-      'Interactive LiteLLM SSO requires browser and team-selection boundaries.',
-    )
-  }
-  let result: SsoOnboardingResult
   try {
-    result = await (request.boundary.onboard ?? onboardLiteLLMSso)({
+    await (request.boundary.onboard ?? onboardLiteLLMSso)({
       baseUrl: origin,
       tokenFilePath,
-      tokenPersistence: SsoTokenPersistence.Defer,
-      now: request.boundary.now,
       boundaries: request.boundary.ssoBoundaries,
     })
-  } catch {
+  } catch (error) {
     throw preparationError(
       InstallPreparationErrorCode.SsoFailed,
-      `LiteLLM SSO did not complete for ${origin}; rerun the interactive login.`,
+      error instanceof SsoOnboardingError
+        ? error.message
+        : `LiteLLM SSO did not complete for ${origin}; rerun the interactive login.`,
     )
   }
-  const deferred = deferredSsoToken(result.token, origin)
-  if (deferred !== undefined) {
-    return {
-      kind: InstallCredentialKind.FreshSso,
-      apiKey: deferred.apiKey,
-      deferredSsoToken: { contents: deferred.contents },
-    }
-  }
-  const refreshed = loadSsoKey(tokenFilePath, origin)
+  const refreshed = loadSsoKey(tokenFilePath, origin, request.boundary.ssoBoundaries)
   if (refreshed === undefined) throw missingSsoCredential(origin)
   return { kind: InstallCredentialKind.FreshSso, apiKey: refreshed }
 }
 
-function deferredSsoToken(
-  token: Readonly<Record<string, unknown>> | undefined,
+function loadSsoKey(
+  tokenFilePath: string,
   origin: string,
-): { readonly apiKey: string; readonly contents: string } | undefined {
-  if (token === undefined || token.base_url !== origin ||
-    !isHeaderSafeApiKey(token.key)) return undefined
-  return { apiKey: token.key, contents: JSON.stringify(token, null, 2) }
-}
-
-function loadSsoKey(tokenFilePath: string, origin: string): string | undefined {
-  return loadOfficialLiteLLMApiKey({ tokenFilePath, expectedBaseURL: origin })
+  native: SsoOnboardingBoundaries | undefined,
+): string | undefined {
+  return loadOfficialLiteLLMApiKey({ tokenFilePath, expectedBaseURL: origin, native })
 }
 
 function resolveTokenFilePath(boundary: InstallPreparationBoundary): string {
+  return join(resolveHomeDirectory(boundary), ...TOKEN_PATH)
+}
+
+function resolveHomeDirectory(boundary: InstallPreparationBoundary): string {
   const environmentHome = boundary.env.HOME
   let home = environmentHome
   if (home === undefined || home === '') {
@@ -235,7 +216,7 @@ function resolveTokenFilePath(boundary: InstallPreparationBoundary): string {
     }
   }
   if (home === '') throw homeUnavailable()
-  return join(home, ...TOKEN_PATH)
+  return home
 }
 
 function homeUnavailable(): InstallPreparationError {

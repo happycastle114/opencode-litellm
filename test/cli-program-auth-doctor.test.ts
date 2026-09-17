@@ -1,8 +1,12 @@
 import { describe, expect, test } from 'bun:test'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { runCliProgram } from '../src/cli/program'
+import type { NativeLiteSpawn } from '../src/cli/native-lite'
 import { DISCOVERY, setupProgramHome } from './cli-program-test-support'
+
+const NATIVE_ACTION = { Token: 'print-token', Logout: 'logout' } as const
+const NATIVE_LOGOUT_SUCCESS = 'Logged out successfully. Authentication token cleared.\n'
 
 let dir = ''
 setupProgramHome('opencode-litellm-program-auth-', (path) => { dir = path })
@@ -40,10 +44,12 @@ describe('CLI program', () => {
     ], {
       env: { HOME: dir, LITELLM_PROXY_URL: 'https://ambient.example.com', CUSTOM_SSO_KEY: 'ambient-sso-key' },
       now: () => new Date(0), gatewayDiscovery: async () => DISCOVERY,
+      ssoBoundaries: { spawn: nativeAuth(secret, tokenPath) },
     })
     const launch = await runCliProgram(['claude'], {
       env: { HOME: dir, LITELLM_PROXY_URL: 'https://ambient.example.com', CUSTOM_SSO_KEY: 'ambient-sso-key' },
       now: () => new Date(0),
+      ssoBoundaries: { spawn: nativeAuth(secret, tokenPath) },
       agentLaunchBoundary: {
         which: (command) => command,
         spawn: (_file, _args, options) => { calls.push({ options }); return { status: 0, signal: null } },
@@ -91,7 +97,7 @@ describe('CLI program', () => {
           processCalls.push({ file, args }); return { status: 0, signal: null, stdout: '', stderr: '' }
         },
       },
-      ssoBoundaries: { open: async () => undefined, selectTeam: async () => undefined },
+      ssoBoundaries: { spawn: nativeAuth(secret, tokenPath) },
       ssoOnboarding: async (input: { readonly tokenFilePath?: string }) => {
         expect(input.tokenFilePath).toBe(tokenPath)
         mkdirSync(join(dir, '.litellm'), { recursive: true })
@@ -103,6 +109,7 @@ describe('CLI program', () => {
     }
     const lifecycleOptions = ['--base-url', baseUrl, '--auth-env', authEnv] as const
     const login = await runCliProgram(['login', ...lifecycleOptions], context)
+    expect(processCalls).toEqual([])
     const whoami = await runCliProgram(['whoami', ...lifecycleOptions], context)
     const logout = await runCliProgram(['logout', ...lifecycleOptions], context)
     expect(login.exitCode).toBe(0)
@@ -110,7 +117,6 @@ describe('CLI program', () => {
     expect(`${login.stdout}${whoami.stdout}${logout.stdout}`).not.toContain(secret)
     expect(existsSync(tokenPath)).toBe(false)
     expect(processCalls).toEqual([
-      { file: process.execPath, args: [helperPath, '--launchctl-setenv', authEnv] },
       { file: '/bin/launchctl', args: ['unsetenv', authEnv] },
     ])
   })
@@ -123,6 +129,7 @@ describe('CLI program', () => {
     const result = await runCliProgram(['logout', '--base-url', 'https://litellm.example.com', '--auth-env', 'CUSTOM_PROXY_KEY'], {
       env: { HOME: dir }, now: () => new Date(0), externalSetup: true, platform: 'darwin',
       codexSpawnBoundary: { spawn: () => ({ status: 1, signal: null, stdout: '', stderr: '' }) },
+      ssoBoundaries: { spawn: nativeAuth('sk-partial-logout-secret', tokenPath) },
     })
     expect(result.exitCode).toBe(1)
     expect(result.stdout).toContain('session removed')
@@ -131,3 +138,14 @@ describe('CLI program', () => {
     expect(existsSync(tokenPath)).toBe(false)
   })
 })
+
+function nativeAuth(secret: string, tokenPath: string): NativeLiteSpawn {
+  return (_executable, args) => {
+    if (args.at(-1) === NATIVE_ACTION.Logout) unlinkSync(tokenPath)
+    return {
+      status: 0,
+      stdout: args.at(-1) === NATIVE_ACTION.Token ? `${secret}\n` : NATIVE_LOGOUT_SUCCESS,
+      stderr: '',
+    }
+  }
+}

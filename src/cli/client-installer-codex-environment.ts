@@ -1,12 +1,7 @@
 import { spawnSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
-import { resolveCodexAuthHelperPath } from './auth-helper'
 import type { CodexSpawnBoundary, CodexSpawnResult } from './codex-discovery'
-import type { PreparedInstall } from './install-preparation'
-import { CodexMode, InstallAuth } from './install-intent'
 import type { PathEnv } from './paths'
 
-const HELPER_ARGUMENT = { LaunchctlSetEnvironment: '--launchctl-setenv' } as const
 const LAUNCHCTL = {
   Path: '/bin/launchctl',
   UnsetEnvironment: 'unsetenv',
@@ -18,47 +13,6 @@ export type CodexEnvironmentBoundary = {
   readonly externalSetup?: boolean
   readonly codexSpawnBoundary?: CodexSpawnBoundary
   readonly platform?: string
-}
-
-class CodexEnvironmentError extends Error {
-  readonly name = 'CodexEnvironmentError'
-}
-
-export function syncCodexOAuthEnvironment(
-  prepared: PreparedInstall,
-  boundary: CodexEnvironmentBoundary,
-  homeDirectory: string,
-): readonly string[] {
-  if (
-    prepared.options.auth !== InstallAuth.Sso ||
-    !usesOAuth(prepared.options.codexMode)
-  ) return []
-  return syncCodexSessionEnvironment(
-    prepared.options.authEnv,
-    boundary,
-    homeDirectory,
-  )
-}
-
-export function syncCodexSessionEnvironment(
-  authEnv: string,
-  boundary: CodexEnvironmentBoundary,
-  homeDirectory: string,
-): readonly string[] {
-  if (!usesMacOSSession(boundary)) return []
-  const helperPath = resolveCodexAuthHelperPath(homeDirectory)
-  if (!existsSync(helperPath)) return []
-  const warning = sessionExportWarning(authEnv)
-  try {
-    const result = runCodexSpawn(boundary, process.execPath, [
-      helperPath,
-      HELPER_ARGUMENT.LaunchctlSetEnvironment,
-      authEnv,
-    ])
-    return processSucceeded(result) ? [] : [warning]
-  } catch {
-    return [warning]
-  }
 }
 
 export function clearCodexSessionEnvironment(
@@ -94,18 +48,6 @@ function runCodexSpawn(
   }
 }
 
-function usesOAuth(mode: PreparedInstall['options']['codexMode']): boolean {
-  switch (mode) {
-    case CodexMode.Gateway:
-      return false
-    case CodexMode.OAuth:
-    case CodexMode.Both:
-      return true
-    default:
-      return assertNever(mode)
-  }
-}
-
 function usesMacOSSession(boundary: CodexEnvironmentBoundary): boolean {
   return boundary.externalSetup === true &&
     (boundary.platform ?? process.platform) === PLATFORM.Darwin
@@ -116,12 +58,4 @@ function processSucceeded(result: CodexSpawnResult): boolean {
   return status === 0 &&
     (result.signal === undefined || result.signal === null) &&
     result.error === undefined
-}
-
-function sessionExportWarning(authEnv: string): string {
-  return `Could not export ${authEnv} to the current macOS launchd session; run 'codex-litellm codex --profile codex-oauth' or rerun the installer after login.`
-}
-
-function assertNever(value: never): never {
-  throw new CodexEnvironmentError('Codex environment setup reached an unsupported typed variant.')
 }

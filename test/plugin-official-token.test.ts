@@ -3,6 +3,7 @@ import type { Config } from '@opencode-ai/plugin'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { nativeTokenSpy } from './native-lite-spy'
 import { LiteLLMPlugin } from '../src/index'
 import { createContext, restoreEnv, startServer } from './search-test-helpers'
 
@@ -41,16 +42,19 @@ const originalEnvironment = {
 }
 const servers: Array<{ close: () => Promise<void> }> = []
 let directory: string
+let native: ReturnType<typeof nativeTokenSpy>
 
 beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'opencode-litellm-runtime-token-'))
   process.env[ENVIRONMENT.home] = directory
+  native = nativeTokenSpy(join(directory, '.litellm', 'token.json'))
   delete process.env[ENVIRONMENT.openCodeKey]
   delete process.env[ENVIRONMENT.liteLLMKey]
   delete process.env[ENVIRONMENT.masterKey]
 })
 
 afterEach(async () => {
+  native.mockRestore()
   restoreEnv(ENVIRONMENT.openCodeKey, originalEnvironment.openCodeKey)
   restoreEnv(ENVIRONMENT.liteLLMKey, originalEnvironment.liteLLMKey)
   restoreEnv(ENVIRONMENT.masterKey, originalEnvironment.masterKey)

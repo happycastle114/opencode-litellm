@@ -12,7 +12,7 @@ import {
   resolveGatewayOrigin,
   type ConnectionLoadRequest,
   type InstallPreparationError,
-  type DeferredSsoToken,
+  type DeferredApiKey,
   type ResolvedCredential,
 } from './install-preparation-auth'
 
@@ -22,7 +22,7 @@ export type AuthenticatedConnection = {
   readonly origin: string
   readonly apiKey: string
   readonly discovery: GatewayToolDiscoveryResult
-  readonly deferredSsoToken?: DeferredSsoToken
+  readonly deferredApiKey?: DeferredApiKey
 }
 
 type RecoveryRequest = {
@@ -79,9 +79,9 @@ function authenticatedConnection(
     origin,
     apiKey: credential.apiKey,
     discovery,
-    ...(credential.deferredSsoToken === undefined
+    ...(credential.deferredApiKey === undefined
       ? {}
-      : { deferredSsoToken: credential.deferredSsoToken }),
+      : { deferredApiKey: credential.deferredApiKey }),
   }
 }
 

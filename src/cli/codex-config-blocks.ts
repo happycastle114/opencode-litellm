@@ -16,6 +16,8 @@ const HEADER_NAME = { LiteLLMApiKey: 'x-litellm-api-key' } as const
 const WIRE_API = { Responses: 'responses' } as const
 const LOGIN_METHOD = { Chatgpt: 'chatgpt' } as const
 const WEB_SEARCH_MODE = { Live: 'live' } as const
+const CODEX_AUTH_TIMEOUT_MS = 35_000
+export const CODEX_NATIVE_TOKEN_COMMAND = 'lite' as const
 const BASE_ROOT_KEYS = ['model', 'model_provider', 'model_catalog_json', 'web_search'] as const
 const OAUTH_ONLY_ROOT_KEYS = ['forced_login_method'] as const
 const OAUTH_ROOT_KEYS = [...BASE_ROOT_KEYS, ...OAUTH_ONLY_ROOT_KEYS] as const
@@ -31,6 +33,7 @@ export type CodexConfigIntent = {
   readonly baseUrl: string
   readonly authEnv: string
   readonly authCommand?: string
+  readonly authArgs?: readonly string[]
   readonly includeOAuthProvider?: boolean
   readonly catalogPath: string
   readonly defaultModel: string
@@ -138,13 +141,15 @@ function renderGatewayProvider(origin: string, intent: CodexConfigIntent): strin
   const authCommand = validateAuthCommand(intent.authCommand)
   return [
     `[model_providers.${CodexProviderId.GatewaySso}]`,
-    'name = "LiteLLM Gateway SSO"',
+    'name = "LiteLLM Gateway"',
     `base_url = ${tomlString(`${origin}/v1`)}`,
     `wire_api = ${tomlString(WIRE_API.Responses)}`,
     'supports_websockets = false',
     '',
     `[model_providers.${CodexProviderId.GatewaySso}.auth]`,
     `command = ${tomlString(authCommand)}`,
+    ...(intent.authArgs === undefined ? [] : [`args = ${JSON.stringify(intent.authArgs)}`]),
+    `timeout_ms = ${CODEX_AUTH_TIMEOUT_MS}`,
   ].join('\n')
 }
 
@@ -212,6 +217,7 @@ function readMcpServerIds(source: string): ReadonlySet<string> {
 }
 
 function validateAuthCommand(value: string): string {
+  if (value === CODEX_NATIVE_TOKEN_COMMAND) return value
   const windowsAbsolute = /^[A-Za-z]:[\\/]/.test(value) || value.startsWith('\\\\')
   if (value === '' || value.includes('\n') || value.includes('\r') || (!isAbsolute(value) && !windowsAbsolute)) {
     throw new Error('Codex gateway authCommand must be a stable absolute path.')

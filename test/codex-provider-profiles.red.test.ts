@@ -55,6 +55,7 @@ describe('Codex provider profiles', () => {
     expect(parsed.model_catalog_json).toBe(intent.catalogPath)
     expect(provider).toBeDefined()
     expect(provider.auth?.command).toBe(intent.authCommand)
+    expect(provider.auth?.timeout_ms).toBe(35_000)
     expect(provider.env_key).toBeUndefined()
     expect(provider.experimental_bearer_token).toBeUndefined()
     expect(provider.requires_openai_auth).toBeUndefined()
@@ -99,7 +100,7 @@ describe('Codex model catalog', () => {
     // Given: a model discovered without capability metadata
     const catalog = codexConfig.buildCodexCatalog([
       { id: 'vendor/unknown-model', object: 'model' },
-    ], bundledCatalog.template)
+    ], bundledCatalog)
 
     // When: Codex reads the generated JSON catalog
     const payload: unknown = JSON.parse(catalog.json)

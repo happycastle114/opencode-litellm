@@ -9,6 +9,7 @@ import { InstallPreparationErrorCode, prepareInstall,
 import { CodexMode, InstallAuth, InstallTarget, ToolkitDefault,
   type InstallOptions } from '../src/cli/install-intent'
 import { loadOfficialLiteLLMApiKey } from '../src/cli/official-token'
+import { nativeTokenBoundary } from './native-lite-test-support'
 
 const VALUE = {
   origin: 'https://stale-token.example.test',
@@ -74,6 +75,7 @@ describe('install preparation authentication recovery', () => {
           expect(loadOfficialLiteLLMApiKey({
             tokenFilePath: input.tokenFilePath,
             expectedBaseURL: input.baseUrl,
+            native: nativeTokenBoundary(join(homeDirectory, '.litellm', 'token.json')),
           })).toBe(VALUE.staleApiKey)
           writeToken(VALUE.refreshedApiKey)
           return { status: 'authenticated' }
@@ -112,7 +114,7 @@ function boundary(
 ): InstallPreparationBoundary {
   return {
     env: {}, home: () => homeDirectory, now: () => 123_000,
-    ssoBoundaries: { open: async () => undefined, selectTeam: async () => undefined },
+    ssoBoundaries: nativeTokenBoundary(join(homeDirectory, '.litellm', 'token.json')),
     ...overrides,
   }
 }

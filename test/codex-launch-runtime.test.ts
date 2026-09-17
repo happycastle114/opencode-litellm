@@ -3,7 +3,7 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'n
 import { delimiter, join, resolve } from 'node:path'
 import { parse } from 'smol-toml'
 import { runCliProgram } from '../src/cli/program'
-import { bundledCodexCatalogBoundary, DISCOVERY, setupProgramHome } from './cli-program-test-support'
+import { bundledCodexCatalogBoundary, BUNDLED_CATALOG_FIXTURE, DISCOVERY, setupProgramHome } from './cli-program-test-support'
 
 let home = ''
 setupProgramHome('codex-launch-runtime-', (path) => { home = path })
@@ -33,6 +33,10 @@ test('built CLI refreshes between native child launches with USERPROFILE-only ho
     const native = join(bin, 'native.cjs')
     writeFileSync(native, `const fs = require('node:fs');
 const path = require('node:path');
+if (process.argv.includes('--bundled')) {
+  process.stdout.write(${JSON.stringify(BUNDLED_CATALOG_FIXTURE)});
+  process.exit(0);
+}
 const config = fs.readFileSync(path.join(process.env.CODEX_HOME, 'config.toml'), 'utf8');
 const file = JSON.parse(config.match(/^model_catalog_json\\s*=\\s*(".*")/m)[1]);
 const selected = JSON.parse(config.match(/^model\\s*=\\s*(".*")/m)[1]);
@@ -69,10 +73,9 @@ fs.appendFileSync(path.join(process.env.HOME, 'native.jsonl'), JSON.stringify({ 
     expect(lines[1].selected).toBe('student-auto')
     expect(lines[1].args).toEqual(['exec', 'fixture'])
     status = 503
-    const fallback = await launch()
-    expect(fallback.exitCode).toBe(0)
-    expect(fallback.stderr).toContain('last validated Codex catalog')
     const snapshots = readFileSync(join(home, 'native.jsonl'), 'utf8')
+    expect((await launch()).exitCode).toBe(1)
+    expect(readFileSync(join(home, 'native.jsonl'), 'utf8')).toBe(snapshots)
     for (const rejected of [401, 403]) {
       status = rejected
       expect((await launch()).exitCode).toBe(1)
