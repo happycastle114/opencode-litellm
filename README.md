@@ -125,9 +125,13 @@ state. Start a fresh hybrid task for an older session with such state. Pick a
 fallback that supports your tools and input modalities. Gateway failures remain
 visible; the router never chooses another paid model on its own.
 
-Server mode requires the `/codex-hybrid/responses` extension documented in
-[the gateway repository](https://github.com/happycastle114/k3s-happycastle/blob/main/apps/services/llm-gateway/docs/codex-hybrid.md).
-It passes your Codex access token through your trusted gateway to ChatGPT, while
+Server mode requires a gateway extension exposing `/codex-hybrid/responses`
+with the model prefixes and quota rules above. Requests carry the Codex bearer
+in `Authorization`, the gateway credential in `x-litellm-api-key`, and the paid
+target in `x-codex-fallback-model`. The extension must admit the gateway key and
+send paid inference through the gateway's authenticated Responses endpoint.
+Use client mode with gateways that have only the standard `/v1/responses` route.
+Server mode passes your Codex access token through your trusted gateway to ChatGPT, while
 paid requests carry only the gateway key. Client mode sends the Codex access
 token directly to ChatGPT. Its authenticated listener binds only to an ephemeral
 loopback port and shuts down with the child. Launch it with `codex-litellm codex`;
@@ -252,7 +256,8 @@ launchd variable; already running clients must be restarted.
 --target <opencode|codex|both>     Which client(s) to configure
 --base-url <url>                   LiteLLM gateway origin
 --auth <sso|env>                   Authentication method
---codex-mode <gateway|oauth|both>  Codex connection mode
+--codex-mode <gateway|oauth|both|hybrid-server|hybrid-client> Codex connection mode
+--codex-fallback-model <model>     Paid gateway model for hybrid auto routing
 --search <name>                    Select search tools (repeatable)
 --mcp <name>                       Select MCP servers (repeatable)
 --toolset <name>                   Select MCP toolsets (repeatable)
