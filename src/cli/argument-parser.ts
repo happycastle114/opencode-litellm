@@ -103,6 +103,7 @@ export function parseInstallOptions(
       opencodeConfig: values.get('--opencode-config'),
       codexConfig: values.get('--codex-config'),
       codexMode: codexMode.value,
+      ...(values.has('--codex-fallback-model') ? { codexFallbackModel: values.get('--codex-fallback-model') } : {}),
       autoRouter: autoRouter.value,
       search,
       mcp,
@@ -150,7 +151,7 @@ export function parseDoctorOptions(argv: readonly string[]): OptionParseResult<D
 
 const VALUE_OPTIONS = new Set([
   '--target', '--base-url', '--auth', '--auth-env', '--opencode-config', '--codex-config',
-  '--codex-mode', '--auto-router', '--search', '--mcp', '--toolset', '--enable-mcp', '--disable-mcp',
+  '--codex-mode', '--codex-fallback-model', '--auto-router', '--search', '--mcp', '--toolset', '--enable-mcp', '--disable-mcp',
 ])
 const DOCTOR_VALUE_OPTIONS = new Set(['--target', '--opencode-config', '--codex-config'])
 

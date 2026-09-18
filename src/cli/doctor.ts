@@ -72,7 +72,7 @@ export function inspectCodexConfig(path: string, options: CodexDoctorOptions = {
   const oauthMain = config.model_provider === CodexProviderId.CodexOAuth
   const checks: DoctorCheck[] = [
     check(CodexDoctorCheckCode.Syntax, 'ok', 'Codex config is valid TOML', path),
-    oauthMain ? checkOAuthAuth(config, path) : checkBaseAuth(config, path),
+    oauthMain || config.model_provider === CodexProviderId.Hybrid ? checkOAuthAuth(config, path) : checkBaseAuth(config, path),
     checkCatalog(config, path, CodexDoctorCheckCode.BaseCatalog, oauthMain),
   ]
   const providers = isRecord(config.model_providers) ? config.model_providers : undefined
@@ -148,15 +148,19 @@ function checkHelper(config: Record<string, unknown>, path: string, options: Cod
 
 function checkOAuthAuth(profile: Record<string, unknown>, path: string): DoctorCheck {
   const providers = isRecord(profile.model_providers) ? profile.model_providers : undefined
-  const provider = providers?.[CodexProviderId.CodexOAuth]
+  const hybrid = profile.model_provider === CodexProviderId.Hybrid
+  const provider = providers?.[hybrid ? CodexProviderId.Hybrid : CodexProviderId.CodexOAuth]
   const headers = isRecord(provider) && isRecord(provider.env_http_headers)
     ? provider.env_http_headers
     : undefined
-  const valid = profile.model_provider === CodexProviderId.CodexOAuth &&
+  const paidHeaders = isRecord(provider) && isRecord(provider.http_headers) ? provider.http_headers : undefined
+  const fallback = paidHeaders?.['x-codex-fallback-model']
+  const valid = (profile.model_provider === CodexProviderId.CodexOAuth || hybrid) &&
     profile.forced_login_method === CODEX_VALUE.LoginMethod && isRecord(provider) &&
     provider.requires_openai_auth === true && provider.env_key === undefined &&
     provider.auth === undefined && provider.experimental_bearer_token === undefined &&
-    typeof provider.base_url === 'string' && provider.base_url.endsWith(CODEX_VALUE.OAuthPath) &&
+    typeof provider.base_url === 'string' && provider.base_url.endsWith(hybrid ? '/codex-hybrid' : CODEX_VALUE.OAuthPath) &&
+    (!hybrid || typeof fallback === 'string' && fallback.trim() !== '' && provider.supports_websockets === false) &&
     provider.wire_api === CODEX_VALUE.WireApi && isEnvName(headers?.[CODEX_VALUE.Header])
   return valid
     ? check(CodexDoctorCheckCode.OAuthAuth, 'ok', 'Codex OAuth config requires ChatGPT auth and an environment-backed LiteLLM header', path)

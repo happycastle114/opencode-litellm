@@ -31,7 +31,7 @@ npx @happycastle/codex-litellm codex
 ## What it does
 
 - Prompts for LiteLLM gateway URL, auth (SSO or env key), and Codex mode
-  (`gateway`, `oauth`, or `both`)
+  (`gateway`, `oauth`, `both`, `hybrid-server`, or `hybrid-client`)
 - Discovers models, search tools, MCP servers, and toolsets
 - Writes a `/model`-compatible Codex catalog and enables native live web search
 - Refreshes gateway models and native per-model fields before each CLI launch;
@@ -59,6 +59,14 @@ or refresh the gateway model list. See the
 [setup guide](https://github.com/happycastle114/opencode-litellm/blob/main/docs/client-setup.md).
 
 ## Requirements
+
+Hybrid modes combine personal Codex subscription and paid LiteLLM models in one
+picker. Install with `--codex-mode hybrid-server --codex-fallback-model <model>`,
+or choose `hybrid-client` for local switching, then run `codex-litellm codex`.
+The server mode needs the gateway hybrid extension; client mode needs the
+launcher to keep its loopback proxy running. Only `auto/<model>` opts into paid
+fallback on confirmed subscription exhaustion before output. See the core
+[hybrid setup and limits](https://github.com/happycastle114/opencode-litellm#codex).
 
 - Node.js `^22.22.2 || ^24.12.0 || >=26.0.0`
 - Codex installed; the 0.8.0 release target is CLI `0.154.0`

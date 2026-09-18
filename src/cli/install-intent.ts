@@ -85,6 +85,8 @@ export const CodexMode = {
   Gateway: 'gateway',
   OAuth: 'oauth',
   Both: 'both',
+  HybridServer: 'hybrid-server',
+  HybridClient: 'hybrid-client',
 } as const
 
 export type CodexMode = (typeof CodexMode)[keyof typeof CodexMode]
@@ -107,6 +109,7 @@ export type InstallOptions = {
   readonly opencodeConfig: string | undefined
   readonly codexConfig: string | undefined
   readonly codexMode: CodexMode
+  readonly codexFallbackModel?: string
   readonly autoRouter: AutoRouterModeValue
   readonly search: readonly string[]
   readonly mcp: readonly string[]

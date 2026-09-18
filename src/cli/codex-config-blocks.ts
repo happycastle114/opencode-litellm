@@ -25,6 +25,7 @@ const OAUTH_ROOT_KEYS = [...BASE_ROOT_KEYS, ...OAUTH_ONLY_ROOT_KEYS] as const
 export const CodexProviderId = {
   GatewaySso: 'litellm-gateway-sso',
   CodexOAuth: 'litellm-codex-oauth',
+  Hybrid: 'litellm-codex-hybrid',
 } as const
 
 export type CodexProviderId = typeof CodexProviderId[keyof typeof CodexProviderId]
@@ -46,6 +47,7 @@ export type CodexOAuthConfigIntent = Pick<
   CodexConfigIntent,
   'baseUrl' | 'authEnv' | 'catalogPath'
 > & {
+  readonly hybrid?: { readonly location: 'server' | 'client'; readonly fallbackModel: string }
   readonly defaultModel?: string
   readonly mcp?: readonly string[]
   readonly disableMcp?: readonly string[]
@@ -104,7 +106,7 @@ function renderBaseRoot(intent: CodexConfigIntent): string {
 function renderOAuthRoot(intent: CodexOAuthConfigIntent): string {
   const lines = [
     `forced_login_method = ${tomlString(LOGIN_METHOD.Chatgpt)}`,
-    `model_provider = ${tomlString(CodexProviderId.CodexOAuth)}`,
+    `model_provider = ${tomlString(intent.hybrid === undefined ? CodexProviderId.CodexOAuth : CodexProviderId.Hybrid)}`,
     `model_catalog_json = ${tomlString(intent.catalogPath)}`,
     `web_search = ${tomlString(WEB_SEARCH_MODE.Live)}`,
   ]
@@ -160,21 +162,24 @@ function renderOAuthManagedBlock(
 ): string {
   return [
     OAUTH_BLOCK_START,
-    renderOAuthProvider(origin, intent.authEnv),
+    renderOAuthProvider(origin, intent.authEnv, intent.hybrid),
     ...renderMcpSections(origin, intent.authEnv, intent, reservedMcpIds),
     OAUTH_BLOCK_END,
   ].join('\n\n')
 }
 
-function renderOAuthProvider(origin: string, authEnv: string): string {
+function renderOAuthProvider(origin: string, authEnv: string, hybrid?: CodexOAuthConfigIntent['hybrid']): string {
+  const baseUrl = hybrid === undefined ? `${origin}${OAUTH_PROVIDER_PATH}`
+    : hybrid.location === 'server' ? `${origin}/codex-hybrid` : 'http://127.0.0.1:0/codex-hybrid'
   return [
-    `[model_providers.${CodexProviderId.CodexOAuth}]`,
+    `[model_providers.${hybrid === undefined ? CodexProviderId.CodexOAuth : CodexProviderId.Hybrid}]`,
     'name = "LiteLLM Gateway via ChatGPT OAuth"',
-    `base_url = ${tomlString(`${origin}${OAUTH_PROVIDER_PATH}`)}`,
+    `base_url = ${tomlString(baseUrl)}`,
     `wire_api = ${tomlString(WIRE_API.Responses)}`,
     'supports_websockets = false',
     'requires_openai_auth = true',
     `env_http_headers = { ${tomlString(HEADER_NAME.LiteLLMApiKey)} = ${tomlString(authEnv)} }`,
+    ...(hybrid === undefined ? [] : [`http_headers = { "x-codex-fallback-model" = ${tomlString(hybrid.fallbackModel)} }`]),
   ].join('\n')
 }
 

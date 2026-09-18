@@ -3,6 +3,8 @@ import { resolveCodexCatalogPath } from './paths'
 import { parse as parseToml } from 'smol-toml'
 import { AgentLaunchError } from './agent-launch-contracts'
 import { buildCodexCatalog } from './codex-catalog'
+import { buildHybridCatalog } from './codex-hybrid-catalog'
+import { CodexProviderId } from './codex-config-blocks'
 import {
   createCodexSpawnBoundary,
   readBundledCodexCatalog,
@@ -32,7 +34,9 @@ export async function refreshCodexLaunchCatalog(input: CodexLaunchCatalogInput):
   const discovered = await discoverCodexGatewayResources({ origin: input.gatewayOrigin, apiKey: input.apiKey })
   const bundled = readBundledCodexCatalog(input.codexSpawnBoundary ?? createCodexSpawnBoundary())
   const selected = typeof config.model === 'string' ? config.model : undefined
-  const catalog = buildCodexCatalog(discovered.models, bundled, selected)
+  const catalog = config.model_provider === CodexProviderId.Hybrid
+    ? buildHybridCatalog(discovered.models, bundled, readHybridFallback(config), selected)
+    : buildCodexCatalog(discovered.models, bundled, selected)
   if (readManagedTextFile(input.configPath, '') !== source) {
     throw new AgentLaunchError('Codex configuration changed during model refresh; retry the launch.')
   }
@@ -41,6 +45,19 @@ export async function refreshCodexLaunchCatalog(input: CodexLaunchCatalogInput):
   if (catalog.defaultModel !== selected) {
     writeConfigAtomic(input.configPath, replaceRootModel(source, catalog.defaultModel), input)
   }
+}
+
+export function readHybridFallback(config: Record<string, unknown>): string {
+  const providers = config.model_providers
+  const hybrid = isRecord(providers) ? providers[CodexProviderId.Hybrid] : undefined
+  const headers = isRecord(hybrid) ? hybrid.http_headers : undefined
+  const fallback = isRecord(headers) ? headers['x-codex-fallback-model'] : undefined
+  if (typeof fallback !== 'string' || fallback.trim() === '') throw new AgentLaunchError('The hybrid fallback model is missing; reinstall with --codex-fallback-model.')
+  return fallback
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function replaceRootModel(source: string, model: string): string {

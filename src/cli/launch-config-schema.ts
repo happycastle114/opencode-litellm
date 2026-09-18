@@ -141,6 +141,8 @@ function parseCodexMode(value: unknown): CodexModeValue {
     case CodexMode.Gateway:
     case CodexMode.OAuth:
     case CodexMode.Both:
+    case CodexMode.HybridServer:
+    case CodexMode.HybridClient:
       return value
     default:
       throw new Error('invalid Codex mode')

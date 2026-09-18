@@ -22,7 +22,8 @@ Options:
   --base-url <url>                LiteLLM gateway origin
   --auth <sso|env>                Gateway authentication
   --auth-env <name>               Gateway key environment variable
-  --codex-mode <gateway|oauth|both> Codex connection mode
+  --codex-mode <gateway|oauth|both|hybrid-server|hybrid-client> Codex connection mode
+  --codex-fallback-model <model> Explicit paid gateway model for hybrid auto routing
   --auto-router <skip|configure|dry-run> Optional Claude Code Auto Router setup
   --search <name>                 Select an available search tool (repeatable)
   --mcp <name>                    Select an available MCP server (repeatable)

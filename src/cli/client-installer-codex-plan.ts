@@ -30,6 +30,7 @@ import {
 import type { PreparedInstall } from './install-preparation'
 import { CodexMode, InstallAuth } from './install-intent'
 import type { PathEnv } from './paths'
+import { buildHybridCatalog } from './codex-hybrid-catalog'
 
 export type { CodexInstallDestinationPaths } from './client-installer-codex-destinations'
 export { resolveCodexInstallDestinationPaths } from './client-installer-codex-destinations'
@@ -74,6 +75,27 @@ export function prepareCodexInstall(
   } as const
 
   switch (prepared.options.codexMode) {
+    case CodexMode.HybridServer:
+    case CodexMode.HybridClient: {
+      const fallback = prepared.options.codexFallbackModel ?? prepared.defaultModel
+      if (fallback === undefined || fallback.trim() === '') {
+        throw new CodexInstallPlanningError('Hybrid mode requires --codex-fallback-model with an explicit paid gateway model.')
+      }
+      const bundled = loadBundledCatalog(boundary)
+      const catalog = buildHybridCatalog(prepared.discovery.models, bundled, fallback)
+      const source = readCodexSource(paths.config)
+      const output = renderCodexOAuthConfig(source.contents, {
+        ...oauthIntent(prepared, bundled, paths.gatewayCatalog),
+        defaultModel: catalog.defaultModel,
+        hybrid: { location: prepared.options.codexMode === CodexMode.HybridServer ? 'server' : 'client', fallbackModel: fallback },
+      })
+      return { ...common, assets: [
+        createCodexRetireAsset(helperPath),
+        createCodexWriteAsset(paths.gatewayCatalog, catalog.json),
+        createCodexWriteAsset(paths.config, output, source.expectation),
+        createCodexRetireAsset(paths.oauthProfile), createCodexRetireAsset(paths.oauthCatalog),
+      ] }
+    }
     case CodexMode.Gateway: {
       const bundled = loadBundledCatalog(boundary)
       const catalog = buildCodexCatalog(prepared.discovery.models, bundled, prepared.defaultModel)

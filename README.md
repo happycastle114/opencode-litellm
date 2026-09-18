@@ -93,6 +93,46 @@ Codex connection modes (`--codex-mode`):
 | `gateway` | Gateway provider + model catalog from `/v1/models` |
 | `oauth` | ChatGPT OAuth pass-through provider |
 | `both` (default) | Gateway as main + OAuth as `--profile codex-oauth` |
+| `hybrid-server` | One picker; gateway server routes subscription, auto fallback, and paid models |
+| `hybrid-client` | Same picker; a local proxy routes requests while the toolkit launches Codex |
+
+To combine your personal subscription with a paid gateway model:
+
+```bash
+codex login
+npx @happycastle/codex-litellm install --codex-mode hybrid-server --codex-fallback-model <gateway-model>
+npx @happycastle/codex-litellm codex
+```
+
+Use `hybrid-client` instead when the server has no hybrid extension. Both modes
+require your gateway login/key and keep Codex's own ChatGPT login and refresh.
+The fallback must be a chat model available to that gateway key; installation
+and each launch validate it. Interactive setup uses the selected gateway model
+as the fallback when the flag is omitted. Selecting auto explicitly permits paid
+usage under your gateway key's existing model permissions and budget.
+
+The picker shows `subscription/<model>` (subscription only), `auto/<model>`
+(subscription first, then the configured fallback), and `litellm/<model>`
+(gateway directly). Only a structured `usage_limit_reached` error before any
+semantic stream output triggers automatic fallback. Ordinary 429s, authentication
+errors, timeouts, and failures after output/tool events do not trigger a paid
+retry. Each request tries the subscription again, so it resumes after quota reset.
+
+Hybrid routing sends full conversation text and tool history over HTTP, removes
+provider-scoped reasoning IDs, and rejects opaque compaction checkpoints,
+item references, and `previous_response_id` instead of discarding conversation
+state. Start a fresh hybrid task for an older session with such state. Pick a
+fallback that supports your tools and input modalities. Gateway failures remain
+visible; the router never chooses another paid model on its own.
+
+Server mode requires the `/codex-hybrid/responses` extension documented in
+[the gateway repository](https://github.com/happycastle114/k3s-happycastle/blob/main/apps/services/llm-gateway/docs/codex-hybrid.md).
+It passes your Codex access token through your trusted gateway to ChatGPT, while
+paid requests carry only the gateway key. Client mode sends the Codex access
+token directly to ChatGPT. Its authenticated listener binds only to an ephemeral
+loopback port and shuts down with the child. Launch it with `codex-litellm codex`;
+opening the desktop icon alone does not start the local proxy. Server mode can
+use the desktop with the configured gateway key environment available to it.
 
 Gateway catalog rows are visible in `/model` and advertise native search.
 The installer sets `web_search = "live"`, so Codex sends the Responses

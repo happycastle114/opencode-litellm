@@ -31,6 +31,9 @@ export type AgentSpawnOptions = {
 }
 
 export type AgentLaunchBoundary = {
+  readonly spawnAsync?: (
+    file: string, args: readonly string[], options: AgentSpawnOptions,
+  ) => Promise<AgentProcessResult>
   readonly which?: (command: AgentCommand) => string | undefined
   readonly spawn: (
     file: string,
