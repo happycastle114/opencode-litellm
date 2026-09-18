@@ -54,7 +54,7 @@ describe('doctor Codex inspection', () => {
     ]))
   })
 
-  test('accepts direct native LiteLLM authentication without a generated helper', () => {
+  test('rejects legacy native commands that can access the OS keychain', () => {
     // Given: Codex calls the official CLI for this exact gateway
     writeFileSync(configPath, nativeAuthConfig(['--base-url', 'https://llm.example.com', 'auth', 'print-token']))
     rmSync(helperPath)
@@ -62,10 +62,10 @@ describe('doctor Codex inspection', () => {
     // When: doctor inspects the generated configuration
     const report = inspectCodexConfig(configPath, { helperPath })
 
-    // Then: native authentication is healthy without any local helper asset
-    expect(report.status).toBe('ok')
-    expect(findCheck(report, CodexDoctorCheckCode.BaseAuth).status).toBe('ok')
-    expect(report.checks.some((entry) => entry.code === CodexDoctorCheckCode.Helper)).toBe(false)
+    // Then: reinstall is required to add the helper that blocks keyring access.
+    expect(report.status).toBe('error')
+    expect(findCheck(report, CodexDoctorCheckCode.BaseAuth).status).toBe('error')
+    expect(findCheck(report, CodexDoctorCheckCode.Helper).status).toBe('error')
   })
 
   test.each([

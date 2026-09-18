@@ -22,6 +22,7 @@ import {
 import type { ProgramContext } from './program-contracts'
 import { isHeaderSafeApiKey } from '../utils/api-key'
 import { resolveProcessExitCode } from './process-exit-code'
+import { launchHybridClient } from './codex-hybrid-launch'
 
 const TOKEN_PATH = ['.litellm', 'token.json'] as const
 
@@ -44,7 +45,7 @@ export async function runAgent(
       codexSpawnBoundary: context.codexSpawnBoundary,
     })
   }
-  const result = launchAgent({
+  const input = {
     command: agentCommand(command),
     args: argv,
     gatewayOrigin: state.gatewayOrigin,
@@ -53,7 +54,10 @@ export async function runAgent(
     configPath: state.configPath,
     codexMode: state.codexMode,
     environment: context.env,
-  }, context.agentLaunchBoundary)
+  }
+  const result = command === BOUNDARY_COMMAND.Codex && state.codexMode === CodexMode.HybridClient
+    ? await launchHybridClient(input, context.agentLaunchBoundary)
+    : launchAgent(input, context.agentLaunchBoundary)
   return {
     exitCode: resolveProcessExitCode(result),
     stdout: '',

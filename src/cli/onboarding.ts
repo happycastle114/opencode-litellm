@@ -126,6 +126,8 @@ const AUTH_CHOICES: readonly NumberedChoice<InstallAuthValue>[] = [
 const CODEX_CHOICES: readonly NumberedChoice<CodexOnboardingMode>[] = [
   { label: 'LiteLLM gateway', value: CodexMode.Gateway }, { label: 'Codex OAuth pass-through', value: CodexMode.OAuth },
   { label: 'Both profiles', value: CodexMode.Both },
+  { label: 'Hybrid: server routing (subscription, then paid fallback)', value: CodexMode.HybridServer },
+  { label: 'Hybrid: client routing (subscription, then paid fallback)', value: CodexMode.HybridClient },
 ]
 
 type ResolvedAutoRouterMode = Exclude<AutoRouterModeValue, typeof AutoRouterMode.Prompt>
@@ -303,6 +305,8 @@ function codexModeLabel(mode: CodexModeValue): string {
     case CodexMode.Gateway: return 'Gateway'
     case CodexMode.OAuth: return 'OAuth pass-through'
     case CodexMode.Both: return 'Both (gateway + OAuth)'
+    case CodexMode.HybridServer: return 'Hybrid (server routing)'
+    case CodexMode.HybridClient: return 'Hybrid (client routing)'
     default: return assertNever(mode)
   }
 }

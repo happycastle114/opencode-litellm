@@ -150,7 +150,7 @@ describe('CLI program', () => {
     expect(result.exitCode).toBe(1)
     expect(result.stdout).toBe('')
     expect(result.stderr).toContain('unverified')
-    expect(result.stderr).toContain('lite logout')
+    expect(result.stderr).toContain('OS keychain is not accessed')
     expect(nativeCalls).toBe(0)
   })
 })

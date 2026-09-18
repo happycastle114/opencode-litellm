@@ -11,6 +11,7 @@ import {
   resolveExecutable,
 } from './agent-launch-process'
 import { normalizeOrigin } from './install-intent'
+import { CODEX_FILE_AUTH_ARGS } from './credential-storage'
 
 export {
   AgentCommand,
@@ -36,7 +37,7 @@ export function launchAgent(
   const origin = normalizeGatewayOrigin(input.gatewayOrigin)
   const executable = resolveExecutable(command, boundary)
   const childEnvironment = buildChildEnvironment(command, input, origin)
-  const args = buildAgentArguments(input.args)
+  const args = command === AgentCommand.Codex ? [...CODEX_FILE_AUTH_ARGS, ...input.args] : [...input.args]
 
   try {
     return boundary.spawn(executable, args, {
@@ -70,10 +71,4 @@ function normalizeGatewayOrigin(value: string): string {
   throw new AgentLaunchError(
     'The LiteLLM gateway origin must be an absolute http(s) origin without credentials, query, or fragment.',
   )
-}
-
-function buildAgentArguments(
-  args: readonly string[],
-): readonly string[] {
-  return [...args]
 }

@@ -38,8 +38,9 @@ const ERROR_CODE = {
 } as const
 
 const NATIVE_LOGOUT = {
-  // LiteLLM 1.101.0 auth.py:937-972 can exit zero after a failed keychain erase.
   Success: 'Logged out successfully. Authentication token cleared.',
+  FileOnlySuccess: 'Logged out locally, but your OS keychain could not be checked, so a credential stored there by an earlier login may still be usable.\n' +
+    'Unset LITELLM_CLI_DISABLE_KEYRING and run \'lite logout\' again to clear it.',
 } as const
 
 export const AuthInspectionStatus = INSPECTION_STATUS
@@ -81,9 +82,9 @@ export class LiteLLMAuthLifecycleError extends Error {
 
   constructor(readonly code: AuthLifecycleErrorCode) {
     super(code === ERROR_CODE.CredentialStoreUnverified
-      ? 'LiteLLM metadata is absent; the native credential store is unverified. Run lite logout for native diagnostic and cleanup.'
+      ? 'LiteLLM metadata is absent; local logout is unverified. The OS keychain is not accessed.'
       : `LiteLLM auth lifecycle failed (${code}).` +
-        (code === ERROR_CODE.DeleteFailed ? ' Run lite logout to inspect the native credential-store diagnostic.' : ''))
+        (code === ERROR_CODE.DeleteFailed ? ' Retry codex-litellm logout to clear the file-based session.' : ''))
   }
 }
 
@@ -156,7 +157,7 @@ export function logoutLiteLLMAuth(
       baseUrl: input.baseUrl,
       tokenFilePath: path,
     }, input.native)
-    if (output.trim() !== NATIVE_LOGOUT.Success) {
+    if (output.trim() !== NATIVE_LOGOUT.Success && output.trim() !== NATIVE_LOGOUT.FileOnlySuccess) {
       throw new LiteLLMAuthLifecycleError(ERROR_CODE.DeleteFailed)
     }
     return { status: LOGOUT_STATUS.Removed }

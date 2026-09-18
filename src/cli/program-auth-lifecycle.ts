@@ -73,7 +73,7 @@ async function mutateAuth(
     case AUTH_COMMAND.Logout: {
       const result = logoutLiteLLMAuth({ baseUrl: options.baseUrl, tokenFilePath, native: context.ssoBoundaries })
       return lifecycleResult(
-        `LiteLLM SSO session ${result.status}.`,
+        `File-based LiteLLM SSO session ${result.status}. The OS keychain was not accessed.`,
         clearCodexSessionEnvironment(options.authEnv, context),
         true,
       )

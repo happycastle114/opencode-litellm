@@ -31,7 +31,7 @@ npx @happycastle/codex-litellm codex
 ## What it does
 
 - Prompts for LiteLLM gateway URL, auth (SSO or env key), and Codex mode
-  (`gateway`, `oauth`, or `both`)
+  (`gateway`, `oauth`, `both`, `hybrid-server`, or `hybrid-client`)
 - Discovers models, search tools, MCP servers, and toolsets
 - Writes a `/model`-compatible Codex catalog and enables native live web search
 - Refreshes gateway models and native per-model fields before each CLI launch;
@@ -40,16 +40,20 @@ npx @happycastle/codex-litellm codex
 
 SSO uses the official `lite login --pkce`, `lite auth print-token`, and
 `lite logout` commands with the configured gateway URL. The official CLI owns
-renewal and OS keyring storage; `~/.litellm/token.json` holds metadata, with
-owner-only file storage when no usable keyring exists. Python is required by
+renewal and owner-only storage in `~/.litellm/token.json`. The toolkit forces
+`LITELLM_CLI_DISABLE_KEYRING=1` and selects file storage for Codex login and MCP
+OAuth credentials. Python is required by
 the CLI and can be managed by [uv](https://docs.astral.sh/uv/guides/tools/).
 
 Manual keys use `--auth env` and the separate owner-only file
 `~/.config/opencode-litellm/api-key.json` (`XDG_CONFIG_HOME` is honored).
 Keys saved by older toolkit versions require interactive re-entry; the toolkit
 does not infer or import manual keys from the official SSO store.
-Codex SSO invokes `lite --base-url <origin> auth print-token` directly through
-native command auth. Only saved manual keys need the toolkit's file reader.
+Codex SSO uses a private helper that invokes `lite --base-url <origin> auth print-token`
+with keyring access disabled, including direct desktop launches. Saved manual
+keys use an exact-file reader. Reinstall older configurations to replace direct
+`lite` auth commands; keychain-only logins require a new toolkit `login`.
+Existing OS keychain entries are never read, migrated, or deleted.
 
 For OAuth pass-through in `both` mode, run
 `npx @happycastle/codex-litellm codex --profile codex-oauth`. The launcher supplies
@@ -59,6 +63,14 @@ or refresh the gateway model list. See the
 [setup guide](https://github.com/happycastle114/opencode-litellm/blob/main/docs/client-setup.md).
 
 ## Requirements
+
+Hybrid modes combine personal Codex subscription and paid LiteLLM models in one
+picker. Install with `--codex-mode hybrid-server --codex-fallback-model <model>`,
+or choose `hybrid-client` for local switching, then run `codex-litellm codex`.
+The server mode needs the gateway hybrid extension; client mode needs the
+launcher to keep its loopback proxy running. Only `auto/<model>` opts into paid
+fallback on confirmed subscription exhaustion before output. See the core
+[hybrid setup and limits](https://github.com/happycastle114/opencode-litellm#codex).
 
 - Node.js `^22.22.2 || ^24.12.0 || >=26.0.0`
 - Codex installed; the 0.8.0 release target is CLI `0.154.0`

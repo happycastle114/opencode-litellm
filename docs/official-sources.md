@@ -1,6 +1,6 @@
 # Official sources and support matrix
 
-Authentication and native-client contracts checked on 2026-09-17 for 0.8.0.
+Authentication and native-client contracts checked on 2026-09-18 for 0.8.0.
 Runtime behavior is documented against the public
 LiteLLM, OpenCode, Codex, Claude Code, and Oh My OpenAgent interfaces below.
 GitHub source references use immutable commits where the implementation
@@ -24,7 +24,7 @@ local CLI requirements do not change the operator's remote LiteLLM version.
 |---|---|---|
 | PKCE login and logout | [`auth.py`](https://github.com/BerriAI/litellm/blob/18243cd7af4c3325165ba68b21379e2719e051c7/litellm/proxy/client/cli/commands/auth.py#L838-L973), [`main.py`](https://github.com/BerriAI/litellm/blob/18243cd7af4c3325165ba68b21379e2719e051c7/litellm/proxy/client/cli/main.py#L97-L101), [`cli_token_utils.py`](https://github.com/BerriAI/litellm/blob/18243cd7af4c3325165ba68b21379e2719e051c7/litellm/litellm_core_utils/cli_token_utils.py#L149-L198) | Login passes `--api-key ''` before `login --pkce` to skip renewal of an old credential, then requires a newer native login stamp before token lookup. Native logout owns revocation and cleanup; missing metadata is an unverified store, not successful logout |
 | Exact-origin token resolution and renewal | [`get_api_key`](https://github.com/BerriAI/litellm/blob/18243cd7af4c3325165ba68b21379e2719e051c7/litellm/proxy/client/cli/commands/auth.py#L235-L263) and [`print_token`](https://github.com/BerriAI/litellm/blob/18243cd7af4c3325165ba68b21379e2719e051c7/litellm/proxy/client/cli/commands/auth.py#L976-L1034) | Capture `lite --base-url <origin> auth print-token` in memory; never substitute an ambient key for an explicitly selected SSO session |
-| Keyring and metadata storage | [`cli_token_utils.py`](https://github.com/BerriAI/litellm/blob/18243cd7af4c3325165ba68b21379e2719e051c7/litellm/litellm_core_utils/cli_token_utils.py#L1-L10) and [`save_cli_token`](https://github.com/BerriAI/litellm/blob/18243cd7af4c3325165ba68b21379e2719e051c7/litellm/litellm_core_utils/cli_token_utils.py#L149-L216) | Let upstream store secrets in the OS keyring and metadata in `~/.litellm/token.json`, with owner-only file fallback when a keyring is unavailable; do not bypass the native reader with a JSON `key` lookup |
+| File-only SSO storage | [`cli_keyring.py`](https://github.com/BerriAI/litellm/blob/18243cd7af4c3325165ba68b21379e2719e051c7/litellm/litellm_core_utils/cli_keyring.py#L103-L120) and [`save_cli_token`](https://github.com/BerriAI/litellm/blob/18243cd7af4c3325165ba68b21379e2719e051c7/litellm/litellm_core_utils/cli_token_utils.py#L149-L216) | Force `LITELLM_CLI_DISABLE_KEYRING=1` before native login, renewal, logout, and Codex auth helper execution. Upstream skips importing/probing keyring and uses the owner-only token file; retain the native reader and renewal flow |
 | Agent environment conventions | [`agents.py`](https://github.com/BerriAI/litellm/blob/18243cd7af4c3325165ba68b21379e2719e051c7/litellm/proxy/client/cli/commands/agents.py) | Keep secret-free per-client launch intent; resolve the selected credential at launch and supply gateway/OAuth/MCP admission only to the child process; no `launchctl setenv` |
 | Claude Max gateway admission | [`user_api_key_auth.py`](https://github.com/BerriAI/litellm/blob/5d4c4d0fce45c73c4b56b48e46dfc4e56e8b0aa5/litellm/proxy/auth/user_api_key_auth.py#L121-L126) and its [scheme normalizer](https://github.com/BerriAI/litellm/blob/5d4c4d0fce45c73c4b56b48e46dfc4e56e8b0aa5/litellm/proxy/auth/user_api_key_auth.py#L260-L281) | Send `x-litellm-api-key: Bearer <key>`; the configured generic pass-through route authenticates through `user_api_key_auth`, which removes the scheme before key validation while preserving Claude OAuth in `Authorization` |
 
@@ -33,9 +33,14 @@ the configured environment variable first, then an exact-origin saved key
 from `~/.config/opencode-litellm/api-key.json`, or
 `$XDG_CONFIG_HOME/opencode-litellm/api-key.json` when configured. The record
 contains only `base_url` and `key`, with mode `0600` on POSIX. The official
-CLI owns `~/.litellm/token.json` and its keyring entries; it may migrate
-plaintext secrets from that file into the keyring. Manual API keys therefore
-use a different file, not a marker in the SSO record.
+CLI owns `~/.litellm/token.json`. Toolkit invocations disable OS keyring
+access and keep native SSO credentials in that owner-only file. Manual keys
+use a separate file because they have a different renewal and logout lifecycle.
+Previously saved keychain-only credentials require a new toolkit login;
+existing keychain entries are never read, migrated, or deleted. Native logout
+can retain secret-free metadata and report that old keychain entries were not
+checked. The toolkit reports only file-session removal and never suggests
+enabling keyring access to complete that operation.
 
 Old manually entered keys require explicit re-entry with `--auth env`;
 neither a `user_role` label nor the visible model list proves the credential
@@ -293,7 +298,7 @@ profile. No previously generated catalog serves as the native template.
 | ChatGPT login | [Authentication](https://learn.chatgpt.com/docs/auth) | Codex owns the OAuth `Authorization` header and login lifecycle |
 | Bundled model catalog | Codex CLI `codex debug models --bundled` | Copy the bundled catalog unchanged for OAuth; use a matching native model row for gateway models when available |
 | Runtime inventory and account state | [App-server API](https://learn.chatgpt.com/docs/app-server) | Native `model/list` reports loaded models/capabilities; `account/read` and `account/login/start` own account inspection/login. Custom gateway catalogs still use the documented startup `model_catalog_json` setting |
-| Command-backed provider authentication | [Configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference) | Gateway SSO directly invokes `lite` with `auth.args` for exact-origin `auth print-token`; only saved manual keys use the toolkit file reader. Do not combine provider command auth with `env_key` or `requires_openai_auth` |
+| Command-backed provider authentication | [Configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference) | Gateway SSO uses a private helper for exact-origin `lite auth print-token` with keyring access disabled; saved manual keys use an exact-file reader. Do not combine provider command auth with `env_key` or `requires_openai_auth` |
 | Native web search | [Configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference) and [developer commands](https://learn.chatgpt.com/docs/developer-commands?surface=cli) | Mark gateway catalog rows `supports_search_tool: true`, set `web_search = "live"`, and send Codex's native Responses `web_search` tool through LiteLLM |
 | Native OAuth request compression | Codex `0.154.0` [`EnableRequestCompression` default](https://github.com/openai/codex/blob/6b9826e3aa83b1a5947db50f4332cb9c65f1b340/codex-rs/features/src/lib.rs#L1220-L1225) and [zstd selector](https://github.com/openai/codex/blob/6b9826e3aa83b1a5947db50f4332cb9c65f1b340/codex-rs/core/src/client.rs#L1534-L1542); LiteLLM `1.101.0` [JSON body parser](https://github.com/BerriAI/litellm/blob/18243cd7af4c3325165ba68b21379e2719e051c7/litellm/proxy/common_utils/http_parsing_utils.py#L156-L182) | Retain the gateway compatibility override only in OAuth-active config layers, preserve other feature keys, and restore a pre-existing user value when the main config returns to gateway mode |
 | Shared skills | [Build skills](https://learn.chatgpt.com/docs/build-skills) | Install the same global research skill directory for every selected target |
@@ -321,17 +326,25 @@ and the provider identifies as OpenAI. The cited LiteLLM body parser consumes
 JSON bytes, so the toolkit retains its OAuth gateway compatibility override.
 The managed override is removed from gateway-only
 layers, with any displaced user assignment restored byte-for-byte.
-The gateway SSO provider uses native command authentication directly:
+The gateway SSO provider uses a private helper for native command authentication:
 
 ```toml
 [model_providers.litellm-gateway-sso.auth]
-command = "lite"
-args = ["--base-url", "https://gateway.example", "auth", "print-token"]
+command = "/home/user/.codex/libexec/litellm-auth-token.mjs"
 timeout_ms = 35000
 ```
 
-Only saved manual-key mode installs the exact-file reader at
-`~/.codex/libexec/litellm-auth-token.mjs`. Both modes use a separate
+The SSO helper pins the gateway and HOME, clears ambient native proxy credentials,
+and forces `LITELLM_CLI_DISABLE_KEYRING=1` before calling `lite auth print-token`.
+Codex 0.154's [`ModelProviderAuthInfo`](https://github.com/openai/codex/blob/rust-v0.154.0/codex-rs/protocol/src/config_types.rs#L569-L590)
+has no command environment field, so a direct `lite` command cannot enforce this
+policy for desktop launches. Reinstall old configurations to replace that command.
+Managed root/profile configs and toolkit Codex commands set
+`cli_auth_credentials_store="file"` and `mcp_oauth_credentials_store="file"`,
+including bundled catalog discovery before installation. Discovery uses an
+isolated temporary home so user plugins, MCP servers,
+and saved secrets do not initialize while reading the bundled model inventory.
+Saved manual-key mode uses the same helper destination for its exact-file reader. Both modes use a separate
 `GET /v1/models` catalog. In `both` mode, the launcher preserves the main
 gateway config and never injects a profile; OAuth pass-through is explicit as
 `opencode-litellm codex --profile codex-oauth`. In `oauth` mode the OAuth
@@ -403,8 +416,8 @@ gateway `/v1` is stripped before `/claude-code/marketplace.json` is appended.
 | Launch state | Schema-versioned, merged per-client state at `$XDG_CONFIG_HOME/opencode-litellm/launch.json` | Atomic `0600`; gateway/auth/config/search/mode metadata only; never a key or OAuth token |
 | OpenCode | SDK/plugin `1.18.31` | Config-hook registration preserves custom providers; restart after installation |
 | Codex | Release target `0.154.0` | Native per-model catalog fields are refreshed before gateway CLI launch; re-run setup for desktop catalog updates |
-| macOS | Native CLI/keyring and toolkit child environment | No `launchctl setenv`; logout clears the selected legacy launchd variable |
-| Linux / WSL | Native CLI storage and toolkit child environment | Usable keyrings are preferred; official CLI reports owner-only file fallback when unavailable |
+| macOS | Native CLI file storage and toolkit child environment | Keyring access disabled; no `launchctl setenv`; logout clears the selected legacy launchd variable |
+| Linux / WSL | Native CLI file storage and toolkit child environment | Keyring access disabled; official CLI uses an owner-only file |
 | Native Windows | Installer, native CLI, launcher, and `.bat` bootstrap | Install `lite` in the same Windows environment; WSL has separate credentials and paths |
 
 The credential variable selected by `--auth-env` must be shell-compatible and

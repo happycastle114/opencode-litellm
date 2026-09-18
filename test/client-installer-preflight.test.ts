@@ -184,7 +184,7 @@ describe('client installer preflight', () => {
       expect(calls).toEqual([])
       const config = parseToml(readFileSync(configPath, 'utf8'))
       expect(config.model_providers?.['litellm-gateway-sso'].auth).toMatchObject({
-        command: 'lite', args: ['--base-url', VALUE.GatewayOrigin, 'auth', 'print-token'], timeout_ms: 35_000,
+        command: join(homeDirectory, '.codex', 'libexec', 'litellm-auth-token.mjs'), timeout_ms: 35_000,
       })
     },
   )

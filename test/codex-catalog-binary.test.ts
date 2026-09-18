@@ -7,6 +7,7 @@ import { buildCodexCatalog, renderCodexOAuthConfig } from '../src/cli/codex-conf
 import { createCodexSpawnBoundary, readBundledCodexCatalog } from '../src/cli/codex-discovery'
 import { QWEN_GATEWAY_MODEL } from '../src/cli/qwen-routing'
 import { STUDENT_AUTO } from '../src/utils/student-catalog'
+import { CODEX_FILE_AUTH_ARGS, FILE_AUTH_ENVIRONMENT } from '../src/cli/credential-storage'
 
 const RUN_BINARY_TESTS = process.env.CODEX_BINARY_TESTS === '1'
 const codexBinary = RUN_BINARY_TESTS ? Bun.which('codex') : null
@@ -33,9 +34,10 @@ describe('Codex model catalog binary compatibility', () => {
     )
 
     try {
-      const result = spawnSync(codexBinary, ['debug', 'models'], {
+      const result = spawnSync(codexBinary, [...CODEX_FILE_AUTH_ARGS, 'debug', 'models'], {
         encoding: 'utf8',
         env: {
+          ...FILE_AUTH_ENVIRONMENT,
           PATH: process.env.PATH ?? '/usr/bin:/bin',
           CODEX_HOME: codexHome,
           HOME: root,
@@ -82,19 +84,20 @@ describe('Codex model catalog binary compatibility', () => {
 
       try {
         const env = {
+          ...FILE_AUTH_ENVIRONMENT,
           PATH: process.env.PATH ?? '/usr/bin:/bin',
           CODEX_HOME: codexHome,
           HOME: root,
           LITELLM_PROXY_API_KEY: 'isolated-fixture-key',
         }
         const models = spawnSync(codexBinary, [
-          'debug', 'models', '-c', `model_catalog_json=${JSON.stringify(catalogPath)}`,
+          ...CODEX_FILE_AUTH_ARGS, 'debug', 'models', '-c', `model_catalog_json=${JSON.stringify(catalogPath)}`,
         ], { encoding: 'utf8', env })
         const profile = spawnSync(codexBinary, [
-          '--profile', 'codex-oauth', 'debug', 'prompt-input', 'fixture',
+          ...CODEX_FILE_AUTH_ARGS, '--profile', 'codex-oauth', 'debug', 'prompt-input', 'fixture',
         ], { encoding: 'utf8', env })
         writeFileSync(join(codexHome, 'config.toml'), oauthConfig)
-        const mcp = spawnSync(codexBinary, ['mcp', 'list', '--json'], {
+        const mcp = spawnSync(codexBinary, [...CODEX_FILE_AUTH_ARGS, 'mcp', 'list', '--json'], {
           encoding: 'utf8', env,
         })
 

@@ -1,4 +1,4 @@
-import { CODEX_NATIVE_TOKEN_COMMAND } from './codex-config-blocks'
+import { renderNativeLiteAuthHelper } from './native-lite-helper'
 import { loadEnvKey, resolveManualLiteLLMApiKeyPath } from './official-token'
 import {
   CODEX_AUTH_HELPER_MODE,
@@ -30,6 +30,7 @@ import {
 import type { PreparedInstall } from './install-preparation'
 import { CodexMode, InstallAuth } from './install-intent'
 import type { PathEnv } from './paths'
+import { buildHybridCatalog } from './codex-hybrid-catalog'
 
 export type { CodexInstallDestinationPaths } from './client-installer-codex-destinations'
 export { resolveCodexInstallDestinationPaths } from './client-installer-codex-destinations'
@@ -61,19 +62,42 @@ export function prepareCodexInstall(
   const apiKeyFilePath = resolveManualLiteLLMApiKeyPath({ ...boundary.env, HOME: homeDirectory })
   const usesManualKey = prepared.options.auth === InstallAuth.Environment &&
     (prepared.deferredApiKey !== undefined || loadEnvKey(apiKeyFilePath, prepared.options.baseUrl) === prepared.apiKey)
-  const helperAsset = usesManualKey && prepared.options.codexMode !== CodexMode.OAuth
+  const usesNativeKey = prepared.options.auth === InstallAuth.Sso
+  const helperAsset = (usesNativeKey || usesManualKey) && prepared.options.codexMode !== CodexMode.OAuth
     ? createCodexManagedWriteAsset(
         helperPath,
-        renderCodexAuthHelperSource(prepared.options.baseUrl, apiKeyFilePath),
+        usesNativeKey ? renderNativeLiteAuthHelper(prepared.options.baseUrl, homeDirectory)
+          : renderCodexAuthHelperSource(prepared.options.baseUrl, apiKeyFilePath),
         CODEX_AUTH_HELPER_MODE,
       )
     : createCodexRetireAsset(helperPath)
-  const auth = gatewayAuth(prepared.options.auth, prepared.options.baseUrl, helperPath, usesManualKey)
+  const auth = gatewayAuth(prepared.options.auth, helperPath, usesManualKey)
   const common = {
     path: paths.config,
   } as const
 
   switch (prepared.options.codexMode) {
+    case CodexMode.HybridServer:
+    case CodexMode.HybridClient: {
+      const fallback = prepared.options.codexFallbackModel ?? prepared.defaultModel
+      if (fallback === undefined || fallback.trim() === '') {
+        throw new CodexInstallPlanningError('Hybrid mode requires --codex-fallback-model with an explicit paid gateway model.')
+      }
+      const bundled = loadBundledCatalog(boundary)
+      const catalog = buildHybridCatalog(prepared.discovery.models, bundled, fallback)
+      const source = readCodexSource(paths.config)
+      const output = renderCodexOAuthConfig(source.contents, {
+        ...oauthIntent(prepared, bundled, paths.gatewayCatalog),
+        defaultModel: catalog.defaultModel,
+        hybrid: { location: prepared.options.codexMode === CodexMode.HybridServer ? 'server' : 'client', fallbackModel: fallback },
+      })
+      return { ...common, assets: [
+        createCodexRetireAsset(helperPath),
+        createCodexWriteAsset(paths.gatewayCatalog, catalog.json),
+        createCodexWriteAsset(paths.config, output, source.expectation),
+        createCodexRetireAsset(paths.oauthProfile), createCodexRetireAsset(paths.oauthCatalog),
+      ] }
+    }
     case CodexMode.Gateway: {
       const bundled = loadBundledCatalog(boundary)
       const catalog = buildCodexCatalog(prepared.discovery.models, bundled, prepared.defaultModel)
@@ -197,13 +221,12 @@ function loadBundledCatalog(
 
 function gatewayAuth(
   auth: PreparedInstall['options']['auth'],
-  origin: string,
   helperPath: string,
   usesManualKey: boolean,
 ): { readonly authCommand?: string; readonly authArgs?: readonly string[] } {
   switch (auth) {
     case InstallAuth.Sso:
-      return { authCommand: CODEX_NATIVE_TOKEN_COMMAND, authArgs: ['--base-url', origin, 'auth', 'print-token'] }
+      return { authCommand: helperPath }
     case InstallAuth.Environment:
       return usesManualKey ? { authCommand: helperPath } : {}
     default:

@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { accessSync, constants as fsConstants } from 'node:fs'
 import { join } from 'node:path'
 import {
@@ -59,6 +59,19 @@ export function isExecutableNotFound(error: unknown): boolean {
 
 export function defaultBoundary(): AgentLaunchBoundary {
   return {
+    spawnAsync: (file, args, options) => new Promise((resolve, reject) => {
+      const child = spawn(file, [...args], { stdio: options.stdio, env: { ...options.env }, shell: IS_WINDOWS })
+      const interrupt = () => { child.kill('SIGINT') }
+      const terminate = () => { child.kill('SIGTERM') }
+      const cleanup = () => {
+        process.off('SIGINT', interrupt)
+        process.off('SIGTERM', terminate)
+      }
+      process.on('SIGINT', interrupt)
+      process.on('SIGTERM', terminate)
+      child.once('error', (error) => { cleanup(); reject(error) })
+      child.once('exit', (status, signal) => { cleanup(); resolve({ status, signal }) })
+    }),
     spawn: (file, args, options) => {
       const result = spawnSync(file, [...args], {
         stdio: options.stdio,

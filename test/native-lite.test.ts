@@ -13,6 +13,20 @@ const TOKEN = 'sk-native-test-credential'
 const TOKEN_PATH = join(tmpdir(), 'native-lite-test-home', '.litellm', 'token.json')
 
 describe('official LiteLLM command boundary', () => {
+  test.each(Object.values(NativeLiteCommand))('blocks keyring access for %s even when the parent enables it', (command) => {
+    const environment = { LITELLM_CLI_DISABLE_KEYRING: '0' }
+    let childEnvironment: NativeLiteSpawnOptions['env'] = {}
+    runNativeLite({ command, baseUrl: ORIGIN, tokenFilePath: TOKEN_PATH }, {
+      environment,
+      spawn: (_file, _args, options) => {
+        childEnvironment = options.env
+        return { status: 0, stdout: `${TOKEN}\n`, stderr: '' }
+      },
+    })
+    expect(childEnvironment.LITELLM_CLI_DISABLE_KEYRING).toBe('1')
+    expect(environment.LITELLM_CLI_DISABLE_KEYRING).toBe('0')
+  })
+
   test('disables pre-command credential refresh for a new PKCE login', () => {
     let captured: readonly string[] = []
     runNativeLite({ command: NativeLiteCommand.Login, baseUrl: ORIGIN, tokenFilePath: TOKEN_PATH }, {

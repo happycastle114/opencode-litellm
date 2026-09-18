@@ -24,9 +24,8 @@ beforeEach(() => {
 afterEach(() => { rmSync(directory, { recursive: true, force: true }) })
 
 describe('native LiteLLM lifecycle', () => {
-  test('reports safe metadata after native keychain credential resolution', () => {
-    // Given: metadata contains no credential because lite uses the keychain.
-    writeFileSync(tokenFilePath, JSON.stringify({ base_url: ORIGIN, user_id: 'test-user', user_role: 'cli', timestamp: 1234 }))
+  test('reports safe metadata after native file credential resolution', () => {
+    writeFileSync(tokenFilePath, JSON.stringify({ base_url: ORIGIN, key: KEY, user_id: 'test-user', user_role: 'cli', timestamp: 1234 }))
     // When: native lite resolves the credential.
     const result = inspectLiteLLMAuth({ baseUrl: `${ORIGIN}/`, tokenFilePath, native: {
       spawn: () => ({ status: 0, stdout: `${KEY}\n`, stderr: '' }),
@@ -54,7 +53,7 @@ describe('native LiteLLM lifecycle', () => {
     const contents = JSON.stringify({ base_url: storedOrigin, key: KEY })
     writeFileSync(tokenFilePath, contents)
     let calls = 0
-    // When and Then: an unrelated logout fails before the global keychain command.
+    // When and Then: an unrelated logout fails before the native command.
     expect(() => logoutLiteLLMAuth({ baseUrl: ORIGIN, tokenFilePath, native: {
       spawn: () => { calls += 1; return { status: 0, stdout: LOGOUT_SUCCESS, stderr: '' } },
     } })).toThrow(LiteLLMAuthLifecycleError)
@@ -99,5 +98,18 @@ describe('native LiteLLM lifecycle', () => {
       spawn: () => { retryCalls += 1; return { status: 0, stdout: LOGOUT_SUCCESS, stderr: '' } },
     } })).toThrow(/unverified/)
     expect(retryCalls).toBe(0)
+  })
+
+  test('accepts native file logout when keyring access is explicitly disabled', () => {
+    writeFileSync(tokenFilePath, JSON.stringify({ base_url: ORIGIN, key: KEY }))
+    const result = logoutLiteLLMAuth({ baseUrl: ORIGIN, tokenFilePath, native: {
+      spawn: (_file, _args, options) => {
+        expect(options.env.LITELLM_CLI_DISABLE_KEYRING).toBe('1')
+        writeFileSync(tokenFilePath, JSON.stringify({ base_url: ORIGIN }))
+        return { status: 0, stderr: '', stdout: 'Logged out locally, but your OS keychain could not be checked, so a credential stored there by an earlier login may still be usable.\nUnset LITELLM_CLI_DISABLE_KEYRING and run \'lite logout\' again to clear it.\n' }
+      },
+    } })
+    expect(result.status).toBe(AuthLogoutStatus.Removed)
+    expect(readFileSync(tokenFilePath, 'utf8')).not.toContain(KEY)
   })
 })

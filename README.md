@@ -93,6 +93,50 @@ Codex connection modes (`--codex-mode`):
 | `gateway` | Gateway provider + model catalog from `/v1/models` |
 | `oauth` | ChatGPT OAuth pass-through provider |
 | `both` (default) | Gateway as main + OAuth as `--profile codex-oauth` |
+| `hybrid-server` | One picker; gateway server routes subscription, auto fallback, and paid models |
+| `hybrid-client` | Same picker; a local proxy routes requests while the toolkit launches Codex |
+
+To combine your personal subscription with a paid gateway model:
+
+```bash
+codex login
+npx @happycastle/codex-litellm install --codex-mode hybrid-server --codex-fallback-model <gateway-model>
+npx @happycastle/codex-litellm codex
+```
+
+Use `hybrid-client` instead when the server has no hybrid extension. Both modes
+require your gateway login/key and keep Codex's own ChatGPT login and refresh.
+The fallback must be a chat model available to that gateway key; installation
+and each launch validate it. Interactive setup uses the selected gateway model
+as the fallback when the flag is omitted. Selecting auto explicitly permits paid
+usage under your gateway key's existing model permissions and budget.
+
+The picker shows `subscription/<model>` (subscription only), `auto/<model>`
+(subscription first, then the configured fallback), and `litellm/<model>`
+(gateway directly). Only a structured `usage_limit_reached` error before any
+semantic stream output triggers automatic fallback. Ordinary 429s, authentication
+errors, timeouts, and failures after output/tool events do not trigger a paid
+retry. Each request tries the subscription again, so it resumes after quota reset.
+
+Hybrid routing sends full conversation text and tool history over HTTP, removes
+provider-scoped reasoning IDs, and rejects opaque compaction checkpoints,
+item references, and `previous_response_id` instead of discarding conversation
+state. Start a fresh hybrid task for an older session with such state. Pick a
+fallback that supports your tools and input modalities. Gateway failures remain
+visible; the router never chooses another paid model on its own.
+
+Server mode requires a gateway extension exposing `/codex-hybrid/responses`
+with the model prefixes and quota rules above. Requests carry the Codex bearer
+in `Authorization`, the gateway credential in `x-litellm-api-key`, and the paid
+target in `x-codex-fallback-model`. The extension must admit the gateway key and
+send paid inference through the gateway's authenticated Responses endpoint.
+Use client mode with gateways that have only the standard `/v1/responses` route.
+Server mode passes your Codex access token through your trusted gateway to ChatGPT, while
+paid requests carry only the gateway key. Client mode sends the Codex access
+token directly to ChatGPT. Its authenticated listener binds only to an ephemeral
+loopback port and shuts down with the child. Launch it with `codex-litellm codex`;
+opening the desktop icon alone does not start the local proxy. Server mode can
+use the desktop with the configured gateway key environment available to it.
 
 Gateway catalog rows are visible in `/model` and advertise native search.
 The installer sets `web_search = "live"`, so Codex sends the Responses
@@ -122,11 +166,10 @@ change. The 0.8.0 release target is Codex CLI `0.154.0`.
 > when its gateway catalog needs updating; CLI users get automatic refresh
 > through `codex-litellm codex`.
 >
-> For SSO gateway mode, Codex calls `lite --base-url <origin> auth print-token`
-> directly through its native `auth.command` and `auth.args` settings.
-> Only saved manual API-key mode installs the small reader at
-> `~/.codex/libexec/litellm-auth-token.mjs`; it reads the toolkit's separate
-> API-key file. The gateway key is not embedded in the Codex configuration.
+> For SSO gateway mode, Codex runs a private helper that calls `lite --base-url <origin> auth print-token`
+> with OS keyring access disabled. Both SSO and saved manual-key mode install
+> `~/.codex/libexec/litellm-auth-token.mjs`. In manual-key mode it reads the
+> toolkit's separate API-key file. The gateway key is not embedded in the Codex configuration.
 > SSO requires `lite` to be available to the app's process as well as your shell.
 >
 > In `both` mode, the OAuth profile is written to
@@ -166,13 +209,17 @@ sign-in. Login succeeds only after native metadata records a newer finite login
 timestamp and the new exact-origin credential is usable; a failed or cancelled
 attempt does not reuse the earlier login as proof of success.
 
-LiteLLM stores secrets in the OS keyring and metadata in
-`~/.litellm/token.json`. When a keyring is unavailable, the official CLI uses
-an owner-only file instead; its login output identifies the storage used.
+The toolkit forces `LITELLM_CLI_DISABLE_KEYRING=1` on every native LiteLLM
+command, including the helper used by direct Codex launches. The official CLI
+stores SSO credentials in `~/.litellm/token.json` with owner-only permissions.
+Managed Codex configs and launches also select `file` for both
+`cli_auth_credentials_store` and `mcp_oauth_credentials_store`.
 Do not copy this file as a portable login or delete it instead of logging out.
-If logout finds no metadata, it reports the native credential store as unverified;
-run `lite logout` for native diagnostics and cleanup. A missing metadata file
-does not prove that the OS keyring is empty.
+Reinstall existing client configurations to replace the old direct `lite`
+command. If a previous login exists only in the OS keychain, run the toolkit's
+`login` command again to create a file-based login. The toolkit never reads,
+migrates, or deletes existing OS keychain entries. Logout clears the file-based
+session through the official CLI; missing metadata remains an unverified logout.
 See the [pinned native authentication contract](docs/official-sources.md#litellm-authentication-and-agent-contracts).
 
 ### Environment key
@@ -187,7 +234,7 @@ explicit API key in `~/.config/opencode-litellm/api-key.json`, or
 `$XDG_CONFIG_HOME/opencode-litellm/api-key.json` when configured. The file
 contains `base_url` and `key` and uses mode `0600` on POSIX. The launcher and
 manual-key Codex reader use this file; the official CLI exclusively owns
-`~/.litellm/token.json` and its SSO/keyring credentials. The configured
+`~/.litellm/token.json` and its file-based SSO credentials. The configured
 environment variable takes precedence in environment-key mode.
 
 OpenCode installation records the selected mode as the LiteLLM plugin tuple's
@@ -212,7 +259,8 @@ launchd variable; already running clients must be restarted.
 --target <opencode|codex|both>     Which client(s) to configure
 --base-url <url>                   LiteLLM gateway origin
 --auth <sso|env>                   Authentication method
---codex-mode <gateway|oauth|both>  Codex connection mode
+--codex-mode <gateway|oauth|both|hybrid-server|hybrid-client> Codex connection mode
+--codex-fallback-model <model>     Paid gateway model for hybrid auto routing
 --search <name>                    Select search tools (repeatable)
 --mcp <name>                       Select MCP servers (repeatable)
 --toolset <name>                   Select MCP toolsets (repeatable)

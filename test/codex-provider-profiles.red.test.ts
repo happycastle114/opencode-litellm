@@ -18,6 +18,7 @@ const bundledCatalog = readBundledCodexCatalog({
 const EXPECTED_PROVIDER_ID = {
   GatewaySso: 'litellm-gateway-sso',
   CodexOAuth: 'litellm-codex-oauth',
+  Hybrid: 'litellm-codex-hybrid',
 } as const
 
 const HEADER_NAME = {

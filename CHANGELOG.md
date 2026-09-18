@@ -9,15 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Release target: `0.8.0` (publication pending).
 
+### Added
+- `hybrid-server` and `hybrid-client` Codex modes share one subscription/auto/paid
+  model picker. `--codex-fallback-model` selects the paid target explicitly.
+  The server or authenticated local proxy switches only on confirmed ChatGPT
+  quota exhaustion before stream output, preserves full tool history, and
+  returns to the subscription when it becomes available.
+
 ### Changed
-- SSO now delegates PKCE login, token renewal, OS keyring storage, and logout
+- SSO now delegates PKCE login, token renewal, file storage, and logout
   to the official LiteLLM CLI. Install `litellm[cli]==1.101.0` with uv; Python
   is required. The toolkit no longer implements the browser/polling flow.
 - Manually saved API keys now use `~/.config/opencode-litellm/api-key.json`
   (honoring `XDG_CONFIG_HOME`), separate from the official SSO store. Legacy
   manual keys must be re-entered with `--auth env` and are never inferred.
-- Codex SSO calls `lite auth print-token` directly through native command auth.
-  Only saved manual keys use the toolkit's exact-file reader.
+- All toolkit-managed LiteLLM commands disable OS keyring access, including
+  the helper used by direct Codex launches. Codex login and MCP OAuth stores
+  use files. Reinstall old configurations and log in again for keychain-only
+  credentials; existing OS keychain entries are never accessed or migrated.
+- Codex SSO uses a private helper around native `lite auth print-token`.
+  Saved manual keys use the toolkit's exact-file reader.
 - Codex gateway launches refresh authorized models and current native per-model
   fields before starting. Any discovery/catalog failure stops the launch;
   stale catalogs are no longer used as a fallback.

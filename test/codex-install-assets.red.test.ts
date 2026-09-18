@@ -95,11 +95,10 @@ describe('Codex clean-home installation', () => {
     expect(requests).toContain(ENDPOINT.McpServers)
     const config = parseToml(readFileSync(configPath, 'utf8'))
     expect(config.model_providers[PROVIDER_ID.GatewaySso].auth).toEqual({
-      command: 'lite',
-      args: ['--base-url', GATEWAY_ORIGIN, 'auth', 'print-token'],
+      command: join(home, '.codex', 'libexec', 'litellm-auth-token.mjs'),
       timeout_ms: 35000,
     })
-    expect(existsSync(join(home, '.codex', 'libexec', 'litellm-auth-token.mjs'))).toBe(false)
+    expect(readFileSync(join(home, '.codex', 'libexec', 'litellm-auth-token.mjs'), 'utf8')).toContain('LITELLM_CLI_DISABLE_KEYRING')
     const catalog: unknown = JSON.parse(readFileSync(config.model_catalog_json, 'utf8'))
     expect(catalog).toHaveProperty('models.0.slug', DISCOVERED.Model)
     expect(config.mcp_servers).toHaveProperty(
