@@ -130,6 +130,7 @@ async function prepareInteractive(input: PreparationInput): Promise<PreparedInst
       defaultGatewayOrigin: input.origin,
       defaultAuth: input.options.auth,
       defaultCodexMode: input.options.codexMode,
+      ...(input.options.codexFallbackModel === undefined ? {} : { codexFallbackModel: input.options.codexFallbackModel }),
       autoRouterMode: input.options.autoRouter,
       searchTools: [], mcpServers: [], mcpToolsets: [],
       loadResources: async (selectedConnection) => {
@@ -182,6 +183,7 @@ function interactiveResult(input: InteractiveResultInput): PreparedInstall {
       auth: plan.auth,
       authEnv: preparation.authEnv,
       codexMode: codexModeFor(plan, preparation.options.codexMode),
+      ...(plan.codexFallbackModel === undefined ? {} : { codexFallbackModel: plan.codexFallbackModel }),
       autoRouter: plan.autoRouter,
       search: preparation.options.noSearch ? [] : plan.searchTools,
       mcp: preparation.options.noMcp ? [] : plan.mcpServers,

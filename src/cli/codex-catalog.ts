@@ -103,7 +103,7 @@ function gatewayInputModalities(model: LiteLLMModel | undefined): { readonly inp
   return {}
 }
 
-function isKnownNonChatModel(model: LiteLLMModel): boolean {
+export function isKnownNonChatModel(model: LiteLLMModel): boolean {
   const type = classifyModel(model)
   return type === MODEL_TYPE.Embedding || type === MODEL_TYPE.Image || type === MODEL_TYPE.Audio
 }

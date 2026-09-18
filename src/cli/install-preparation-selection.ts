@@ -14,6 +14,7 @@ import {
   type OnboardingResource,
   type OnboardingResources,
 } from './onboarding'
+import { isKnownNonChatModel } from './codex-catalog'
 
 const SelectionDefault = { All: 'all', None: 'none' } as const
 type SelectionDefault = (typeof SelectionDefault)[keyof typeof SelectionDefault]
@@ -147,6 +148,7 @@ export function resourcesForOnboarding(
       ? []
       : available(discovery.toolsets.map((toolset) => toolset.toolsetName)),
     models: discovery.models
+      .filter((model) => !isKnownNonChatModel(model))
       .map((model) => model.id)
       .filter((id) => id !== '')
       .map((name) => ({ name, access: OnboardingResourceAccess.Available })),

@@ -12,6 +12,18 @@ gateway — model discovery, search tools, MCP servers, and auth included.
 
 ## Quick start
 
+Use your own gateway URL and credentials; a Happycastle account is not required.
+For a gateway API key, no Python or `lite` installation is needed:
+
+```bash
+npx @happycastle/codex-litellm install --auth env --codex-mode gateway
+npx @happycastle/codex-litellm codex
+```
+
+The wizard asks for the URL and key. For subscription + paid fallback on a
+standard gateway, select `--codex-mode hybrid-client` and choose a paid model
+in the wizard. See the [Codex quick start](packages/codex-litellm/README.md).
+
 For SSO, install the official LiteLLM CLI with [uv](https://docs.astral.sh/uv/getting-started/installation/). This uses a Python tool environment managed by uv.
 
 ```bash
@@ -91,10 +103,10 @@ Codex connection modes (`--codex-mode`):
 | Mode | What it does |
 |---|---|
 | `gateway` | Gateway provider + model catalog from `/v1/models` |
-| `oauth` | ChatGPT OAuth pass-through provider |
-| `both` (default) | Gateway as main + OAuth as `--profile codex-oauth` |
-| `hybrid-server` | One picker; gateway server routes subscription, auto fallback, and paid models |
-| `hybrid-client` | Same picker; a local proxy routes requests while the toolkit launches Codex |
+| `oauth` | ChatGPT OAuth pass-through; requires `/codex-oauth` server extension |
+| `both` (default) | Gateway as main + OAuth as `--profile codex-oauth`; manual switch, OAuth extension required |
+| `hybrid-server` | One picker; requires `/codex-hybrid` server extension for subscription and paid routing |
+| `hybrid-client` | Same picker on a standard gateway; launcher keeps the local proxy running |
 
 To combine your personal subscription with a paid gateway model:
 

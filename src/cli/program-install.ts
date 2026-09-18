@@ -30,7 +30,7 @@ import {
   prepareInstall,
   type PreparedInstall,
 } from './install-preparation'
-import type { InstallOptions } from './install-intent'
+import { CodexMode, InstallTarget, type InstallOptions } from './install-intent'
 import {
   assertLaunchConfigPathWritable,
   loadLaunchConfigSnapshot,
@@ -187,7 +187,25 @@ async function runLockedInstall(input: LockedInstallInput): Promise<CliResult> {
     `Configured launch intent: ${launchAsset.path}`,
     ...result.warnings.map((warning) => `Warning: ${warning}`),
     ...launchPlan.warnings.map((warning) => `Warning: ${warning}`),
+    '',
+    ...(prepared.options.target === InstallTarget.Codex ? [] : [
+      'Start OpenCode: npx @happycastle/opencode-litellm opencode',
+    ]),
+    ...(prepared.options.target === InstallTarget.OpenCode ? [] : [
+      'Start Codex: npx @happycastle/codex-litellm codex',
+      'In Codex, use /model to choose a model.',
+    ]),
   ]
+  if (prepared.options.target !== InstallTarget.OpenCode &&
+    (prepared.options.codexMode === CodexMode.HybridClient || prepared.options.codexMode === CodexMode.HybridServer)) {
+    lines.push(
+      'Sign in to ChatGPT when Codex asks. Gateway login is separate.',
+      'Auto can use the paid fallback; Subscription stays on your subscription.',
+      prepared.options.codexMode === CodexMode.HybridClient
+        ? 'Keep the launcher running; it owns the local routing proxy.'
+        : 'Your gateway must provide the /codex-hybrid server extension.',
+    )
+  }
   return { exitCode: 0, stdout: `${lines.join('\n')}\n`, stderr: '' }
 }
 
