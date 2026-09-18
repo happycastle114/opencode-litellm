@@ -2,33 +2,57 @@
 
 먼저 환경별 안내를 선택합니다: [Windows](README.windows.md) · [macOS](README.macos.md) · [Linux / WSL](README.linux.md).
 
-아래 명령은 macOS/Linux 셸 기준입니다. PowerShell에서는 `npx` 대신 `npx.cmd`를 사용하면 됩니다. 예시 URL은 Happycastle 게이트웨이이며 다른 서버를 사용한다면 URL을 바꿉니다.
+아래 명령은 macOS/Linux 셸 기준입니다. PowerShell에서는 `npx` 대신 `npx.cmd`를 사용하면 됩니다. 특정 서비스 가입은 필요하지 않습니다. 예시의 `https://your-gateway.example`은 관리자가 알려 준 LiteLLM 서버 주소로 바꿉니다.
+
+## 처음 사용하는 경우
+
+Node.js와 Codex를 설치하고 게이트웨이 주소·API 키를 준비합니다. API 키 방식은 Python이나 `lite` 설치가 필요 없습니다.
+
+```sh
+npx --yes @happycastle/codex-litellm@latest install --auth env --codex-mode gateway
+npx --yes @happycastle/codex-litellm@latest codex
+```
+
+설치 화면에서 주소와 키를 입력하고 계획을 확인합니다. 실행 후 `/model`에서 해당 계정에 허용된 모델을 고릅니다.
+
+개인 구독을 먼저 쓰고 소진 시 LiteLLM으로 전환하려면 설치 명령의 모드를 `--codex-mode hybrid-client`로 바꿉니다. 설치 화면에서 **추가 과금에 사용할 모델을 직접 선택**합니다. Codex 실행 후 요청하는 ChatGPT 로그인은 게이트웨이 로그인과 별개입니다.
+
+| 모드 | 사용할 환경 |
+|---|---|
+| `gateway` | 일반 LiteLLM 서버의 모델만 사용 |
+| `hybrid-client` | 일반 서버에서 구독+LiteLLM 통합. 위 실행 명령으로 로컬 프록시를 유지 |
+| `hybrid-server` | 관리자가 `/codex-hybrid` 확장을 설치한 서버에서 전환 |
+| `oauth` / `both` | `/codex-oauth` 확장이 있는 서버. `both`는 프로필을 수동으로 전환 |
+
+통합 모드의 기본 선택인 **Auto**는 구독 한도 소진이 확인되고 아직 출력이 없을 때 선택한 LiteLLM 모델로 전환하며 추가 과금될 수 있습니다. **Subscription**은 구독만, **LiteLLM**은 게이트웨이를 바로 사용합니다. 전환 모델을 바꾸려면 설치를 다시 실행합니다. 앱 아이콘으로 열면 `hybrid-client` 프록시가 시작되지 않으므로 위 런처 명령으로 실행합니다. 비대화형 설치에는 `--codex-fallback-model <모델ID>`도 명시해야 합니다.
+
+일반 서버는 `GET /v1/models`와 `POST /v1/responses`를 지원해야 합니다. 검색·MCP 기능은 선택 사항입니다. 공식 [`lite codex`](https://docs.litellm.ai/docs/proxy/management_cli)와 같은 custom provider·HTTP/SSE Responses 연동 방식을 사용하지만, 툴킷이 Codex를 직접 실행합니다. `lite codex`를 감싼 프로그램은 아니며 통합 목록과 구독 전환은 툴킷이 추가한 기능입니다.
 
 ## 로그인과 설치
 
 ```sh
 uv tool install 'litellm[cli]==1.101.0'
 lite --version
-npx --yes @happycastle/opencode-litellm@latest login --base-url https://llm.soungmin.kr
-npx --yes @happycastle/opencode-litellm@latest whoami --base-url https://llm.soungmin.kr
-npx --yes @happycastle/opencode-litellm@latest install --target both --base-url https://llm.soungmin.kr --codex-mode gateway
+npx --yes @happycastle/opencode-litellm@latest login --base-url https://your-gateway.example
+npx --yes @happycastle/opencode-litellm@latest whoami --base-url https://your-gateway.example
+npx --yes @happycastle/opencode-litellm@latest install --target both --base-url https://your-gateway.example --codex-mode gateway
 ```
 
 SSO는 해당 게이트웨이에 로그인할 권한이 있어야 합니다. 기존 키가 폐기되었다면 이전 키가 포함된 배치 파일을 다시 실행해도 복구되지 않습니다. 다시 로그인하거나 새 키로 대화형 설치를 진행합니다.
 
 0.8.0의 SSO는 공식 LiteLLM CLI에 위임합니다. 로그인은 `lite --base-url <url> login --pkce`, 토큰 조회·갱신은 `lite --base-url <url> auth print-token`, 로그아웃은 `lite --base-url <url> logout`을 사용합니다. Python이 필요하며 [uv](https://docs.astral.sh/uv/guides/tools/)로 별도 도구 환경을 관리할 수 있습니다. `auth print-token`은 실제 토큰을 출력하므로 툴킷이 내부에서 결과를 받아 사용합니다. 로그인 상태 확인에는 위의 `whoami`를 사용합니다.
 
-공식 CLI는 비밀 정보를 OS 키링에, 메타데이터를 `~/.litellm/token.json`에 저장합니다. 키링을 사용할 수 없으면 사용자 전용 파일로 저장하며 로그인 결과에 저장 위치가 표시됩니다. 파일만 복사하거나 삭제하는 대신 공식 로그인·로그아웃 절차를 사용합니다.
+툴킷은 공식 CLI를 실행할 때 `LITELLM_CLI_DISABLE_KEYRING=1`을 강제하고 `~/.litellm/token.json`의 사용자 전용 파일 저장을 사용합니다. Codex 로그인과 MCP OAuth 저장소도 파일로 설정합니다. 기존 OS 키링 항목을 읽거나 이전·삭제하지 않습니다. 로그인·로그아웃은 툴킷 명령으로 진행합니다.
 
 환경변수로 키를 공급한 설치는 실행 때도 해당 환경변수가 필요하며 `--auth env`에서 저장된 키보다 우선합니다. 대화형으로 입력한 키는 별도 파일 `~/.config/opencode-litellm/api-key.json`에 `base_url`과 `key`로 저장됩니다. `XDG_CONFIG_HOME`을 지정했다면 `$XDG_CONFIG_HOME/opencode-litellm/api-key.json`을 사용하며 POSIX 권한은 `0600`입니다. 공식 CLI의 SSO 파일과 키링은 건드리지 않습니다. 이전 버전에서 수동 입력한 키는 `install --auth env`로 다시 입력해야 하며 기존 SSO 파일에서 자동 추정·복사하지 않습니다.
 
-Codex gateway SSO는 네이티브 `auth.command = "lite"`와 `auth.args`로 `lite --base-url <origin> auth print-token`을 직접 호출합니다. 수동 API 키를 저장한 경우에만 툴킷이 해당 파일 전용 리더를 설치합니다.
+Codex gateway SSO는 키링 사용을 차단하는 전용 인증 헬퍼를 통해 `lite --base-url <origin> auth print-token`을 호출합니다. 수동 API 키는 별도 파일 전용 리더를 사용합니다. 이전에 설치한 설정은 다시 설치하여 직접 `lite`를 호출하던 인증 명령을 교체합니다.
 
 OAuth 프록시와 인증이 필요한 MCP는 툴킷 런처를 통해 실행합니다. `both` 모드의 OAuth는 `npx --yes @happycastle/codex-litellm@latest codex --profile codex-oauth`로 선택합니다. 게이트웨이 입장 키는 해당 자식 프로세스에만 전달하며 `launchctl setenv`로 로그인 세션 전체에 내보내지 않습니다. 로그아웃은 이전 버전이 남긴 launchd 변수를 정리하지만 이미 실행 중인 앱은 다시 시작해야 합니다.
 
 ## 모델 목록과 자동 라우팅
 
-모델 선택지는 로그인한 사용자의 `GET /v1/models` 결과를 기준으로 합니다. 학생 정책이 적용된 계정에서는 다음 네 모델을 기대합니다.
+모델 선택지는 로그인한 사용자의 `GET /v1/models` 결과를 기준으로 하며 임의의 대화용 모델 별칭도 사용할 수 있습니다. 아래 학생 정책은 해당 서버가 정확히 이 네 모델을 반환할 때만 적용되는 별도 설정입니다. 일반 사용자의 필수 모델 목록이 아닙니다.
 
 | 모델 | 용도 |
 |---|---|
@@ -81,7 +105,7 @@ OMO의 `agents`와 `categories`에 배정할 모델은 서버 정책으로 관�
 | 모델이 안 보임 | 설치 명령 재실행 후 재시작. 다른 계정/게이트웨이 설정인지 확인 |
 | 실행 파일을 찾지 못함 | 같은 터미널에서 `opencode --version`, `codex --version` 확인 |
 | 공식 LiteLLM CLI를 찾지 못함 | `lite --version`과 PATH 확인. uv 설치 후 필요하면 `uv tool update-shell` 실행 및 터미널 재시작 |
-| 키링을 읽을 수 없음 | OS 키링 잠금 상태와 공식 CLI 안내 확인 후 다시 로그인 |
+| 키링 관련 창이 표시됨 | 최신 툴킷으로 다시 설치하고 앱을 재시작. 툴킷은 파일 저장만 사용하므로 이전 인증 명령이나 별도로 실행한 CLI도 확인 |
 | 설치 후에도 이전 설정 사용 | 설치 대상과 실행 환경, 별칭/고정 버전 래퍼 확인 |
 | 네트워크 오류 | 게이트웨이 접속과 서버 상태 확인. 반복 로그인으로 해결되지 않을 수 있음 |
 

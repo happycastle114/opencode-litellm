@@ -1,5 +1,7 @@
 # Windows 설치 안내
 
+특정 서버 가입 없이 사용할 수 있습니다. 아래 예시 URL은 자신의 LiteLLM 서버 주소로 바꿉니다. API 키가 있다면 `install`에 `--auth env`를 추가해 대화형으로 입력하면 됩니다. 이 방식은 Python이나 `lite`가 필요 없습니다. 구독+추가 과금 전환은 [공통 안내](client-setup.md#처음-사용하는-경우)를 따릅니다.
+
 PowerShell 또는 CMD에서 사용할 수 있습니다. Node.js 지원 버전은 `^22.22.2 || ^24.12.0 || >=26.0.0`입니다. 사용할 OpenCode / Codex CLI를 같은 Windows 환경에 먼저 설치합니다. WSL을 사용한다면 [Linux / WSL 안내](README.linux.md)를 따릅니다.
 
 ## PowerShell
@@ -13,7 +15,7 @@ uv tool install "litellm[cli]==1.101.0"
 lite --version
 ```
 
-`lite`를 찾지 못하면 `uv tool update-shell` 후 터미널을 다시 엽니다. 공식 CLI는 사용 가능한 OS 키링에 비밀 정보를 저장하고 사용자 프로필의 `token.json`에는 메타데이터를 저장합니다. 키링을 사용할 수 없는 경우에는 공식 CLI가 안내하는 파일 저장을 사용합니다.
+`lite`를 찾지 못하면 `uv tool update-shell` 후 터미널을 다시 엽니다. 툴킷은 OS 키링 접근을 끄고 사용자 프로필의 `.litellm/token.json`에 파일로 저장합니다. Codex 로그인과 MCP OAuth도 파일 저장을 사용합니다.
 
 ```powershell
 node --version
@@ -22,23 +24,23 @@ opencode --version
 codex --version
 
 # OpenCode
-npx.cmd --yes @happycastle/opencode-litellm@latest install --base-url https://llm.soungmin.kr
+npx.cmd --yes @happycastle/opencode-litellm@latest install --base-url https://your-gateway.example
 npx.cmd --yes @happycastle/opencode-litellm@latest opencode
 
-# Codex: 학생용 게이트웨이 연결
-npx.cmd --yes @happycastle/codex-litellm@latest install --base-url https://llm.soungmin.kr --codex-mode gateway
+# Codex: 자신의 게이트웨이 연결
+npx.cmd --yes @happycastle/codex-litellm@latest install --base-url https://your-gateway.example --codex-mode gateway
 npx.cmd --yes @happycastle/codex-litellm@latest codex
 ```
 
 둘 다 설치하려면:
 
 ```powershell
-npx.cmd --yes @happycastle/opencode-litellm@latest install --target both --base-url https://llm.soungmin.kr --codex-mode gateway
+npx.cmd --yes @happycastle/opencode-litellm@latest install --target both --base-url https://your-gateway.example --codex-mode gateway
 ```
 
 설치 화면에서 SSO로 로그인합니다. 키를 전달받았다면 `--auth env`를 추가하고 대화형 입력을 사용합니다. 키를 README, 배치 파일, 공유 명령에 붙여 넣지 않습니다.
 
-이전 버전에서 수동 입력한 키는 `install --auth env`로 다시 입력해야 합니다. 별도 툴킷 파일에 저장하며 공식 SSO 저장소에서 키를 자동 추정·복사하지 않습니다. SSO는 공식 `lite login --pkce`를 사용하며 키 조회·갱신과 로그아웃도 공식 CLI가 처리합니다. Codex SSO는 `lite auth print-token`을 네이티브 명령 인증으로 직접 호출합니다.
+이전 버전에서 수동 입력한 키는 `install --auth env`로 다시 입력해야 합니다. 별도 툴킷 파일에 저장하며 공식 SSO 저장소에서 키를 자동 추정·복사하지 않습니다. SSO는 공식 `lite login --pkce`를 사용하며 키 조회·갱신과 로그아웃도 공식 CLI가 처리합니다. Codex SSO는 키링 접근을 끄는 전용 인증 헬퍼로 `lite auth print-token`을 호출합니다. 이전 설정은 다시 설치하여 인증 명령을 교체합니다.
 
 OAuth 프록시와 인증이 필요한 MCP는 툴킷 런처가 게이트웨이 입장 키를 자식 프로세스에 전달합니다. `both` 모드의 OAuth는 `npx.cmd --yes @happycastle/codex-litellm@latest codex --profile codex-oauth`로 실행합니다. 키를 사용자 전체 환경변수로 설정할 필요가 없습니다.
 
@@ -58,7 +60,7 @@ scripts\setup-windows.bat
 
 - OpenCode: `%USERPROFILE%\.config\opencode\opencode.jsonc` 또는 기존 `opencode.json`
 - Codex: `%USERPROFILE%\.codex\config.toml`, `litellm-models.json`
-- 공식 SSO 메타데이터: `%USERPROFILE%\.litellm\token.json`
+- 공식 SSO 파일: `%USERPROFILE%\.litellm\token.json`
 - 수동 API 키: `%USERPROFILE%\.config\opencode-litellm\api-key.json` (`XDG_CONFIG_HOME`을 지정하면 그 아래 `opencode-litellm\api-key.json`)
 - 런처 설정: `%USERPROFILE%\.config\opencode-litellm\launch.json`
 

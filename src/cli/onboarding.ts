@@ -39,6 +39,7 @@ export type OnboardingInput = {
   readonly searchTools: readonly OnboardingResource[]
   readonly mcpServers: readonly OnboardingResource[]; readonly mcpToolsets: readonly OnboardingResource[]
   readonly models?: readonly OnboardingResource[]
+  readonly codexFallbackModel?: string
   readonly loadResources?: OnboardingResourceLoader
 }
 
@@ -46,6 +47,7 @@ type CommonOnboardingPlan = {
   readonly gatewayOrigin: string; readonly auth: InstallAuthValue
   readonly autoRouter: Exclude<AutoRouterModeValue, typeof AutoRouterMode.Prompt>
   readonly defaultModel: string | undefined
+  readonly codexFallbackModel?: string
   readonly searchTools: readonly string[]; readonly mcpServers: readonly string[]
   readonly mcpToolsets: readonly string[]
 }
@@ -57,7 +59,9 @@ export type OnboardingPlan =
       readonly codexMode: CodexOnboardingMode
     })
 
-export const OnboardingFailureCode = { TtyRequired: 'tty-required', Cancelled: 'cancelled' } as const
+export const OnboardingFailureCode = {
+  TtyRequired: 'tty-required', Cancelled: 'cancelled', InvalidFallbackModel: 'invalid-fallback-model',
+} as const
 export type OnboardingFailureCode = (typeof OnboardingFailureCode)[keyof typeof OnboardingFailureCode]
 
 export type OnboardingResult =
@@ -120,14 +124,16 @@ const TARGET_CHOICES: readonly NumberedChoice<InstallTargetValue>[] = [
 ]
 
 const AUTH_CHOICES: readonly NumberedChoice<InstallAuthValue>[] = [
-  { label: 'LiteLLM SSO', value: InstallAuth.Sso }, { label: 'API key (stored locally)', value: InstallAuth.Environment },
+  { label: 'Gateway browser login (SSO; needs lite CLI)', value: InstallAuth.Sso },
+  { label: 'Gateway API key (stored locally; no lite CLI needed)', value: InstallAuth.Environment },
 ]
 
 const CODEX_CHOICES: readonly NumberedChoice<CodexOnboardingMode>[] = [
-  { label: 'LiteLLM gateway', value: CodexMode.Gateway }, { label: 'Codex OAuth pass-through', value: CodexMode.OAuth },
-  { label: 'Both profiles', value: CodexMode.Both },
-  { label: 'Hybrid: server routing (subscription, then paid fallback)', value: CodexMode.HybridServer },
-  { label: 'Hybrid: client routing (subscription, then paid fallback)', value: CodexMode.HybridClient },
+  { label: 'LiteLLM only', value: CodexMode.Gateway },
+  { label: 'Subscription via server (requires gateway extension)', value: CodexMode.OAuth },
+  { label: 'Separate profiles (manual switch; server extension needed)', value: CodexMode.Both },
+  { label: 'Subscription + LiteLLM: server switch (requires extension)', value: CodexMode.HybridServer },
+  { label: 'Subscription + LiteLLM: local switch (standard gateway)', value: CodexMode.HybridClient },
 ]
 
 type ResolvedAutoRouterMode = Exclude<AutoRouterModeValue, typeof AutoRouterMode.Prompt>
@@ -161,8 +167,24 @@ export async function runInstallOnboarding(
   const resources = input.loadResources === undefined
     ? input
     : await input.loadResources(connection)
+  const hybrid = 'codexMode' in shape &&
+    (shape.codexMode === CodexMode.HybridClient || shape.codexMode === CodexMode.HybridServer)
+  const models = resources.models ?? []
+  if (hybrid && !models.some((model) => model.access === OnboardingResourceAccess.Available &&
+    (input.codexFallbackModel === undefined || model.name === input.codexFallbackModel))) {
+    return failure(OnboardingFailureCode.InvalidFallbackModel,
+      'Hybrid mode needs an available paid chat model. Check gateway model access or --codex-fallback-model, then rerun install.')
+  }
+  if (hybrid) {
+    io.write('  Auto starts with your subscription. When its quota is exhausted,')
+    io.write('  it uses your chosen LiteLLM model and may incur charges.')
+    io.write('  Choose Subscription in /model to stay on subscription only.')
+  }
+  const codexFallbackModel = hybrid
+    ? input.codexFallbackModel ?? await selectDefaultModel(models, io, true)
+    : undefined
   const defaultModel = consumesDefaultModel(shape)
-    ? await selectDefaultModel(resources.models ?? [], io)
+    ? await selectDefaultModel(models, io)
     : undefined
   const searchTools = await selectResources({
     io, title: UiText.SearchTitle, resources: resources.searchTools,
@@ -176,6 +198,7 @@ export async function runInstallOnboarding(
     auth,
     autoRouter,
     defaultModel,
+    ...(codexFallbackModel === undefined ? {} : { codexFallbackModel }),
     searchTools,
     mcpServers,
     mcpToolsets,
@@ -188,6 +211,7 @@ export async function runInstallOnboarding(
     ['Auth', authLabel(auth)],
     ...('codexMode' in shape ? [['Codex mode', codexModeLabel(shape.codexMode)] as const] : []),
     ...('codexMode' in shape && defaultModel !== undefined ? [['Default model', defaultModel] as const] : []),
+    ...(codexFallbackModel === undefined ? [] : [['Paid fallback', codexFallbackModel] as const]),
     ['Search tools', searchTools.length > 0 ? `${searchTools.length} selected` : 'none'],
     ['MCP servers', mcpServers.length > 0 ? `${mcpServers.length} selected` : 'none'],
     ['MCP toolsets', mcpToolsets.length > 0 ? `${mcpToolsets.length} selected` : 'none'],
@@ -241,22 +265,26 @@ async function selectGatewayOrigin(defaultOrigin: string | undefined, io: Onboar
 async function selectDefaultModel(
   models: readonly OnboardingResource[],
   io: OnboardingIO,
+  paidFallback = false,
 ): Promise<string | undefined> {
   const names = models
     .filter((model) => model.access === OnboardingResourceAccess.Available)
     .map((model) => model.name)
   if (names.length === 0) return undefined
-  io.write(renderStep(UiText.ModelTitle))
+  io.write(renderStep(paidFallback ? 'Paid fallback model' : UiText.ModelTitle))
   names.forEach((name, index) => io.write(`  \x1b[36m${index + 1}.\x1b[39m ${name}`))
   while (true) {
-    const raw = (await io.prompt(`\x1b[36m▸\x1b[39m \x1b[2m${UiText.ModelPrompt} [1-${names.length}]\x1b[22m `)).trim()
-    if (raw === OnboardingInputToken.Default) return undefined
+    const prompt = paidFallback ? 'Choose a paid model (required)' : UiText.ModelPrompt
+    const raw = (await io.prompt(`\x1b[36m▸\x1b[39m \x1b[2m${prompt} [1-${names.length}]\x1b[22m `)).trim()
+    if (!paidFallback && raw === OnboardingInputToken.Default) return undefined
     if (names.includes(raw)) return raw
     if (MODEL_INDEX_PATTERN.test(raw)) {
       const selected = names[Number.parseInt(raw, 10) - 1]
       if (selected !== undefined) return selected
     }
-    io.write(renderWarning(`Choose a model number from 1 to ${names.length}, or press Enter for auto.`))
+    io.write(renderWarning(paidFallback
+      ? `Choose a paid model from 1 to ${names.length}. Enter cannot select one for you.`
+      : `Choose a model number from 1 to ${names.length}, or press Enter for auto.`))
   }
 }
 
