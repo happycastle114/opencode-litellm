@@ -1,4 +1,8 @@
 import { spawnSync } from 'node:child_process'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { CODEX_FILE_AUTH_ARGS, FILE_AUTH_ENVIRONMENT } from './credential-storage'
 
 const CATALOG_FIELD = {
   Models: 'models', Slug: 'slug', Visibility: 'visibility', SupportedInApi: 'supported_in_api',
@@ -47,12 +51,15 @@ export class CodexCatalogError extends Error {
 export function readBundledCodexCatalog(
   boundary: CodexSpawnBoundary,
 ): BundledCodexCatalog {
-  const args = [CODEX_COMMAND.Debug, CODEX_COMMAND.Models, CODEX_COMMAND.Bundled] as const
+  const args = [...CODEX_FILE_AUTH_ARGS, CODEX_COMMAND.Debug, CODEX_COMMAND.Models, CODEX_COMMAND.Bundled]
   let result: CodexSpawnResult
+  const catalogHome = mkdtempSync(join(tmpdir(), 'codex-litellm-catalog-'))
   try {
     result = boundary.spawn(CODEX_COMMAND.File, args, {
       encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
       shell: process.platform === 'win32',
+      env: { ...process.env, ...FILE_AUTH_ENVIRONMENT, HOME: catalogHome, CODEX_HOME: catalogHome,
+        ...(process.platform === 'win32' ? { USERPROFILE: catalogHome } : {}) },
     })
   } catch {
     throw new CodexCatalogError(
@@ -62,6 +69,8 @@ export function readBundledCodexCatalog(
           '  Check with: where codex'
         : '  Check with: which codex'),
     )
+  } finally {
+    rmSync(catalogHome, { recursive: true, force: true })
   }
   if (result.error !== undefined) {
     throw new CodexCatalogError(
@@ -172,8 +181,9 @@ function invalidCatalog(): CodexCatalogError {
 
 export function createCodexSpawnBoundary(): CodexSpawnBoundary {
   return {
-    spawn(file, args) {
+    spawn(file, args, options) {
       const result = spawnSync(file, [...args], {
+        ...options,
         encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
         shell: process.platform === 'win32',
       })

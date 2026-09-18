@@ -180,11 +180,13 @@ test('client launcher keeps proxy alive during async child and closes it afterwa
   let launchedUrl = ''
   const result = await launchHybridClient({ command: 'codex', args: ['exec', '--', 'test'], gatewayOrigin: origin, apiKey: 'gateway-test' }, {
     which: () => '/fixture/codex', spawn: () => { throw new Error('Sync launch would block the proxy') },
-    spawnAsync: async (_file, args) => {
-      const override = args[1]
+    spawnAsync: async (_file, args, options) => {
+      expect(args.slice(0, 4)).toEqual(['-c', 'cli_auth_credentials_store="file"', '-c', 'mcp_oauth_credentials_store="file"'])
+      expect(options.env.LITELLM_CLI_DISABLE_KEYRING).toBe('1')
+      const override = args[5]
       if (override === undefined) throw new Error('Missing URL override')
       launchedUrl = JSON.parse(override.slice(override.indexOf('=') + 1))
-      expect(args.slice(2)).toEqual(['exec', '--', 'test'])
+      expect(args.slice(6)).toEqual(['exec', '--', 'test'])
       const response = await fetch(`${launchedUrl}/responses`, { method: 'POST', headers: { 'x-litellm-api-key': 'gateway-test' }, body: JSON.stringify({ model: 'litellm/paid', input: 'hello' }) })
       expect(await response.json()).toEqual({ id: 'paid-response' })
       return { status: 0, signal: null }

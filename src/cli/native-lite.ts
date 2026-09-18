@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process'
 import { homedir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import { isHeaderSafeApiKey } from '../utils/api-key'
+import { FILE_AUTH_ENVIRONMENT } from './credential-storage'
 
 export const NativeLiteCommand = {
   Token: 'token',
@@ -96,6 +97,7 @@ export function runNativeLite(
   const baseUrl = nativeLiteOrigin(input.baseUrl)
   const environment: Record<string, string | undefined> = {
     ...(boundary.environment ?? process.env),
+    ...FILE_AUTH_ENVIRONMENT,
     HOME: nativeLiteHome(input.tokenFilePath),
   }
   delete environment.LITELLM_PROXY_API_KEY

@@ -31,6 +31,15 @@ const intent = {
 } as const
 
 describe('Codex managed configuration', () => {
+  test('replaces OS credential stores with file storage in gateway and OAuth configurations', () => {
+    const source = 'cli_auth_credentials_store = "keyring"\nmcp_oauth_credentials_store = "auto"\n'
+    for (const output of [renderCodexConfig(source, intent), renderCodexOAuthConfig(source, intent)]) {
+      const config = parseToml(output)
+      expect(config.cli_auth_credentials_store).toBe('file')
+      expect(config.mcp_oauth_credentials_store).toBe('file')
+    }
+  })
+
   test('preserves unmanaged TOML and emits the provider contract', () => {
     // Given: existing unrelated Codex settings
     const source = 'approval_policy = "on-request"\n\n[features]\nmulti_agent = true\n'

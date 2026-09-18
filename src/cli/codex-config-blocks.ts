@@ -5,6 +5,7 @@ import {
   restoreCodexRequestCompressionPreference,
 } from './codex-request-compression'
 import { renderMcpSections, type McpRenderIntent } from './codex-config-mcp'
+import { CODEX_FILE_AUTH_SETTINGS, CODEX_FILE_AUTH_TOML } from './credential-storage'
 
 const BLOCK_START = '# BEGIN opencode-litellm'
 const BLOCK_END = '# END opencode-litellm'
@@ -17,8 +18,7 @@ const WIRE_API = { Responses: 'responses' } as const
 const LOGIN_METHOD = { Chatgpt: 'chatgpt' } as const
 const WEB_SEARCH_MODE = { Live: 'live' } as const
 const CODEX_AUTH_TIMEOUT_MS = 35_000
-export const CODEX_NATIVE_TOKEN_COMMAND = 'lite' as const
-const BASE_ROOT_KEYS = ['model', 'model_provider', 'model_catalog_json', 'web_search'] as const
+const BASE_ROOT_KEYS = ['model', 'model_provider', 'model_catalog_json', 'web_search', ...Object.keys(CODEX_FILE_AUTH_SETTINGS)] as const
 const OAUTH_ONLY_ROOT_KEYS = ['forced_login_method'] as const
 const OAUTH_ROOT_KEYS = [...BASE_ROOT_KEYS, ...OAUTH_ONLY_ROOT_KEYS] as const
 
@@ -96,6 +96,7 @@ export const renderCodexOAuthProfile = renderCodexOAuthConfig
 function renderBaseRoot(intent: CodexConfigIntent): string {
   const provider = intent.authCommand === undefined ? LEGACY_PROVIDER_ID : CodexProviderId.GatewaySso
   return [
+    CODEX_FILE_AUTH_TOML,
     `model = ${tomlString(intent.defaultModel)}`,
     `model_provider = ${tomlString(provider)}`,
     `model_catalog_json = ${tomlString(intent.catalogPath)}`,
@@ -105,6 +106,7 @@ function renderBaseRoot(intent: CodexConfigIntent): string {
 
 function renderOAuthRoot(intent: CodexOAuthConfigIntent): string {
   const lines = [
+    CODEX_FILE_AUTH_TOML,
     `forced_login_method = ${tomlString(LOGIN_METHOD.Chatgpt)}`,
     `model_provider = ${tomlString(intent.hybrid === undefined ? CodexProviderId.CodexOAuth : CodexProviderId.Hybrid)}`,
     `model_catalog_json = ${tomlString(intent.catalogPath)}`,
@@ -222,7 +224,6 @@ function readMcpServerIds(source: string): ReadonlySet<string> {
 }
 
 function validateAuthCommand(value: string): string {
-  if (value === CODEX_NATIVE_TOKEN_COMMAND) return value
   const windowsAbsolute = /^[A-Za-z]:[\\/]/.test(value) || value.startsWith('\\\\')
   if (value === '' || value.includes('\n') || value.includes('\r') || (!isAbsolute(value) && !windowsAbsolute)) {
     throw new Error('Codex gateway authCommand must be a stable absolute path.')

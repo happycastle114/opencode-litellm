@@ -6,7 +6,7 @@ import { boundaryFor, type CapturedAgentCall } from './agent-launch-test-support
 describe('direct LiteLLM agent launcher', () => {
   test('preserves the main Codex config in Both mode without injecting a profile', () => {
     // Given: a Codex Both-mode launch with no explicit profile
-    const calls: CapturedAgentCall[] = []
+const calls: CapturedAgentCall[] = []
 
     // When: Codex is launched in Both mode
     launchAgent({
@@ -16,6 +16,7 @@ describe('direct LiteLLM agent launcher', () => {
       apiKey: 'child-gateway-key',
       codexMode: CodexMode.Both,
       environment: {
+        LITELLM_CLI_DISABLE_KEYRING: '0',
         CODEX_API_KEY: 'ambient-codex-key',
         OPENAI_API_KEY: 'ambient-openai-key',
         OPENAI_BASE_URL: 'https://api.openai.com/v1',
@@ -27,7 +28,8 @@ describe('direct LiteLLM agent launcher', () => {
     }, boundaryFor(calls))
 
     // Then: the main gateway config is used and only the selected key is added
-    expect(calls[0]?.args).toEqual(['resume', '--last'])
+    expect(calls[0]?.args).toEqual(['-c', 'cli_auth_credentials_store="file"', '-c', 'mcp_oauth_credentials_store="file"', 'resume', '--last'])
+    expect(calls[0]?.options.env.LITELLM_CLI_DISABLE_KEYRING).toBe('1')
     expect(calls[0]?.options.env.LITELLM_PROXY_API_KEY).toBe('child-gateway-key')
     expect(calls[0]?.options.env.LITELLM_API_KEY).toBeUndefined()
     expect(calls[0]?.options.env.LITELLM_MASTER_KEY).toBeUndefined()
@@ -54,7 +56,7 @@ describe('direct LiteLLM agent launcher', () => {
       environment: { CUSTOM_CODEX_KEY: 'ambient-key' },
     }, boundaryFor(calls))
 
-    expect(calls[0]?.args).toEqual(['resume'])
+    expect(calls[0]?.args.slice(4)).toEqual(['resume'])
     expect(calls[0]?.options.env.CUSTOM_CODEX_KEY).toBe('child-gateway-key')
   })
 
@@ -73,7 +75,7 @@ describe('direct LiteLLM agent launcher', () => {
     }, boundaryFor(calls, { status: null, signal: 'SIGINT' }))
 
     // Then: user args and the child termination result are preserved
-    expect(calls[0]?.args).toEqual(['-pfoo', 'resume'])
+    expect(calls[0]?.args.slice(4)).toEqual(['-pfoo', 'resume'])
     expect(result).toEqual({ status: null, signal: 'SIGINT' })
   })
 })

@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import {
   assertBundledCodexOAuthCatalog,
+  createCodexSpawnBoundary,
   CodexDiscoveryError,
   discoverCodexGatewayResources,
   readBundledCodexCatalog,
@@ -247,6 +248,23 @@ describe('Codex gateway discovery', () => {
 })
 
 describe('Bundled Codex catalog discovery', () => {
+  test('real process boundary forwards the isolated environment to its child', () => {
+    const result = createCodexSpawnBoundary().spawn(process.execPath, ['-e', 'process.stdout.write(process.env.CATALOG_TEST_MARKER ?? "missing")'], {
+      encoding: 'utf8', env: { ...process.env, CATALOG_TEST_MARKER: 'isolated' },
+    })
+    expect(result.status).toBe(0)
+    expect(result.stdout).toBe('isolated')
+  })
+
+  test('disables both Codex credential stores and LiteLLM keyring access during discovery', () => {
+    readBundledCodexCatalog({ spawn: (_file, args, options) => {
+      expect(args).toEqual(['-c', 'cli_auth_credentials_store="file"', '-c', 'mcp_oauth_credentials_store="file"', 'debug', 'models', '--bundled'])
+      expect(options?.env).toMatchObject({ LITELLM_CLI_DISABLE_KEYRING: '1' })
+      expect(options?.env).toMatchObject({ HOME: expect.stringContaining('codex-litellm-catalog-'), CODEX_HOME: expect.stringContaining('codex-litellm-catalog-') })
+      return { status: 0, stdout: BUNDLED_CATALOG_FIXTURE }
+    } })
+  })
+
   test('selects the lowest-priority visible model as the inherited prompt template', () => {
     // Given: the Codex CLI emits the 0.144.1-shaped fixture and a warning on stderr
     const boundary: CodexSpawnBoundary = {

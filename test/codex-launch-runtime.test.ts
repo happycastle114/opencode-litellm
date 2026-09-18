@@ -71,7 +71,7 @@ fs.appendFileSync(path.join(process.env.HOME, 'native.jsonl'), JSON.stringify({ 
     expect(lines[0].models).toEqual(['old-permission'])
     expect(lines[1].models.sort()).toEqual([...ids].sort())
     expect(lines[1].selected).toBe('student-auto')
-    expect(lines[1].args).toEqual(['exec', 'fixture'])
+    expect(lines[1].args).toEqual(['-c', 'cli_auth_credentials_store="file"', '-c', 'mcp_oauth_credentials_store="file"', 'exec', 'fixture'])
     status = 503
     const snapshots = readFileSync(join(home, 'native.jsonl'), 'utf8')
     expect((await launch()).exitCode).toBe(1)

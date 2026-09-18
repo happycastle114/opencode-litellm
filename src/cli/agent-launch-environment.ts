@@ -6,6 +6,7 @@ import {
 } from './agent-launch-contracts'
 import { isValidEnvironmentName } from './install-intent'
 import { isHeaderSafeApiKey } from '../utils/api-key'
+import { FILE_AUTH_ENVIRONMENT } from './credential-storage'
 
 const EnvironmentName = {
   AnthropicApiKey: 'ANTHROPIC_API_KEY',
@@ -65,6 +66,7 @@ export function buildChildEnvironment(
 ): Readonly<Record<string, string | undefined>> {
   const environment: Record<string, string | undefined> = {
     ...(input.environment ?? process.env),
+    ...FILE_AUTH_ENVIRONMENT,
   }
   const authEnvironment = resolveAuthEnvironment(input.authEnv)
   deleteEnvironmentNames(environment, COMMON_LITELLM_SECRET_NAMES)

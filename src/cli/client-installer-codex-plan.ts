@@ -1,4 +1,4 @@
-import { CODEX_NATIVE_TOKEN_COMMAND } from './codex-config-blocks'
+import { renderNativeLiteAuthHelper } from './native-lite-helper'
 import { loadEnvKey, resolveManualLiteLLMApiKeyPath } from './official-token'
 import {
   CODEX_AUTH_HELPER_MODE,
@@ -62,14 +62,16 @@ export function prepareCodexInstall(
   const apiKeyFilePath = resolveManualLiteLLMApiKeyPath({ ...boundary.env, HOME: homeDirectory })
   const usesManualKey = prepared.options.auth === InstallAuth.Environment &&
     (prepared.deferredApiKey !== undefined || loadEnvKey(apiKeyFilePath, prepared.options.baseUrl) === prepared.apiKey)
-  const helperAsset = usesManualKey && prepared.options.codexMode !== CodexMode.OAuth
+  const usesNativeKey = prepared.options.auth === InstallAuth.Sso
+  const helperAsset = (usesNativeKey || usesManualKey) && prepared.options.codexMode !== CodexMode.OAuth
     ? createCodexManagedWriteAsset(
         helperPath,
-        renderCodexAuthHelperSource(prepared.options.baseUrl, apiKeyFilePath),
+        usesNativeKey ? renderNativeLiteAuthHelper(prepared.options.baseUrl, homeDirectory)
+          : renderCodexAuthHelperSource(prepared.options.baseUrl, apiKeyFilePath),
         CODEX_AUTH_HELPER_MODE,
       )
     : createCodexRetireAsset(helperPath)
-  const auth = gatewayAuth(prepared.options.auth, prepared.options.baseUrl, helperPath, usesManualKey)
+  const auth = gatewayAuth(prepared.options.auth, helperPath, usesManualKey)
   const common = {
     path: paths.config,
   } as const
@@ -219,13 +221,12 @@ function loadBundledCatalog(
 
 function gatewayAuth(
   auth: PreparedInstall['options']['auth'],
-  origin: string,
   helperPath: string,
   usesManualKey: boolean,
 ): { readonly authCommand?: string; readonly authArgs?: readonly string[] } {
   switch (auth) {
     case InstallAuth.Sso:
-      return { authCommand: CODEX_NATIVE_TOKEN_COMMAND, authArgs: ['--base-url', origin, 'auth', 'print-token'] }
+      return { authCommand: helperPath }
     case InstallAuth.Environment:
       return usesManualKey ? { authCommand: helperPath } : {}
     default:

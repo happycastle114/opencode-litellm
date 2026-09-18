@@ -40,16 +40,20 @@ npx @happycastle/codex-litellm codex
 
 SSO uses the official `lite login --pkce`, `lite auth print-token`, and
 `lite logout` commands with the configured gateway URL. The official CLI owns
-renewal and OS keyring storage; `~/.litellm/token.json` holds metadata, with
-owner-only file storage when no usable keyring exists. Python is required by
+renewal and owner-only storage in `~/.litellm/token.json`. The toolkit forces
+`LITELLM_CLI_DISABLE_KEYRING=1` and selects file storage for Codex login and MCP
+OAuth credentials. Python is required by
 the CLI and can be managed by [uv](https://docs.astral.sh/uv/guides/tools/).
 
 Manual keys use `--auth env` and the separate owner-only file
 `~/.config/opencode-litellm/api-key.json` (`XDG_CONFIG_HOME` is honored).
 Keys saved by older toolkit versions require interactive re-entry; the toolkit
 does not infer or import manual keys from the official SSO store.
-Codex SSO invokes `lite --base-url <origin> auth print-token` directly through
-native command auth. Only saved manual keys need the toolkit's file reader.
+Codex SSO uses a private helper that invokes `lite --base-url <origin> auth print-token`
+with keyring access disabled, including direct desktop launches. Saved manual
+keys use an exact-file reader. Reinstall older configurations to replace direct
+`lite` auth commands; keychain-only logins require a new toolkit `login`.
+Existing OS keychain entries are never read, migrated, or deleted.
 
 For OAuth pass-through in `both` mode, run
 `npx @happycastle/codex-litellm codex --profile codex-oauth`. The launcher supplies
